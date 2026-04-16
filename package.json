@@ -1,0 +1,56 @@
+{
+  "name": "mistral-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing Mistral AI models (chat, embeddings) to any MCP client — Claude Code, Cursor, Zed, Windsurf, Claude Desktop.",
+  "type": "module",
+  "bin": {
+    "mistral-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mistral",
+    "mistral-ai",
+    "llm",
+    "ai",
+    "claude",
+    "cursor",
+    "zed"
+  ],
+  "author": "Dayan Decamp",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Swih/mistral-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Swih/mistral-mcp/issues"
+  },
+  "homepage": "https://github.com/Swih/mistral-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@mistralai/mistralai": "^1.3.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
