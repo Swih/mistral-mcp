@@ -119,6 +119,26 @@ Any MCP-speaking client works the same way — point it at `node /absolute/path/
 - [Claude Desktop config format](https://modelcontextprotocol.io/docs/develop/connect-local-servers)
 - [Cursor MCP docs](https://cursor.com/docs/context/mcp)
 
+## Examples
+
+Two runnable scripts in [`examples/`](./examples/) that talk to the server over
+the same stdio pipe a client like Claude Code uses:
+
+- **`examples/try-it.mjs`** — smoke test: handshake, list tools, run
+  `mistral_chat` with "cc le chat". Defaults to the npm-published package
+  (`npx -y mistral-mcp`); pass `--local` to point at `./dist`.
+- **`examples/rate-it.mjs`** — feeds this README to Mistral Large through the
+  MCP and asks for a critical review.
+
+```bash
+cd mistral-mcp
+# export MISTRAL_API_KEY (or put it in .env)
+node examples/try-it.mjs
+node examples/rate-it.mjs
+```
+
+See [`examples/README.md`](./examples/README.md) for expected output.
+
 ## Develop
 
 ```bash
@@ -174,6 +194,10 @@ mistral-mcp/
 │   ├── resources-prompts.unit.test.ts     # v0.3 primitives (7 tests)
 │   ├── mistral.live.test.ts               # real Mistral API (4 tests)
 │   └── mcp.stdio.test.ts                  # e2e over stdio (2 tests)
+├── examples/
+│   ├── try-it.mjs       # smoke test over MCP stdio
+│   ├── rate-it.mjs      # Mistral Large reviews this README via MCP
+│   └── README.md
 ├── dist/                # build output (gitignored)
 ├── .github/workflows/ci.yml
 ├── .env.example
