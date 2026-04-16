@@ -45,16 +45,27 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     await client?.close();
   });
 
-  it("handshakes and lists the expected tools", async () => {
+  it("handshakes and lists the expected tools, resources, prompts", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(["mistral_chat", "mistral_chat_stream", "mistral_embed"]);
-
-    // spec check — outputSchema present on every tool
+    expect(names).toEqual([
+      "codestral_fim",
+      "mistral_chat",
+      "mistral_chat_stream",
+      "mistral_embed",
+      "mistral_tool_call",
+    ]);
     for (const t of tools) {
       expect(t.outputSchema).toBeTruthy();
       expect(t.annotations?.readOnlyHint).toBe(true);
     }
+
+    const { resources } = await client.listResources();
+    expect(resources.some((r) => r.uri === "mistral://models")).toBe(true);
+
+    const { prompts } = await client.listPrompts();
+    const promptNames = prompts.map((p) => p.name).sort();
+    expect(promptNames).toEqual(["codestral_review", "french_invoice_reminder"]);
   });
 
   it("performs a real mistral_chat call through the built server", async () => {

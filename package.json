@@ -1,6 +1,6 @@
 {
   "name": "mistral-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MCP server exposing Mistral AI models (chat, embeddings) to any MCP client — Claude Code, Cursor, Zed, Windsurf, Claude Desktop.",
   "type": "module",
   "bin": {
@@ -57,5 +57,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
   }
 }

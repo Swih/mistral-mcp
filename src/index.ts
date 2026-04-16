@@ -11,6 +11,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Mistral } from "@mistralai/mistralai";
 import { registerMistralTools } from "./tools.js";
+import { registerFunctionTools } from "./tools-fn.js";
+import { registerMistralResources } from "./resources.js";
+import { registerMistralPrompts } from "./prompts.js";
 
 const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
@@ -37,11 +40,14 @@ const mistral = new Mistral({
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.2.0",
+  version: "0.3.0",
 });
 
 registerMistralTools(server, mistral);
+registerFunctionTools(server, mistral);
+registerMistralResources(server);
+registerMistralPrompts(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error("[mistral-mcp] v0.2.0 connected on stdio");
+console.error("[mistral-mcp] v0.3.0 connected on stdio");

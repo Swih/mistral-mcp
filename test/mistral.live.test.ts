@@ -56,4 +56,66 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     expect(v!.length).toBe(1024);
     expect(typeof v![0]).toBe("number");
   });
+
+  it("function calling: Mistral Medium emits a tool_call when forced", async () => {
+    const { Mistral } = await import("@mistralai/mistralai");
+    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+
+    const res = await mistral.chat.complete({
+      model: "mistral-medium-latest",
+      messages: [
+        { role: "user", content: "What is the weather in Paris today?" },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_weather",
+            description: "Look up current weather for a city.",
+            parameters: {
+              type: "object",
+              properties: {
+                city: { type: "string", description: "City name" },
+              },
+              required: ["city"],
+            },
+          },
+        },
+      ],
+      toolChoice: "any",
+      parallelToolCalls: false,
+      temperature: 0,
+    });
+
+    const calls = res.choices?.[0]?.message?.toolCalls;
+    expect(Array.isArray(calls)).toBe(true);
+    expect(calls!.length).toBeGreaterThanOrEqual(1);
+    expect(calls![0]?.function?.name).toBe("get_weather");
+    const argsStr =
+      typeof calls![0]?.function?.arguments === "string"
+        ? calls![0].function.arguments
+        : JSON.stringify(calls![0]!.function!.arguments);
+    const parsed = JSON.parse(argsStr);
+    expect(typeof parsed.city).toBe("string");
+    expect(parsed.city.toLowerCase()).toContain("paris");
+  });
+
+  it("mistral.fim.complete returns a Codestral completion", async () => {
+    const { Mistral } = await import("@mistralai/mistralai");
+    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+
+    const res = await mistral.fim.complete({
+      model: "codestral-latest",
+      prompt: "def add(a, b):\n    return ",
+      suffix: "\n\nprint(add(1, 2))",
+      temperature: 0,
+      maxTokens: 16,
+    });
+
+    const content = res.choices?.[0]?.message?.content ?? "";
+    const text = typeof content === "string" ? content : JSON.stringify(content);
+    expect(text.length).toBeGreaterThan(0);
+    // The completion should include "a" and "b" in some form — we're tolerant.
+    expect(text).toMatch(/a|b/);
+  });
 });

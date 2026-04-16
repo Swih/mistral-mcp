@@ -2,12 +2,13 @@
 
 > **MCP server exposing Mistral AI models to any MCP client** — Claude Code, Cursor, Zed, Windsurf, Claude Desktop.
 
-![version](https://img.shields.io/badge/version-v0.2.0-orange)
+![version](https://img.shields.io/badge/version-v0.3.0-orange)
 ![license](https://img.shields.io/badge/license-MIT-black)
 ![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 ![typescript](https://img.shields.io/badge/typescript-strict-blue)
 ![mcp-spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
-![tests](https://img.shields.io/badge/tests-13%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-32%20passing-brightgreen)
+![primitives](https://img.shields.io/badge/primitives-tools%20%2B%20resources%20%2B%20prompts-blueviolet)
 
 ---
 
@@ -17,13 +18,26 @@ Mistral ships excellent open-weights and hosted models, but most MCP-enabled IDE
 
 Route specific tasks (French drafting, Codestral completions, cheap bulk classification, embeddings) to Mistral while keeping the rest of your agent loop on whatever you already use.
 
-## Features (v0.2)
+## Features (v0.3)
+
+### Tools (5)
 
 | Tool | Purpose | Notes |
 |---|---|---|
-| `mistral_chat` | Chat completion | Default: `mistral-medium-latest`. Returns `structuredContent` + text fallback. |
-| `mistral_chat_stream` | Streaming chat | Emits `notifications/progress` per chunk when client provides a `progressToken`. |
+| `mistral_chat` | Chat completion | Default `mistral-medium-latest`. `structuredContent` + text fallback. |
+| `mistral_chat_stream` | Streaming chat | Emits `notifications/progress` per chunk when client provides a `progressToken`. Captures `finish_reason`. |
 | `mistral_embed` | Embeddings | `mistral-embed`. Batch up to 100 strings. |
+| `mistral_tool_call` | **Function calling** | OpenAI-style `tools` + `tool_choice` + `parallel_tool_calls`. Does not execute tools — returns the model's decision for the caller to route. |
+| `codestral_fim` | **Codestral FIM** | Fill-in-the-middle code completion (`mistral.fim.complete`). |
+
+### Resources (1)
+
+- `mistral://models` — canonical JSON catalog of supported model aliases, grouped by capability (chat / embed / fim / tool_capable).
+
+### Prompts (2 curated)
+
+- `french_invoice_reminder(debtor_name, amount_eur, days_overdue, tone)` — tone-controlled B2B reminder in French (polite / firm / final).
+- `codestral_review(diff, focus)` — senior-code-review prompt focused on correctness / performance / security / api_design.
 
 ### Spec compliance — MCP `2025-11-25`
 
@@ -117,35 +131,46 @@ npm run inspector  # spawn the server under MCP Inspector UI
 
 ### Test strategy
 
-13 tests across 3 layers:
+32 tests across 5 files / 3 layers:
 
-1. **Unit** (`test/tools.unit.test.ts`) — `InMemoryTransport` between a real `McpServer` and `Client`, with a mocked Mistral SDK. Covers tool listing, schema validation, `structuredContent`, default model, all 12 model aliases, error propagation, streaming chunk assembly, embedding edge cases (empty input, over-limit batch).
-2. **Live API** (`test/mistral.live.test.ts`) — hits the real Mistral API if `MISTRAL_API_KEY` is set. Verifies `chat.complete` returns content and `embeddings.create` returns 1024-dim vectors.
-3. **Stdio e2e** (`test/mcp.stdio.test.ts`) — spawns `dist/index.js` as a child process, connects via `StdioClientTransport`, performs a real MCP handshake, runs a real `mistral_chat` call. Catches wiring bugs the in-memory tests can't.
+1. **Unit** (`test/tools.unit.test.ts`, `test/fn.unit.test.ts`, `test/resources-prompts.unit.test.ts`) — `InMemoryTransport` between a real `McpServer` and `Client`, with a mocked Mistral SDK. Covers tool listing, schema validation, `structuredContent`, default model, all 12 chat model aliases, error propagation, streaming chunk assembly + `finish_reason` + empty stream + mid-stream throw, embedding edge cases, function calling (tool_choice/parallel_tool_calls propagation, API error surfacing), FIM (model allow-list + stop tokens), resources catalog read, prompts argument validation.
+2. **Live API** (`test/mistral.live.test.ts`) — hits the real Mistral API if `MISTRAL_API_KEY` is set. Verifies `chat.complete`, `embeddings.create` (1024-dim), function calling with `toolChoice: "any"`, and `fim.complete` on Codestral.
+3. **Stdio e2e** (`test/mcp.stdio.test.ts`) — spawns `dist/index.js` as a child process, connects via `StdioClientTransport`, performs a real MCP handshake, lists tools/resources/prompts, runs a real `mistral_chat` call. Catches wiring bugs the in-memory tests can't.
 
-## Roadmap (v0.3+)
+## Roadmap
 
-- [ ] Function / tool calling (`mistral_tool_call`) with `parallelToolCalls` + `toolChoice`
-- [ ] Codestral FIM completion (`mistral_fim`)
+### Shipped in v0.3
+
+- [x] Function calling (`mistral_tool_call`) with `parallel_tool_calls` + `tool_choice`
+- [x] Codestral FIM (`codestral_fim`)
+- [x] Resources primitive (`mistral://models`)
+- [x] Prompts primitive (french_invoice_reminder, codestral_review)
+- [x] `finish_reason` captured in streaming
+
+### v0.4+
+
 - [ ] Vision (multimodal via Mistral Large 3)
 - [ ] `resource_link` output for large embedding payloads
-- [ ] Resources primitive: `mistral://models`
-- [ ] Prompts primitive: curated French/EU-business templates
 - [ ] Streamable HTTP transport (spec 2025-03-26, replaces HTTP+SSE)
-- [ ] Publish to npm (`npx -y mistral-mcp`)
+- [ ] Published to npm (`npx -y mistral-mcp`)
 
 ## Project layout
 
 ```
 mistral-mcp/
 ├── src/
-│   ├── index.ts         # MCP server entry — stdio transport, env bootstrap
-│   ├── models.ts        # canonical chat/embed model allow-list + Zod enums
-│   └── tools.ts         # registerTool for mistral_chat / _stream / _embed
+│   ├── index.ts         # MCP server entry — stdio, env bootstrap, wiring
+│   ├── models.ts        # chat/embed/fim/tool-capable allow-lists + Zod enums
+│   ├── tools.ts         # mistral_chat, mistral_chat_stream, mistral_embed
+│   ├── tools-fn.ts      # mistral_tool_call, codestral_fim
+│   ├── resources.ts     # mistral://models catalog
+│   └── prompts.ts       # french_invoice_reminder, codestral_review
 ├── test/
-│   ├── tools.unit.test.ts       # in-memory MCP + mocked Mistral
-│   ├── mistral.live.test.ts     # real Mistral API (skipped w/o key)
-│   └── mcp.stdio.test.ts        # spawns built server via stdio
+│   ├── tools.unit.test.ts                 # v0.2 tools (11 tests)
+│   ├── fn.unit.test.ts                    # v0.3 fn/fim (8 tests)
+│   ├── resources-prompts.unit.test.ts     # v0.3 primitives (7 tests)
+│   ├── mistral.live.test.ts               # real Mistral API (4 tests)
+│   └── mcp.stdio.test.ts                  # e2e over stdio (2 tests)
 ├── dist/                # build output (gitignored)
 ├── .github/workflows/ci.yml
 ├── .env.example
