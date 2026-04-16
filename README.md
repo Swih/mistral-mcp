@@ -146,13 +146,16 @@ npm run inspector  # spawn the server under MCP Inspector UI
 - [x] Resources primitive (`mistral://models`)
 - [x] Prompts primitive (french_invoice_reminder, codestral_review)
 - [x] `finish_reason` captured in streaming
+- [x] **Published on npm** — `npx -y mistral-mcp` works out of the box ([npm page](https://www.npmjs.com/package/mistral-mcp))
 
 ### v0.4+
 
 - [ ] Vision (multimodal via Mistral Large 3)
 - [ ] `resource_link` output for large embedding payloads
 - [ ] Streamable HTTP transport (spec 2025-03-26, replaces HTTP+SSE)
-- [ ] Published to npm (`npx -y mistral-mcp`)
+- [ ] Docker image (`docker run ghcr.io/swih/mistral-mcp`)
+- [ ] ESLint + Prettier in CI (currently only `tsc --noEmit`)
+- [ ] Example payloads in README for every tool
 
 ## Project layout
 
