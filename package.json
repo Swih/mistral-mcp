@@ -4,9 +4,9 @@
   "description": "MCP server exposing Mistral AI models (chat, embeddings) to any MCP client — Claude Code, Cursor, Zed, Windsurf, Claude Desktop.",
   "type": "module",
   "bin": {
-    "mistral-mcp": "./dist/index.js"
+    "mistral-mcp": "dist/index.js"
   },
-  "main": "./dist/index.js",
+  "main": "dist/index.js",
   "files": [
     "dist",
     "README.md",
