@@ -163,7 +163,7 @@ describe("mistral_chat", () => {
 });
 
 describe("mistral_chat_stream", () => {
-  it("assembles streamed chunks into the final text and reports chunk count", async () => {
+  it("assembles streamed chunks, reports chunk count, captures finish_reason", async () => {
     const { client } = await bootPair();
     const result = await client.callTool({
       name: "mistral_chat_stream",
@@ -175,12 +175,51 @@ describe("mistral_chat_stream", () => {
       text: string;
       chunks: number;
       model: string;
+      finish_reason?: string;
       usage?: { totalTokens: number };
     };
     expect(sc.text).toBe("Bonjour.");
     expect(sc.chunks).toBe(3);
     expect(sc.model).toBe("mistral-medium-latest");
+    expect(sc.finish_reason).toBe("stop");
     expect(sc.usage?.totalTokens).toBe(8);
+  });
+
+  it("handles an empty stream gracefully (no chunks, empty text)", async () => {
+    const mock = makeMockMistral();
+    (mock.chat.stream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      async function* () {
+        /* empty */
+      }
+    );
+    const { client } = await bootPair(mock);
+    const result = await client.callTool({
+      name: "mistral_chat_stream",
+      arguments: { messages: [{ role: "user", content: "x" }] },
+    });
+    expect(result.isError).toBeFalsy();
+    const sc = result.structuredContent as { text: string; chunks: number };
+    expect(sc.text).toBe("");
+    expect(sc.chunks).toBe(0);
+  });
+
+  it("returns isError:true when the stream throws mid-flight", async () => {
+    const mock = makeMockMistral();
+    (mock.chat.stream as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      async function* () {
+        yield { data: { choices: [{ delta: { content: "Bon" } }] } };
+        throw new Error("upstream connection reset");
+      }
+    );
+    const { client } = await bootPair(mock);
+    const result = await client.callTool({
+      name: "mistral_chat_stream",
+      arguments: { messages: [{ role: "user", content: "x" }] },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    expect(text).toContain("upstream connection reset");
+    expect(text).toContain("mistral_chat_stream");
   });
 });
 

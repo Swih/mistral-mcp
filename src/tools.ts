@@ -15,6 +15,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Mistral } from "@mistralai/mistralai";
+import type { CompletionEvent } from "@mistralai/mistralai/models/components/completionevent.js";
 import { z } from "zod";
 import {
   CHAT_MODELS,
@@ -162,6 +163,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         text: z.string(),
         model: z.string(),
         chunks: z.number().int(),
+        finish_reason: z.string().optional(),
         usage: UsageSchema.optional(),
       },
       annotations: {
@@ -187,46 +189,50 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         const parts: string[] = [];
         let chunks = 0;
         let lastUsage: z.infer<typeof UsageSchema> | undefined;
+        let finishReason: string | undefined;
 
-        for await (const event of stream) {
-          const data = (event as { data?: unknown }).data as
-            | {
-                choices?: Array<{
-                  delta?: { content?: string | null };
-                  finishReason?: string | null;
-                }>;
-                usage?: {
-                  promptTokens?: number;
-                  completionTokens?: number;
-                  totalTokens?: number;
-                };
-              }
-            | undefined;
+        for await (const event of stream as AsyncIterable<CompletionEvent>) {
+          const data = event.data;
+          const choice = data.choices?.[0];
+          const delta = choice?.delta?.content;
+          const deltaText =
+            typeof delta === "string" ? delta : delta == null ? "" : String(delta);
 
-          const delta = data?.choices?.[0]?.delta?.content ?? "";
-          if (delta) {
-            parts.push(delta);
+          if (deltaText) {
+            parts.push(deltaText);
             chunks++;
             if (progressToken !== undefined) {
-              // Per MCP spec 2025-11-25 basic/utilities/progress: server-initiated
-              // progress notification. We use chunk count as the `progress` scalar.
+              // Per MCP spec 2025-11-25 basic/utilities/progress.
               await extra.sendNotification({
                 method: "notifications/progress",
                 params: {
                   progressToken,
                   progress: chunks,
-                  message: delta,
+                  message: deltaText,
                 },
               });
             }
           }
-          if (data?.usage) {
-            lastUsage = data.usage;
+          if (choice?.finishReason) {
+            finishReason = choice.finishReason;
+          }
+          if (data.usage) {
+            lastUsage = {
+              promptTokens: data.usage.promptTokens,
+              completionTokens: data.usage.completionTokens,
+              totalTokens: data.usage.totalTokens,
+            };
           }
         }
 
         const text = parts.join("");
-        const structured = { text, model, chunks, usage: lastUsage };
+        const structured = {
+          text,
+          model,
+          chunks,
+          finish_reason: finishReason,
+          usage: lastUsage,
+        };
 
         return {
           content: [toTextBlock(text)],
