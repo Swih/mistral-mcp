@@ -50,9 +50,12 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
       "codestral_fim",
+      "mistral_agent",
       "mistral_chat",
       "mistral_chat_stream",
+      "mistral_classify",
       "mistral_embed",
+      "mistral_moderate",
       "mistral_ocr",
       "mistral_tool_call",
       "mistral_vision",

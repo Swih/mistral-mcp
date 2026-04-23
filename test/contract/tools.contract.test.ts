@@ -35,6 +35,12 @@ import {
   TranscribeOutputSchema,
   SpeakOutputSchema,
 } from "../../src/tools-audio.js";
+import {
+  registerAgentTools,
+  AgentOutputSchema,
+  ModerateOutputSchema,
+  ClassifyOutputSchema,
+} from "../../src/tools-agents.js";
 
 function makeMock(): Mistral {
   return {
@@ -115,6 +121,36 @@ function makeMock(): Mistral {
         complete: vi.fn(async () => ({ audioData: "Zm9v" })),
       },
     },
+    agents: {
+      complete: vi.fn(async () => ({
+        id: "cmpl_agent",
+        model: "agent-backend",
+        choices: [
+          {
+            message: { content: "Agent reply." },
+            finishReason: "stop",
+          },
+        ],
+        usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
+      })),
+    },
+    classifiers: {
+      moderate: vi.fn(async () => ({
+        id: "mod_ct",
+        model: "mistral-moderation-latest",
+        results: [
+          {
+            categories: { sexual: false },
+            categoryScores: { sexual: 0.001 },
+          },
+        ],
+      })),
+      classify: vi.fn(async () => ({
+        id: "cls_ct",
+        model: "ft:classifier:abc",
+        results: [{ label: { scores: { a: 0.7, b: 0.3 } } }],
+      })),
+    },
   } as unknown as Mistral;
 }
 
@@ -124,6 +160,7 @@ async function boot(mock: Mistral = makeMock()) {
   registerFunctionTools(server, mock);
   registerVisionTools(server, mock);
   registerAudioTools(server, mock);
+  registerAgentTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -311,13 +348,64 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("mistral_agent", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "mistral_agent",
+      arguments: {
+        agentId: "ag:ct",
+        messages: [{ role: "user", content: "hi" }],
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = AgentOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (mistral_agent): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("mistral_moderate", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "mistral_moderate",
+      arguments: { inputs: "hello" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ModerateOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (mistral_moderate): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("mistral_classify", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "mistral_classify",
+      arguments: { model: "ft:classifier:abc", inputs: "hello" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ClassifyOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (mistral_classify): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(9);
+    expect(tools.length).toBe(12);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

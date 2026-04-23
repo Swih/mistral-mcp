@@ -55,6 +55,14 @@ export const STT_MODELS = [
 ] as const;
 
 /**
+ * Moderation classifier models.
+ * Source: https://docs.mistral.ai/capabilities/guardrailing/
+ */
+export const MODERATION_MODELS = [
+  "mistral-moderation-latest",
+] as const;
+
+/**
  * Fill-in-the-middle code completion models.
  * Only Codestral supports FIM at Mistral.
  * (Source: https://docs.mistral.ai/capabilities/code_generation/ — "Codestral" section)
@@ -87,6 +95,7 @@ export const ToolModelSchema = z.enum(TOOL_CAPABLE_MODELS);
 export const VisionModelSchema = z.enum(VISION_MODELS);
 export const OcrModelSchema = z.enum(OCR_MODELS);
 export const SttModelSchema = z.enum(STT_MODELS);
+export const ModerationModelSchema = z.enum(MODERATION_MODELS);
 
 export const DEFAULT_CHAT_MODEL: (typeof CHAT_MODELS)[number] =
   "mistral-medium-latest";
@@ -100,3 +109,5 @@ export const DEFAULT_VISION_MODEL: (typeof VISION_MODELS)[number] =
 export const DEFAULT_OCR_MODEL: (typeof OCR_MODELS)[number] = "mistral-ocr-latest";
 export const DEFAULT_STT_MODEL: (typeof STT_MODELS)[number] =
   "voxtral-mini-latest";
+export const DEFAULT_MODERATION_MODEL: (typeof MODERATION_MODELS)[number] =
+  "mistral-moderation-latest";
