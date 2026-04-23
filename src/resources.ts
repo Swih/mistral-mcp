@@ -1,13 +1,12 @@
 /**
- * Resources primitive — expose the Mistral model catalog under mistral://models.
+ * Resources primitive — expose Mistral catalogs as MCP resources.
  *
- * v0.4: the catalog is now LIVE. On each `resources/read`, we call
- * `GET /v1/models` (via `mistral.models.list()`) and expose:
- *   - `accepted` — our canonical allow-list (what this server will route)
- *   - `live` — the raw list returned by the API for this key (ids + metadata)
+ * - mistral://models  : LIVE call to GET /v1/models on every read, plus the
+ *   canonical allow-list this server will route.
+ * - mistral://voices  : LIVE call to GET /v1/audio/voices on every read.
  *
- * If the API call fails (network, auth, rate-limit), we fall back to the static
- * allow-list and flag `fallback: true` so the caller knows freshness is stale.
+ * Both endpoints degrade gracefully: if the API call fails (network, auth,
+ * rate-limit), we flag `fallback: true` and include a short `fallback_reason`.
  *
  * MCP spec 2025-11-25: Resources provide context/data for the user or model.
  */
@@ -18,7 +17,10 @@ import {
   CHAT_MODELS,
   EMBED_MODELS,
   FIM_MODELS,
+  OCR_MODELS,
+  STT_MODELS,
   TOOL_CAPABLE_MODELS,
+  VISION_MODELS,
 } from "./models.js";
 
 const STATIC_CATALOG = {
@@ -26,6 +28,9 @@ const STATIC_CATALOG = {
   embed: EMBED_MODELS,
   fim: FIM_MODELS,
   tool_capable: TOOL_CAPABLE_MODELS,
+  vision: VISION_MODELS,
+  ocr: OCR_MODELS,
+  stt: STT_MODELS,
 };
 
 export function registerMistralResources(
@@ -72,6 +77,70 @@ export function registerMistralResources(
           "have retirement dates and are rejected up-front by input validation.",
         accepted: STATIC_CATALOG,
         live,
+        fallback,
+        ...(fallback_reason ? { fallback_reason } : {}),
+      };
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(payload, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerResource(
+    "mistral-voices",
+    "mistral://voices",
+    {
+      title: "Mistral voice catalog",
+      description:
+        "Live list of voices available to this API key (presets + custom). " +
+        "Use a returned `id` or `slug` as `voiceId` on `voxtral_speak`. " +
+        "Falls back to an empty list if the API call fails.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const now = new Date().toISOString();
+      let items: unknown[] = [];
+      let total = 0;
+      let fallback = false;
+      let fallback_reason: string | undefined;
+
+      try {
+        const res = await mistral.audio.voices.list();
+        items = (res.items ?? []).map((v) => ({
+          id: v.id,
+          name: v.name,
+          slug: v.slug ?? undefined,
+          languages: v.languages ?? undefined,
+          gender: v.gender ?? undefined,
+          age: v.age ?? undefined,
+          tags: v.tags ?? undefined,
+          color: v.color ?? undefined,
+          retention_notice: v.retentionNotice,
+          created_at:
+            v.createdAt instanceof Date
+              ? v.createdAt.toISOString()
+              : String(v.createdAt ?? ""),
+          user_id: v.userId ?? null,
+        }));
+        total = typeof res.total === "number" ? res.total : items.length;
+      } catch (err) {
+        fallback = true;
+        fallback_reason = err instanceof Error ? err.message : String(err);
+      }
+
+      const payload = {
+        source_api: "GET /v1/audio/voices (live)",
+        fetched_at: now,
+        count: items.length,
+        total,
+        items,
         fallback,
         ...(fallback_reason ? { fallback_reason } : {}),
       };

@@ -13,6 +13,7 @@ import { Mistral } from "@mistralai/mistralai";
 import { registerMistralTools } from "./tools.js";
 import { registerFunctionTools } from "./tools-fn.js";
 import { registerVisionTools } from "./tools-vision.js";
+import { registerAudioTools } from "./tools-audio.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 
@@ -47,6 +48,7 @@ const server = new McpServer({
 registerMistralTools(server, mistral);
 registerFunctionTools(server, mistral);
 registerVisionTools(server, mistral);
+registerAudioTools(server, mistral);
 registerMistralResources(server, mistral);
 registerMistralPrompts(server);
 

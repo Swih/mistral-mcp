@@ -30,6 +30,11 @@ import {
   VisionOutputSchema,
   OcrOutputSchema,
 } from "../../src/tools-vision.js";
+import {
+  registerAudioTools,
+  TranscribeOutputSchema,
+  SpeakOutputSchema,
+} from "../../src/tools-audio.js";
 
 function makeMock(): Mistral {
   return {
@@ -97,6 +102,19 @@ function makeMock(): Mistral {
         usageInfo: { pagesProcessed: 1 },
       })),
     },
+    audio: {
+      transcriptions: {
+        complete: vi.fn(async () => ({
+          model: "voxtral-mini-latest",
+          text: "Bonjour.",
+          language: "fr",
+          usage: { promptTokens: 0, completionTokens: 4, totalTokens: 4 },
+        })),
+      },
+      speech: {
+        complete: vi.fn(async () => ({ audioData: "Zm9v" })),
+      },
+    },
   } as unknown as Mistral;
 }
 
@@ -105,6 +123,7 @@ async function boot(mock: Mistral = makeMock()) {
   registerMistralTools(server, mock);
   registerFunctionTools(server, mock);
   registerVisionTools(server, mock);
+  registerAudioTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -258,13 +277,47 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("voxtral_transcribe", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "voxtral_transcribe",
+      arguments: {
+        audio: { type: "file_url", fileUrl: "https://example.com/a.mp3" },
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = TranscribeOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (voxtral_transcribe): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("voxtral_speak", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "voxtral_speak",
+      arguments: { input: "Salut" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = SpeakOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (voxtral_speak): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(7);
+    expect(tools.length).toBe(9);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

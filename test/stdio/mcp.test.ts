@@ -56,6 +56,8 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       "mistral_ocr",
       "mistral_tool_call",
       "mistral_vision",
+      "voxtral_speak",
+      "voxtral_transcribe",
     ]);
     for (const t of tools) {
       expect(t.outputSchema).toBeTruthy();
@@ -64,6 +66,7 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
 
     const { resources } = await client.listResources();
     expect(resources.some((r) => r.uri === "mistral://models")).toBe(true);
+    expect(resources.some((r) => r.uri === "mistral://voices")).toBe(true);
 
     const { prompts } = await client.listPrompts();
     const promptNames = prompts.map((p) => p.name).sort();
