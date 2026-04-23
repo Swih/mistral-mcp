@@ -28,6 +28,41 @@ export const CHAT_MODELS = [
 export const EMBED_MODELS = ["mistral-embed"] as const;
 
 /**
+ * Vision-capable models — accept multimodal content (text + image_url parts).
+ * Source: https://docs.mistral.ai/capabilities/vision/ (Available Models block).
+ */
+export const VISION_MODELS = [
+  "pixtral-large-latest",
+  "pixtral-12b-latest",
+  "mistral-large-latest",
+  "mistral-medium-latest",
+  "mistral-small-latest",
+] as const;
+
+/**
+ * OCR models — accept documents (PDF / image) and return structured markdown.
+ * Source: https://docs.mistral.ai/capabilities/document/
+ */
+export const OCR_MODELS = ["mistral-ocr-latest"] as const;
+
+/**
+ * Speech-to-text (Voxtral) models.
+ * Source: https://docs.mistral.ai/capabilities/audio/ — transcription section.
+ */
+export const STT_MODELS = [
+  "voxtral-mini-latest",
+  "voxtral-small-latest",
+] as const;
+
+/**
+ * Moderation classifier models.
+ * Source: https://docs.mistral.ai/capabilities/guardrailing/
+ */
+export const MODERATION_MODELS = [
+  "mistral-moderation-latest",
+] as const;
+
+/**
  * Fill-in-the-middle code completion models.
  * Only Codestral supports FIM at Mistral.
  * (Source: https://docs.mistral.ai/capabilities/code_generation/ — "Codestral" section)
@@ -57,6 +92,10 @@ export const ChatModelSchema = z.enum(CHAT_MODELS);
 export const EmbedModelSchema = z.enum(EMBED_MODELS);
 export const FimModelSchema = z.enum(FIM_MODELS);
 export const ToolModelSchema = z.enum(TOOL_CAPABLE_MODELS);
+export const VisionModelSchema = z.enum(VISION_MODELS);
+export const OcrModelSchema = z.enum(OCR_MODELS);
+export const SttModelSchema = z.enum(STT_MODELS);
+export const ModerationModelSchema = z.enum(MODERATION_MODELS);
 
 export const DEFAULT_CHAT_MODEL: (typeof CHAT_MODELS)[number] =
   "mistral-medium-latest";
@@ -65,3 +104,10 @@ export const DEFAULT_EMBED_MODEL: (typeof EMBED_MODELS)[number] =
 export const DEFAULT_FIM_MODEL: (typeof FIM_MODELS)[number] = "codestral-latest";
 export const DEFAULT_TOOL_MODEL: (typeof TOOL_CAPABLE_MODELS)[number] =
   "mistral-medium-latest";
+export const DEFAULT_VISION_MODEL: (typeof VISION_MODELS)[number] =
+  "pixtral-large-latest";
+export const DEFAULT_OCR_MODEL: (typeof OCR_MODELS)[number] = "mistral-ocr-latest";
+export const DEFAULT_STT_MODEL: (typeof STT_MODELS)[number] =
+  "voxtral-mini-latest";
+export const DEFAULT_MODERATION_MODEL: (typeof MODERATION_MODELS)[number] =
+  "mistral-moderation-latest";

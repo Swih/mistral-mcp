@@ -11,6 +11,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Mistral } from "@mistralai/mistralai";
+import type { ChatCompletionRequest } from "@mistralai/mistralai/models/components/chatcompletionrequest.js";
 import { z } from "zod";
 import {
   DEFAULT_FIM_MODEL,
@@ -18,26 +19,21 @@ import {
   FimModelSchema,
   ToolModelSchema,
 } from "./models.js";
-
-const MessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant", "tool"]),
-  content: z.string(),
-  tool_call_id: z.string().optional(),
-  name: z.string().optional(),
-});
-
-const UsageSchema = z.object({
-  promptTokens: z.number().optional(),
-  completionTokens: z.number().optional(),
-  totalTokens: z.number().optional(),
-});
+import {
+  ChatSamplingParams,
+  ToolMessageSchema,
+  UsageSchema,
+  errorResult,
+  mapUsage,
+  toTextBlock,
+} from "./shared.js";
 
 const FunctionToolSchema = z.object({
   type: z.literal("function"),
   function: z.object({
     name: z.string().min(1).max(64),
     description: z.string().optional(),
-    parameters: z.record(z.string(), z.any()),
+    parameters: z.record(z.string(), z.unknown()),
   }),
 });
 
@@ -49,20 +45,30 @@ const ToolChoiceSchema = z.union([
   }),
 ]);
 
-function toTextBlock(payload: unknown) {
-  return {
-    type: "text" as const,
-    text: typeof payload === "string" ? payload : JSON.stringify(payload),
-  };
-}
+// ---------- output schemas (exported for contract tests) ----------
 
-function errorResult(tool: string, err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  return {
-    content: [toTextBlock(`[mistral-mcp:${tool}] ${message}`)],
-    isError: true as const,
-  };
-}
+export const ToolCallOutputShape = {
+  tool_calls: z.array(
+    z.object({
+      id: z.string().optional(),
+      name: z.string(),
+      arguments: z.string(),
+    })
+  ),
+  text: z.string().optional(),
+  model: z.string(),
+  finish_reason: z.string().optional(),
+  usage: UsageSchema.optional(),
+};
+export const ToolCallOutputSchema = z.object(ToolCallOutputShape);
+
+export const FimOutputShape = {
+  text: z.string(),
+  model: z.string(),
+  finish_reason: z.string().optional(),
+  usage: UsageSchema.optional(),
+};
+export const FimOutputSchema = z.object(FimOutputShape);
 
 export function registerFunctionTools(server: McpServer, mistral: Mistral) {
   // ========== mistral_tool_call ==========
@@ -82,28 +88,14 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
         "Supported models (via Mistral docs): mistral-*/magistral-*/ministral-*/devstral-*/codestral-*.",
       ].join("\n"),
       inputSchema: {
-        messages: z.array(MessageSchema).min(1),
+        messages: z.array(ToolMessageSchema).min(1),
         tools: z.array(FunctionToolSchema).min(1).max(128),
         model: ToolModelSchema.optional(),
         tool_choice: ToolChoiceSchema.optional(),
         parallel_tool_calls: z.boolean().optional(),
-        temperature: z.number().min(0).max(2).optional(),
-        max_tokens: z.number().int().positive().optional(),
-        top_p: z.number().min(0).max(1).optional(),
+        ...ChatSamplingParams,
       },
-      outputSchema: {
-        tool_calls: z.array(
-          z.object({
-            id: z.string().optional(),
-            name: z.string(),
-            arguments: z.string(),
-          })
-        ),
-        text: z.string().optional(),
-        model: z.string(),
-        finish_reason: z.string().optional(),
-        usage: UsageSchema.optional(),
-      },
+      outputSchema: ToolCallOutputShape,
       annotations: {
         title: "Mistral function calling",
         readOnlyHint: true,
@@ -115,16 +107,17 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
     async (input) => {
       try {
         const model = input.model ?? DEFAULT_TOOL_MODEL;
-        const res = await mistral.chat.complete({
+        const request: ChatCompletionRequest = {
           model,
           messages: input.messages,
           tools: input.tools,
-          toolChoice: input.tool_choice as never,
+          toolChoice: input.tool_choice,
           parallelToolCalls: input.parallel_tool_calls,
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
-        });
+        };
+        const res = await mistral.chat.complete(request);
 
         const choice = res.choices?.[0];
         const rawCalls = choice?.message?.toolCalls ?? [];
@@ -153,13 +146,7 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
           text,
           model,
           finish_reason: choice?.finishReason ?? undefined,
-          usage: res.usage
-            ? {
-                promptTokens: res.usage.promptTokens,
-                completionTokens: res.usage.completionTokens,
-                totalTokens: res.usage.totalTokens,
-              }
-            : undefined,
+          usage: mapUsage(res.usage),
         };
 
         return {
@@ -190,17 +177,10 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
         prompt: z.string().min(1).describe("Code preceding the cursor."),
         suffix: z.string().describe("Code after the cursor. Can be empty string."),
         model: FimModelSchema.optional(),
-        temperature: z.number().min(0).max(2).optional(),
-        max_tokens: z.number().int().positive().optional(),
-        top_p: z.number().min(0).max(1).optional(),
         stop: z.array(z.string()).optional(),
+        ...ChatSamplingParams,
       },
-      outputSchema: {
-        text: z.string(),
-        model: z.string(),
-        finish_reason: z.string().optional(),
-        usage: UsageSchema.optional(),
-      },
+      outputSchema: FimOutputShape,
       annotations: {
         title: "Codestral FIM",
         readOnlyHint: true,
@@ -231,13 +211,7 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
           text,
           model,
           finish_reason: choice?.finishReason ?? undefined,
-          usage: res.usage
-            ? {
-                promptTokens: res.usage.promptTokens,
-                completionTokens: res.usage.completionTokens,
-                totalTokens: res.usage.totalTokens,
-              }
-            : undefined,
+          usage: mapUsage(res.usage),
         };
 
         return {

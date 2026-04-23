@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { registerFunctionTools } from "../src/tools-fn.js";
+import { registerFunctionTools } from "../../src/tools-fn.js";
 
 function makeMock() {
   return {

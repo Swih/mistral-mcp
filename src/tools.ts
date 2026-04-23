@@ -24,36 +24,41 @@ import {
   DEFAULT_EMBED_MODEL,
   EmbedModelSchema,
 } from "./models.js";
+import {
+  ChatSamplingParams,
+  TextMessageSchema,
+  UsageSchema,
+  errorResult,
+  mapUsage,
+  toTextBlock,
+} from "./shared.js";
 
-// ---------- shared types ----------
+// ---------- output schemas (exported for contract tests) ----------
 
-const MessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"]),
-  content: z.string(),
-});
+export const ChatOutputShape = {
+  text: z.string(),
+  model: z.string(),
+  usage: UsageSchema.optional(),
+  finish_reason: z.string().optional(),
+};
+export const ChatOutputSchema = z.object(ChatOutputShape);
 
-const UsageSchema = z.object({
-  promptTokens: z.number().optional(),
-  completionTokens: z.number().optional(),
-  totalTokens: z.number().optional(),
-});
+export const ChatStreamOutputShape = {
+  text: z.string(),
+  model: z.string(),
+  chunks: z.number().int(),
+  finish_reason: z.string().optional(),
+  usage: UsageSchema.optional(),
+};
+export const ChatStreamOutputSchema = z.object(ChatStreamOutputShape);
 
-// ---------- helpers ----------
-
-function toTextBlock(payload: unknown) {
-  return {
-    type: "text" as const,
-    text: typeof payload === "string" ? payload : JSON.stringify(payload),
-  };
-}
-
-function errorResult(tool: string, err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  return {
-    content: [toTextBlock(`[mistral-mcp:${tool}] ${message}`)],
-    isError: true as const,
-  };
-}
+export const EmbedOutputShape = {
+  vectors: z.array(z.array(z.number())),
+  dimensions: z.number().int(),
+  model: z.string(),
+  usage: UsageSchema.optional(),
+};
+export const EmbedOutputSchema = z.object(EmbedOutputShape);
 
 // ---------- registration ----------
 
@@ -76,22 +81,15 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
       ].join("\n"),
       inputSchema: {
         messages: z
-          .array(MessageSchema)
+          .array(TextMessageSchema)
           .min(1)
           .describe("Chat messages in role/content form."),
         model: ChatModelSchema.optional().describe(
           `Mistral chat model alias. Allowed: ${CHAT_MODELS.join(", ")}. Default: ${DEFAULT_CHAT_MODEL}.`
         ),
-        temperature: z.number().min(0).max(2).optional(),
-        max_tokens: z.number().int().positive().optional(),
-        top_p: z.number().min(0).max(1).optional(),
+        ...ChatSamplingParams,
       },
-      outputSchema: {
-        text: z.string(),
-        model: z.string(),
-        usage: UsageSchema.optional(),
-        finish_reason: z.string().optional(),
-      },
+      outputSchema: ChatOutputShape,
       annotations: {
         title: "Mistral chat completion",
         readOnlyHint: true,
@@ -118,13 +116,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         const structured = {
           text,
           model,
-          usage: res.usage
-            ? {
-                promptTokens: res.usage.promptTokens,
-                completionTokens: res.usage.completionTokens,
-                totalTokens: res.usage.totalTokens,
-              }
-            : undefined,
+          usage: mapUsage(res.usage),
           finish_reason: choice?.finishReason ?? undefined,
         };
 
@@ -153,19 +145,11 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         "wants live output. Otherwise use mistral_chat.",
       ].join("\n"),
       inputSchema: {
-        messages: z.array(MessageSchema).min(1),
+        messages: z.array(TextMessageSchema).min(1),
         model: ChatModelSchema.optional(),
-        temperature: z.number().min(0).max(2).optional(),
-        max_tokens: z.number().int().positive().optional(),
-        top_p: z.number().min(0).max(1).optional(),
+        ...ChatSamplingParams,
       },
-      outputSchema: {
-        text: z.string(),
-        model: z.string(),
-        chunks: z.number().int(),
-        finish_reason: z.string().optional(),
-        usage: UsageSchema.optional(),
-      },
+      outputSchema: ChatStreamOutputShape,
       annotations: {
         title: "Mistral chat (streaming)",
         readOnlyHint: true,
@@ -217,11 +201,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
             finishReason = choice.finishReason;
           }
           if (data.usage) {
-            lastUsage = {
-              promptTokens: data.usage.promptTokens,
-              completionTokens: data.usage.completionTokens,
-              totalTokens: data.usage.totalTokens,
-            };
+            lastUsage = mapUsage(data.usage);
           }
         }
 
@@ -266,12 +246,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
           .describe("Strings to embed. Capped at 100 per call."),
         model: EmbedModelSchema.optional(),
       },
-      outputSchema: {
-        vectors: z.array(z.array(z.number())),
-        dimensions: z.number().int(),
-        model: z.string(),
-        usage: UsageSchema.optional(),
-      },
+      outputSchema: EmbedOutputShape,
       annotations: {
         title: "Mistral embeddings",
         readOnlyHint: true,
@@ -298,13 +273,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
           vectors,
           dimensions,
           model,
-          usage: res.usage
-            ? {
-                promptTokens: res.usage.promptTokens,
-                completionTokens: res.usage.completionTokens,
-                totalTokens: res.usage.totalTokens,
-              }
-            : undefined,
+          usage: mapUsage(res.usage),
         };
 
         // Text fallback: a compact summary — not the raw 1024-float arrays
