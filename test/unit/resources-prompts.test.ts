@@ -28,7 +28,7 @@ function makeMockMistral(overrides: Record<string, unknown> = {}): Mistral {
           items: [
             {
               id: "vx_amelie",
-              name: "Amélie",
+              name: "Amelie",
               slug: "amelie",
               languages: ["fr"],
               gender: "female",
@@ -61,7 +61,7 @@ async function boot(mock: Mistral = makeMockMistral()) {
   return { client, mock };
 }
 
-describe("Resources primitive — mistral://models", () => {
+describe("Resources primitive - mistral://models", () => {
   it("lists the mistral-models resource with correct metadata", async () => {
     const { client } = await boot();
     const { resources } = await client.listResources();
@@ -105,12 +105,11 @@ describe("Resources primitive — mistral://models", () => {
     expect(parsed.fallback).toBe(true);
     expect(parsed.fallback_reason).toContain("rate_limit_exceeded");
     expect(parsed.live).toBeNull();
-    // accepted catalog must still be present
     expect(parsed.accepted.chat).toContain("mistral-medium-latest");
   });
 });
 
-describe("Resources primitive — mistral://voices", () => {
+describe("Resources primitive - mistral://voices", () => {
   it("lists the mistral-voices resource with correct metadata", async () => {
     const { client } = await boot();
     const { resources } = await client.listResources();
@@ -153,7 +152,7 @@ describe("Resources primitive — mistral://voices", () => {
   });
 });
 
-describe("Prompts primitive — curated templates", () => {
+describe("Prompts primitive - curated templates", () => {
   it("lists the two curated prompts", async () => {
     const { client } = await boot();
     const { prompts } = await client.listPrompts();
@@ -161,7 +160,7 @@ describe("Prompts primitive — curated templates", () => {
     expect(names).toEqual(["codestral_review", "french_invoice_reminder"]);
   });
 
-  it("french_invoice_reminder hydrates args into the message", async () => {
+  it("french_invoice_reminder hydrates args into an assistant + user pair", async () => {
     const { client } = await boot();
     const result = await client.getPrompt({
       name: "french_invoice_reminder",
@@ -172,15 +171,24 @@ describe("Prompts primitive — curated templates", () => {
         tone: "firm",
       },
     });
-    expect(result.messages.length).toBe(1);
-    const first = result.messages[0];
-    const text = (first?.content as { type: "text"; text: string }).text;
-    expect(text).toContain("Acme SAS");
-    expect(text).toContain("1200€");
-    expect(text).toContain("45 jours");
-    expect(text).toContain("firm");
-    // quality checks on the prompt itself
-    expect(text).toContain("120 mots maximum");
+
+    expect(result.messages.length).toBe(2);
+    expect(result.messages[0]?.role).toBe("assistant");
+    expect(result.messages[1]?.role).toBe("user");
+
+    const assistantText = (
+      result.messages[0]?.content as { type: "text"; text: string }
+    ).text;
+    const userText = (
+      result.messages[1]?.content as { type: "text"; text: string }
+    ).text;
+
+    expect(assistantText).toContain("assistant de recouvrement");
+    expect(userText).toContain("Acme SAS");
+    expect(userText).toContain("1200");
+    expect(userText).toContain("45 jours");
+    expect(userText).toContain("firm");
+    expect(userText).toContain("120 mots maximum");
   });
 
   it("codestral_review injects the diff and focus", async () => {
@@ -205,7 +213,7 @@ describe("Prompts primitive — curated templates", () => {
     await expect(
       client.getPrompt({
         name: "french_invoice_reminder",
-        arguments: { debtor_name: "Acme" }, // missing amount_eur / days_overdue / tone
+        arguments: { debtor_name: "Acme" },
       })
     ).rejects.toThrow();
   });
@@ -219,7 +227,7 @@ describe("Prompts primitive — curated templates", () => {
           debtor_name: "Acme",
           amount_eur: "1",
           days_overdue: "1",
-          tone: "casual", // not in enum
+          tone: "casual",
         },
       })
     ).rejects.toThrow();

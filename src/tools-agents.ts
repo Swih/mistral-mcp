@@ -19,13 +19,13 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Mistral } from "@mistralai/mistralai";
+import type { AgentsCompletionRequest } from "@mistralai/mistralai/models/components/agentscompletionrequest.js";
 import { z } from "zod";
 import {
   DEFAULT_MODERATION_MODEL,
   ModerationModelSchema,
 } from "./models.js";
 import {
-  ChatSamplingParams,
   TextMessageSchema,
   UsageSchema,
   errorResult,
@@ -97,7 +97,12 @@ export function registerAgentTools(server: McpServer, mistral: Mistral) {
           .array(TextMessageSchema)
           .min(1)
           .describe("Chat-style messages to send to the agent."),
-        ...ChatSamplingParams,
+        max_tokens: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Maximum number of completion tokens to generate."),
       },
       outputSchema: AgentOutputShape,
       annotations: {
@@ -110,13 +115,12 @@ export function registerAgentTools(server: McpServer, mistral: Mistral) {
     },
     async (input) => {
       try {
-        const res = await mistral.agents.complete({
+        const request: AgentsCompletionRequest = {
           agentId: input.agentId,
-          messages: input.messages as never,
-          temperature: input.temperature,
+          messages: input.messages,
           maxTokens: input.max_tokens,
-          topP: input.top_p,
-        } as never);
+        };
+        const res = await mistral.agents.complete(request);
 
         const choice = res.choices?.[0];
         const content = choice?.message?.content ?? "";

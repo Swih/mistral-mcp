@@ -254,6 +254,7 @@ export function registerAudioTools(server: McpServer, mistral: Mistral) {
         }
 
         const mime = MIME_BY_FORMAT[format];
+        const audioBytes = Buffer.from(audioData, "base64").length;
         const structured = {
           audio_base64: audioData,
           mime_type: mime,
@@ -265,7 +266,7 @@ export function registerAudioTools(server: McpServer, mistral: Mistral) {
         return {
           content: [
             toTextBlock(
-              `Synthesized ${audioData.length} bytes of ${format} audio.`
+              `Synthesized ${audioBytes} byte(s) of ${format} audio.`
             ),
             {
               type: "audio" as const,

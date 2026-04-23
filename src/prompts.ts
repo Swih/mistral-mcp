@@ -17,7 +17,7 @@ export function registerMistralPrompts(server: McpServer) {
       title: "French B2B invoice reminder",
       description:
         "Draft a tone-controlled B2B invoice recovery reminder in French. " +
-        "Returns a system + user pair ready to feed into mistral_chat.",
+        "Returns a two-message prompt pair ready to feed into mistral_chat.",
       argsSchema: {
         debtor_name: z.string().describe("Company name of the debtor."),
         amount_eur: z
@@ -34,6 +34,17 @@ export function registerMistralPrompts(server: McpServer) {
     ({ debtor_name, amount_eur, days_overdue, tone }) => ({
       description: `Invoice reminder — ${tone} tone, ${debtor_name}, ${amount_eur}€, ${days_overdue}d overdue`,
       messages: [
+        {
+          role: "assistant",
+          content: {
+            type: "text",
+            text: [
+              "Tu es un assistant de recouvrement B2B.",
+              "Tu rÃ©diges des relances courtes, claires, professionnelles, directement envoyables.",
+              "Tu respectes strictement les contraintes de ton, de longueur et de clartÃ©.",
+            ].join("\n"),
+          },
+        },
         {
           role: "user",
           content: {

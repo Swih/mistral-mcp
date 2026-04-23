@@ -130,7 +130,9 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         messages: z
           .array(MultimodalMessageSchema)
           .min(1)
-          .describe("Chat messages. At least one must contain an image part."),
+          .describe(
+            "Chat messages. Pure-text requests are accepted, but this tool is intended primarily for multimodal prompts containing image parts."
+          ),
         model: VisionModelSchema.optional().describe(
           `Vision-capable Mistral model. Default: ${DEFAULT_VISION_MODEL}.`
         ),

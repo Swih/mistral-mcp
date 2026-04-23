@@ -11,6 +11,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Mistral } from "@mistralai/mistralai";
+import type { ChatCompletionRequest } from "@mistralai/mistralai/models/components/chatcompletionrequest.js";
 import { z } from "zod";
 import {
   DEFAULT_FIM_MODEL,
@@ -32,7 +33,7 @@ const FunctionToolSchema = z.object({
   function: z.object({
     name: z.string().min(1).max(64),
     description: z.string().optional(),
-    parameters: z.record(z.string(), z.any()),
+    parameters: z.record(z.string(), z.unknown()),
   }),
 });
 
@@ -106,16 +107,17 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
     async (input) => {
       try {
         const model = input.model ?? DEFAULT_TOOL_MODEL;
-        const res = await mistral.chat.complete({
+        const request: ChatCompletionRequest = {
           model,
           messages: input.messages,
           tools: input.tools,
-          toolChoice: input.tool_choice as never,
+          toolChoice: input.tool_choice,
           parallelToolCalls: input.parallel_tool_calls,
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
-        });
+        };
+        const res = await mistral.chat.complete(request);
 
         const choice = res.choices?.[0];
         const rawCalls = choice?.message?.toolCalls ?? [];

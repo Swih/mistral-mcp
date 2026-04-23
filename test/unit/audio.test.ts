@@ -228,6 +228,9 @@ describe("voxtral_speak", () => {
     expect(arg?.voiceId).toBe("amelie");
     expect(arg?.responseFormat).toBe("mp3");
     expect(arg?.stream).toBe(false);
+
+    const summary = (result.content as Array<{ text?: string }>)[0]?.text ?? "";
+    expect(summary).toContain("13 byte(s)");
   });
 
   it("emits an audio content block alongside the structured payload", async () => {
