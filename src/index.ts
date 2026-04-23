@@ -15,6 +15,8 @@ import { registerFunctionTools } from "./tools-fn.js";
 import { registerVisionTools } from "./tools-vision.js";
 import { registerAudioTools } from "./tools-audio.js";
 import { registerAgentTools } from "./tools-agents.js";
+import { registerFileTools } from "./tools-files.js";
+import { registerBatchTools } from "./tools-batch.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 
@@ -51,6 +53,8 @@ registerFunctionTools(server, mistral);
 registerVisionTools(server, mistral);
 registerAudioTools(server, mistral);
 registerAgentTools(server, mistral);
+registerFileTools(server, mistral);
+registerBatchTools(server, mistral);
 registerMistralResources(server, mistral);
 registerMistralPrompts(server);
 

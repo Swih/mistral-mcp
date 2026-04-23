@@ -41,6 +41,19 @@ import {
   ModerateOutputSchema,
   ClassifyOutputSchema,
 } from "../../src/tools-agents.js";
+import {
+  registerFileTools,
+  FileUploadOutputSchema,
+  FileListOutputSchema,
+  FileGetOutputSchema,
+  FileDeleteOutputSchema,
+  FileSignedUrlOutputSchema,
+} from "../../src/tools-files.js";
+import {
+  registerBatchTools,
+  BatchJobOutputSchema,
+  BatchListOutputSchema,
+} from "../../src/tools-batch.js";
 
 function makeMock(): Mistral {
   return {
@@ -151,6 +164,115 @@ function makeMock(): Mistral {
         results: [{ label: { scores: { a: 0.7, b: 0.3 } } }],
       })),
     },
+    files: {
+      upload: vi.fn(async () => ({
+        id: "file_ct",
+        object: "file",
+        sizeBytes: 5,
+        createdAt: 1_700_000_000,
+        filename: "x.txt",
+        purpose: "batch",
+        sampleType: "batch_request",
+        source: "upload",
+      })),
+      list: vi.fn(async () => ({
+        data: [
+          {
+            id: "file_ct",
+            object: "file",
+            sizeBytes: 5,
+            createdAt: 1_700_000_000,
+            filename: "x.txt",
+            purpose: "batch",
+            sampleType: "batch_request",
+            source: "upload",
+          },
+        ],
+        object: "list",
+        total: 1,
+      })),
+      retrieve: vi.fn(async () => ({
+        id: "file_ct",
+        object: "file",
+        sizeBytes: 5,
+        createdAt: 1_700_000_000,
+        filename: "x.txt",
+        purpose: "batch",
+        sampleType: "batch_request",
+        source: "upload",
+        deleted: false,
+      })),
+      delete: vi.fn(async () => ({
+        id: "file_ct",
+        object: "file",
+        deleted: true,
+      })),
+      getSignedUrl: vi.fn(async () => ({
+        url: "https://example.com/signed",
+      })),
+    },
+    batch: {
+      jobs: {
+        create: vi.fn(async () => ({
+          id: "batch_ct",
+          object: "batch",
+          inputFiles: ["file_ct"],
+          endpoint: "/v1/chat/completions",
+          errors: [],
+          status: "QUEUED",
+          createdAt: 1_700_000_000,
+          totalRequests: 1,
+          completedRequests: 0,
+          succeededRequests: 0,
+          failedRequests: 0,
+        })),
+        get: vi.fn(async () => ({
+          id: "batch_ct",
+          object: "batch",
+          inputFiles: ["file_ct"],
+          endpoint: "/v1/chat/completions",
+          errors: [],
+          status: "SUCCESS",
+          createdAt: 1_700_000_000,
+          totalRequests: 1,
+          completedRequests: 1,
+          succeededRequests: 1,
+          failedRequests: 0,
+        })),
+        list: vi.fn(async () => ({
+          data: [
+            {
+              id: "batch_ct",
+              object: "batch",
+              inputFiles: ["file_ct"],
+              endpoint: "/v1/chat/completions",
+              errors: [],
+              status: "QUEUED",
+              createdAt: 1_700_000_000,
+              totalRequests: 1,
+              completedRequests: 0,
+              succeededRequests: 0,
+              failedRequests: 0,
+            },
+          ],
+          object: "list",
+          total: 1,
+        })),
+        cancel: vi.fn(async () => ({
+          id: "batch_ct",
+          object: "batch",
+          inputFiles: ["file_ct"],
+          endpoint: "/v1/chat/completions",
+          errors: [],
+          status: "CANCELLATION_REQUESTED",
+          createdAt: 1_700_000_000,
+          totalRequests: 1,
+          completedRequests: 0,
+          succeededRequests: 0,
+          failedRequests: 0,
+        })),
+      },
+    },
   } as unknown as Mistral;
 }
 
@@ -161,6 +283,8 @@ async function boot(mock: Mistral = makeMock()) {
   registerVisionTools(server, mock);
   registerAudioTools(server, mock);
   registerAgentTools(server, mock);
+  registerFileTools(server, mock);
+  registerBatchTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -399,13 +523,154 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("files_upload", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "files_upload",
+      arguments: { filename: "x.txt", content_base64: "aGk=" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = FileUploadOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (files_upload): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("files_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "files_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = FileListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (files_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("files_get", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "files_get",
+      arguments: { fileId: "file_ct" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = FileGetOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (files_get): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("files_delete", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "files_delete",
+      arguments: { fileId: "file_ct" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = FileDeleteOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (files_delete): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("files_signed_url", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "files_signed_url",
+      arguments: { fileId: "file_ct" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = FileSignedUrlOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (files_signed_url): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("batch_create", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "batch_create",
+      arguments: {
+        input_files: ["file_ct"],
+        endpoint: "/v1/chat/completions",
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = BatchJobOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (batch_create): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("batch_get", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "batch_get",
+      arguments: { jobId: "batch_ct" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = BatchJobOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (batch_get): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("batch_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "batch_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = BatchListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (batch_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("batch_cancel", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "batch_cancel",
+      arguments: { jobId: "batch_ct" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = BatchJobOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (batch_cancel): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(12);
+    expect(tools.length).toBe(21);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

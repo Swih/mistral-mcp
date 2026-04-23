@@ -49,7 +49,16 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      "batch_cancel",
+      "batch_create",
+      "batch_get",
+      "batch_list",
       "codestral_fim",
+      "files_delete",
+      "files_get",
+      "files_list",
+      "files_signed_url",
+      "files_upload",
       "mistral_agent",
       "mistral_chat",
       "mistral_chat_stream",
