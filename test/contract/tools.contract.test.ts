@@ -54,6 +54,10 @@ import {
   BatchJobOutputSchema,
   BatchListOutputSchema,
 } from "../../src/tools-batch.js";
+import {
+  registerSamplingTools,
+  SampleOutputSchema,
+} from "../../src/tools-sampling.js";
 
 function makeMock(): Mistral {
   return {
@@ -285,6 +289,7 @@ async function boot(mock: Mistral = makeMock()) {
   registerAgentTools(server, mock);
   registerFileTools(server, mock);
   registerBatchTools(server, mock);
+  registerSamplingTools(server);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -664,13 +669,20 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("mcp_sample has an outputSchema (runtime shape validated in unit tests)", () => {
+    const shape = SampleOutputSchema.shape;
+    expect(shape.role).toBeTruthy();
+    expect(shape.text).toBeTruthy();
+    expect(shape.model).toBeTruthy();
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(21);
+    expect(tools.length).toBe(22);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

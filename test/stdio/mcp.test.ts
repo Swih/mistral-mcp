@@ -59,6 +59,7 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       "files_list",
       "files_signed_url",
       "files_upload",
+      "mcp_sample",
       "mistral_agent",
       "mistral_chat",
       "mistral_chat_stream",

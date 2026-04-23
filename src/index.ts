@@ -2,13 +2,16 @@
 /**
  * mistral-mcp — MCP server exposing Mistral AI models as tools.
  *
- * Transport: stdio (MCP spec 2025-11-25).
+ * Transports (MCP spec 2025-11-25):
+ *   - stdio (default)                  — run directly by an MCP client
+ *   - Streamable HTTP (--http flag or  — remote deployments; bind 127.0.0.1
+ *     MCP_TRANSPORT=http env)            by default, optional bearer auth.
+ *
  * SDK: @modelcontextprotocol/sdk 1.29.0 (high-level McpServer API).
  * Mistral: @mistralai/mistralai 2.2.0 (speakeasy-generated, built-in retry).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Mistral } from "@mistralai/mistralai";
 import { registerMistralTools } from "./tools.js";
 import { registerFunctionTools } from "./tools-fn.js";
@@ -17,8 +20,10 @@ import { registerAudioTools } from "./tools-audio.js";
 import { registerAgentTools } from "./tools-agents.js";
 import { registerFileTools } from "./tools-files.js";
 import { registerBatchTools } from "./tools-batch.js";
+import { registerSamplingTools } from "./tools-sampling.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
+import { connectTransport, resolveTransportOptions } from "./transport.js";
 
 const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
@@ -55,9 +60,24 @@ registerAudioTools(server, mistral);
 registerAgentTools(server, mistral);
 registerFileTools(server, mistral);
 registerBatchTools(server, mistral);
+registerSamplingTools(server);
 registerMistralResources(server, mistral);
 registerMistralPrompts(server);
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
-console.error("[mistral-mcp] v0.4.0-dev connected on stdio");
+const transportOpts = resolveTransportOptions();
+const connected = await connectTransport(server, transportOpts);
+console.error(
+  `[mistral-mcp] v0.4.0-dev connected via ${connected.mode}${
+    connected.address
+      ? ` (${connected.address.host}:${connected.address.port})`
+      : ""
+  }`
+);
+
+const shutdown = async (signal: NodeJS.Signals) => {
+  console.error(`[mistral-mcp] received ${signal}, shutting down`);
+  await connected.close();
+  process.exit(0);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
