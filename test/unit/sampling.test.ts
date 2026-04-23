@@ -29,13 +29,13 @@ async function boot(opts: {
 
   const handler =
     opts.sampleImpl ??
-    (async () => ({
+    (async (_req: unknown) => ({
       role: "assistant",
       content: { type: "text", text: "Delegated reply." },
       model: "claude-test",
       stopReason: "endTurn",
     }));
-  client.setRequestHandler(CreateMessageRequestSchema, handler);
+  client.setRequestHandler(CreateMessageRequestSchema, handler as never);
 
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -56,7 +56,7 @@ describe("tool listing (sampling)", () => {
 
 describe("mcp_sample", () => {
   it("delegates to the client's LLM and returns structured text", async () => {
-    const sampleSpy = vi.fn(async () => ({
+    const sampleSpy = vi.fn(async (_req: unknown) => ({
       role: "assistant",
       content: { type: "text", text: "Delegated reply." },
       model: "claude-haiku",
@@ -88,7 +88,7 @@ describe("mcp_sample", () => {
     expect(sc.stop_reason).toBe("endTurn");
 
     expect(sampleSpy).toHaveBeenCalledTimes(1);
-    const callReq = sampleSpy.mock.calls[0]?.[0] as {
+    const callReq = (sampleSpy.mock.calls[0]?.[0] ?? {}) as unknown as {
       params: {
         messages: Array<{ role: string; content: { type: string; text: string } }>;
         systemPrompt?: string;
@@ -105,7 +105,7 @@ describe("mcp_sample", () => {
   });
 
   it("forwards model preferences (hints + priorities)", async () => {
-    const sampleSpy = vi.fn(async () => ({
+    const sampleSpy = vi.fn(async (_req: unknown) => ({
       role: "assistant",
       content: { type: "text", text: "ok" },
       model: "claude",
@@ -126,7 +126,7 @@ describe("mcp_sample", () => {
       },
     });
 
-    const req = sampleSpy.mock.calls[0]?.[0] as {
+    const req = (sampleSpy.mock.calls[0]?.[0] ?? {}) as unknown as {
       params: {
         modelPreferences?: {
           hints?: Array<{ name: string }>;

@@ -1,7 +1,7 @@
 {
   "name": "mistral-mcp",
   "version": "0.4.0-dev",
-  "description": "MCP server exposing Mistral AI models (chat, embeddings) to any MCP client — Claude Code, Cursor, Zed, Windsurf, Claude Desktop.",
+  "description": "MCP server exposing Mistral AI capabilities over MCP: chat, embeddings, FIM, vision, OCR, audio, agents, moderation, classification, files, batch, sampling, prompts, resources, and Streamable HTTP.",
   "type": "module",
   "bin": {
     "mistral-mcp": "dist/index.js"
@@ -16,7 +16,7 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run test/unit",

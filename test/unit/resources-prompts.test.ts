@@ -10,6 +10,16 @@ import type { Mistral } from "@mistralai/mistralai";
 import { registerMistralResources } from "../../src/resources.js";
 import { registerMistralPrompts } from "../../src/prompts.js";
 
+function firstTextContent(result: {
+  contents: Array<{ text?: string } | { blob?: string }>;
+}): string {
+  const first = result.contents[0];
+  if (!first || !("text" in first) || typeof first.text !== "string") {
+    throw new Error("Expected first resource content to be text.");
+  }
+  return first.text;
+}
+
 function makeMockMistral(overrides: Record<string, unknown> = {}): Mistral {
   return {
     models: {
@@ -77,7 +87,7 @@ describe("Resources primitive - mistral://models", () => {
     expect(res.contents.length).toBeGreaterThan(0);
     const first = res.contents[0];
     expect(first?.mimeType).toBe("application/json");
-    const parsed = JSON.parse(first?.text as string);
+    const parsed = JSON.parse(firstTextContent(res));
 
     expect(parsed.accepted.chat).toContain("mistral-medium-latest");
     expect(parsed.accepted.embed).toContain("mistral-embed");
@@ -101,7 +111,7 @@ describe("Resources primitive - mistral://models", () => {
     });
     const { client } = await boot(failingMock);
     const res = await client.readResource({ uri: "mistral://models" });
-    const parsed = JSON.parse((res.contents[0]?.text as string) ?? "{}");
+    const parsed = JSON.parse(firstTextContent(res));
     expect(parsed.fallback).toBe(true);
     expect(parsed.fallback_reason).toContain("rate_limit_exceeded");
     expect(parsed.live).toBeNull();
@@ -122,7 +132,7 @@ describe("Resources primitive - mistral://voices", () => {
   it("read returns voice items with normalized keys", async () => {
     const { client } = await boot();
     const res = await client.readResource({ uri: "mistral://voices" });
-    const parsed = JSON.parse((res.contents[0]?.text as string) ?? "{}");
+    const parsed = JSON.parse(firstTextContent(res));
     expect(parsed.fallback).toBe(false);
     expect(parsed.count).toBe(1);
     expect(parsed.total).toBe(1);
@@ -145,7 +155,7 @@ describe("Resources primitive - mistral://voices", () => {
     });
     const { client } = await boot(failingMock);
     const res = await client.readResource({ uri: "mistral://voices" });
-    const parsed = JSON.parse((res.contents[0]?.text as string) ?? "{}");
+    const parsed = JSON.parse(firstTextContent(res));
     expect(parsed.fallback).toBe(true);
     expect(parsed.fallback_reason).toContain("voices_unavailable");
     expect(parsed.items).toEqual([]);

@@ -24,6 +24,16 @@ const HAS_KEY = Boolean(process.env.MISTRAL_API_KEY);
 const DIST_PATH = resolve(process.cwd(), "dist/index.js");
 const DIST_EXISTS = existsSync(DIST_PATH);
 
+function firstTextContent(result: {
+  contents: Array<{ text?: string } | { blob?: string }>;
+}): string {
+  const first = result.contents[0];
+  if (!first || !("text" in first) || typeof first.text !== "string") {
+    throw new Error("Expected first resource content to be text.");
+  }
+  return first.text;
+}
+
 describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
   let client: Client;
   let transport: StdioClientTransport;
@@ -93,6 +103,39 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     ]);
   });
 
+  it("resolves prompt bodies and enum completion through the built server", async () => {
+    const prompt = await client.getPrompt({
+      name: "french_commit_message",
+      arguments: {
+        diff: "- throw new Error()\n+ return errorResult()",
+        scope: "fix",
+      },
+    });
+
+    expect(prompt.messages.length).toBe(1);
+    const text = (
+      prompt.messages[0]?.content as { type: "text"; text: string }
+    ).text;
+    expect(text).toContain("Conventional Commits");
+    expect(text).toContain("fix");
+    expect(text).toContain("errorResult()");
+
+    const completion = await client.complete({
+      ref: { type: "ref/prompt", name: "codestral_review" },
+      argument: { name: "focus", value: "sec" },
+    });
+    expect(completion.completion.values).toContain("security");
+  });
+
+  it("reads the voices resource through stdio", async () => {
+    const result = await client.readResource({ uri: "mistral://voices" });
+    expect(result.contents.length).toBeGreaterThan(0);
+    const parsed = JSON.parse(firstTextContent(result));
+    expect(typeof parsed.fallback).toBe("boolean");
+    expect(Array.isArray(parsed.items)).toBe(true);
+    expect(typeof parsed.count).toBe("number");
+  }, 30_000);
+
   it("performs a real mistral_chat call through the built server", async () => {
     const result = await client.callTool({
       name: "mistral_chat",
@@ -114,5 +157,28 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     const sc = result.structuredContent as { text: string; model: string };
     expect(sc.text.toLowerCase()).toContain("pong");
     expect(sc.model).toBe("mistral-small-latest");
+  }, 30_000);
+
+  it("performs a real mistral_moderate call through the built server", async () => {
+    const result = await client.callTool({
+      name: "mistral_moderate",
+      arguments: {
+        inputs: "Bonjour, tout va bien.",
+      },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const sc = result.structuredContent as {
+      id: string;
+      model: string;
+      results: Array<{
+        categories?: Record<string, boolean>;
+        category_scores?: Record<string, number>;
+      }>;
+    };
+    expect(sc.id.length).toBeGreaterThan(0);
+    expect(sc.model).toBe("mistral-moderation-latest");
+    expect(Array.isArray(sc.results)).toBe(true);
+    expect(sc.results.length).toBeGreaterThan(0);
   }, 30_000);
 });
