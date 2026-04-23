@@ -1,8 +1,10 @@
 # mistral-mcp
 
 > **MCP server exposing Mistral AI capabilities to any MCP client** - Claude Code, Cursor, Zed, Windsurf, Claude Desktop.
+>
+> _Version française : [README.fr.md](./README.fr.md)_
 
-![version](https://img.shields.io/badge/version-v0.4.0--dev-orange)
+![version](https://img.shields.io/badge/version-v0.4.0-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-black)
 ![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 ![typescript](https://img.shields.io/badge/typescript-strict-blue)
@@ -18,7 +20,7 @@ Mistral has strong models for French, code, OCR, moderation, audio, and agent-st
 
 The goal of this repo is not "yet another thin wrapper". It aims to be a robust, maintainable MCP server with explicit schemas, predictable outputs, transport flexibility, and good test coverage.
 
-## Current surface (`v0.4.0-dev`)
+## Current surface (`v0.4.0`)
 
 ### Tools (22)
 
@@ -185,19 +187,15 @@ mistral-mcp/
 
 ## Status
 
-Shipped through Phase 7:
-- v0.4 branch/setup hardening
-- shared helpers, resources, contract tests
+`v0.4.0` — shipped. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.3.0`:
+
+- shared helpers, live model + voice catalogs, contract tests
 - vision + OCR
 - audio transcription + speech
 - agents + moderation + classification
 - files + batch APIs
 - Streamable HTTP transport + MCP sampling
-- 5 FR prompts + 1 EN prompt + prompt completion
-
-Still planned:
-- bilingual docs rewrite
-- final `0.4.0` release notes and tag
+- 5 French curated prompts + 1 English prompt + prompt argument completion
 
 ## Examples
 
