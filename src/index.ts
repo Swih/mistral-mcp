@@ -45,7 +45,7 @@ const server = new McpServer({
 
 registerMistralTools(server, mistral);
 registerFunctionTools(server, mistral);
-registerMistralResources(server);
+registerMistralResources(server, mistral);
 registerMistralPrompts(server);
 
 const transport = new StdioServerTransport();

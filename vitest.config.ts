@@ -7,4 +7,7 @@ export default defineConfig({
     hookTimeout: 15_000,
     environment: "node",
   },
+  resolve: {
+    conditions: ["node", "import"],
+  },
 });

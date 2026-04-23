@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { registerMistralTools } from "../src/tools.js";
-import { CHAT_MODELS } from "../src/models.js";
+import { registerMistralTools } from "../../src/tools.js";
+import { CHAT_MODELS } from "../../src/models.js";
 
 type ChatArgs = Parameters<
   InstanceType<typeof import("@mistralai/mistralai").Mistral>["chat"]["complete"]

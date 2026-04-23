@@ -2,21 +2,38 @@
  * Unit tests for the Resources and Prompts primitives.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { registerMistralResources } from "../src/resources.js";
-import { registerMistralPrompts } from "../src/prompts.js";
+import type { Mistral } from "@mistralai/mistralai";
+import { registerMistralResources } from "../../src/resources.js";
+import { registerMistralPrompts } from "../../src/prompts.js";
 
-async function boot() {
+function makeMockMistral(overrides: Record<string, unknown> = {}): Mistral {
+  return {
+    models: {
+      list: vi.fn(async () => ({
+        data: [
+          { id: "mistral-medium-latest" },
+          { id: "mistral-small-latest" },
+          { id: "codestral-latest" },
+          { id: "mistral-embed" },
+        ],
+      })),
+    },
+    ...overrides,
+  } as unknown as Mistral;
+}
+
+async function boot(mock: Mistral = makeMockMistral()) {
   const server = new McpServer({ name: "rp-test", version: "0.0.0" });
-  registerMistralResources(server);
+  registerMistralResources(server, mock);
   registerMistralPrompts(server);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
-  return { client };
+  return { client, mock };
 }
 
 describe("Resources primitive — mistral://models", () => {
@@ -29,7 +46,7 @@ describe("Resources primitive — mistral://models", () => {
     expect(m?.name).toBe("mistral-models");
   });
 
-  it("read returns a JSON catalog with the 4 capability buckets", async () => {
+  it("read returns a JSON catalog with accepted + live buckets", async () => {
     const { client } = await boot();
     const res = await client.readResource({ uri: "mistral://models" });
     expect(res.contents.length).toBeGreaterThan(0);
@@ -37,11 +54,34 @@ describe("Resources primitive — mistral://models", () => {
     expect(first?.mimeType).toBe("application/json");
     const parsed = JSON.parse(first?.text as string);
 
-    expect(parsed.chat).toContain("mistral-medium-latest");
-    expect(parsed.embed).toContain("mistral-embed");
-    expect(parsed.fim).toContain("codestral-latest");
-    expect(parsed.tool_capable).toContain("mistral-large-latest");
+    expect(parsed.accepted.chat).toContain("mistral-medium-latest");
+    expect(parsed.accepted.embed).toContain("mistral-embed");
+    expect(parsed.accepted.fim).toContain("codestral-latest");
+    expect(parsed.accepted.tool_capable).toContain("mistral-large-latest");
     expect(parsed.spec_version).toBe("2025-11-25");
+    expect(parsed.fallback).toBe(false);
+    expect(parsed.live).toBeTruthy();
+    expect(parsed.live.ids).toContain("mistral-medium-latest");
+    expect(parsed.live.count).toBe(parsed.live.ids.length);
+    expect(typeof parsed.live.fetched_at).toBe("string");
+  });
+
+  it("falls back to the static catalog when models.list throws", async () => {
+    const failingMock = makeMockMistral({
+      models: {
+        list: vi.fn(async () => {
+          throw new Error("rate_limit_exceeded");
+        }),
+      },
+    });
+    const { client } = await boot(failingMock);
+    const res = await client.readResource({ uri: "mistral://models" });
+    const parsed = JSON.parse((res.contents[0]?.text as string) ?? "{}");
+    expect(parsed.fallback).toBe(true);
+    expect(parsed.fallback_reason).toContain("rate_limit_exceeded");
+    expect(parsed.live).toBeNull();
+    // accepted catalog must still be present
+    expect(parsed.accepted.chat).toContain("mistral-medium-latest");
   });
 });
 
