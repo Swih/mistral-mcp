@@ -84,7 +84,27 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     ]);
     for (const t of tools) {
       expect(t.outputSchema).toBeTruthy();
-      expect(t.annotations?.readOnlyHint).toBe(true);
+      expect(typeof t.annotations?.readOnlyHint).toBe("boolean");
+      expect(typeof t.annotations?.destructiveHint).toBe("boolean");
+      expect(typeof t.annotations?.idempotentHint).toBe("boolean");
+    }
+    const writeTools = [
+      "files_upload",
+      "files_delete",
+      "batch_create",
+      "batch_cancel",
+    ];
+    for (const name of writeTools) {
+      const t = tools.find((x) => x.name === name);
+      expect(t, `${name} is registered`).toBeTruthy();
+      expect(t?.annotations?.readOnlyHint, `${name}.readOnlyHint`).toBe(false);
+    }
+    const destructiveTools = ["files_delete", "batch_cancel"];
+    for (const name of destructiveTools) {
+      const t = tools.find((x) => x.name === name);
+      expect(t?.annotations?.destructiveHint, `${name}.destructiveHint`).toBe(
+        true
+      );
     }
 
     const { resources } = await client.listResources();
