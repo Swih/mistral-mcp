@@ -12,6 +12,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { Mistral } from "@mistralai/mistralai";
 import { registerMistralTools } from "./tools.js";
 import { registerFunctionTools } from "./tools-fn.js";
+import { registerVisionTools } from "./tools-vision.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 
@@ -40,14 +41,15 @@ const mistral = new Mistral({
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.3.0",
+  version: "0.4.0-dev",
 });
 
 registerMistralTools(server, mistral);
 registerFunctionTools(server, mistral);
+registerVisionTools(server, mistral);
 registerMistralResources(server, mistral);
 registerMistralPrompts(server);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error("[mistral-mcp] v0.3.0 connected on stdio");
+console.error("[mistral-mcp] v0.4.0-dev connected on stdio");

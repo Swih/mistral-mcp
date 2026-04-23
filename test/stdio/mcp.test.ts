@@ -53,7 +53,9 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       "mistral_chat",
       "mistral_chat_stream",
       "mistral_embed",
+      "mistral_ocr",
       "mistral_tool_call",
+      "mistral_vision",
     ]);
     for (const t of tools) {
       expect(t.outputSchema).toBeTruthy();

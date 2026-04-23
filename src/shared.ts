@@ -18,7 +18,13 @@ export const TextMessageSchema = z.object({
   content: z.string(),
 });
 
-/** Multimodal content part — text or image. */
+/**
+ * Multimodal content part — shape matches `@mistralai/mistralai` SDK `ContentChunk`
+ * (camelCase). Supports text + image_url + document_url.
+ * - `imageUrl` can be a string (URL or data:image/...;base64,... payload) or an
+ *   object with url + optional detail hint.
+ * - `documentUrl` accepts a PDF/document URL (used by vision-capable chat models).
+ */
 export const ContentPartSchema = z.union([
   z.object({
     type: z.literal("text"),
@@ -26,22 +32,27 @@ export const ContentPartSchema = z.union([
   }),
   z.object({
     type: z.literal("image_url"),
-    image_url: z.union([
-      z.string().url().describe("https URL of the image"),
+    imageUrl: z.union([
+      z
+        .string()
+        .describe("https URL or data:image/...;base64,... payload"),
       z.object({
-        url: z
-          .string()
-          .describe("https URL or data:image/...;base64,... payload"),
+        url: z.string(),
         detail: z.enum(["auto", "low", "high"]).optional(),
       }),
     ]),
   }),
+  z.object({
+    type: z.literal("document_url"),
+    documentUrl: z.string(),
+    documentName: z.string().optional(),
+  }),
 ]);
 
-/** Multimodal chat message (text OR array of parts). Used by mistral_chat once vision lands. */
+/** Multimodal chat message (text OR array of parts). */
 export const MultimodalMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
-  content: z.union([z.string(), z.array(ContentPartSchema)]),
+  content: z.union([z.string(), z.array(ContentPartSchema).min(1)]),
 });
 
 /** Tool-augmented message (chat with function calling). Supports the `tool` role. */

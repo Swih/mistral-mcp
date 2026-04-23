@@ -25,6 +25,11 @@ import {
   ToolCallOutputSchema,
   FimOutputSchema,
 } from "../../src/tools-fn.js";
+import {
+  registerVisionTools,
+  VisionOutputSchema,
+  OcrOutputSchema,
+} from "../../src/tools-vision.js";
 
 function makeMock(): Mistral {
   return {
@@ -78,6 +83,20 @@ function makeMock(): Mistral {
         usage: { promptTokens: 8, completionTokens: 4, totalTokens: 12 },
       })),
     },
+    ocr: {
+      process: vi.fn(async () => ({
+        model: "mistral-ocr-latest",
+        pages: [
+          {
+            index: 0,
+            markdown: "# Heading",
+            images: [],
+            dimensions: { dpi: 150, height: 1000, width: 800 },
+          },
+        ],
+        usageInfo: { pagesProcessed: 1 },
+      })),
+    },
   } as unknown as Mistral;
 }
 
@@ -85,6 +104,7 @@ async function boot(mock: Mistral = makeMock()) {
   const server = new McpServer({ name: "contract-test", version: "0.0.0" });
   registerMistralTools(server, mock);
   registerFunctionTools(server, mock);
+  registerVisionTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -191,13 +211,60 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("mistral_vision", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "mistral_vision",
+      arguments: {
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "describe" },
+              { type: "image_url", imageUrl: "https://example.com/x.png" },
+            ],
+          },
+        ],
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = VisionOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (mistral_vision): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("mistral_ocr", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "mistral_ocr",
+      arguments: {
+        document: {
+          type: "document_url",
+          documentUrl: "https://example.com/doc.pdf",
+        },
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = OcrOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (mistral_ocr): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(5);
+    expect(tools.length).toBe(7);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();
