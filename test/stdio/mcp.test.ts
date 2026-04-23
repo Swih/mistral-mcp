@@ -83,7 +83,14 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
 
     const { prompts } = await client.listPrompts();
     const promptNames = prompts.map((p) => p.name).sort();
-    expect(promptNames).toEqual(["codestral_review", "french_invoice_reminder"]);
+    expect(promptNames).toEqual([
+      "codestral_review",
+      "french_commit_message",
+      "french_email_reply",
+      "french_invoice_reminder",
+      "french_legal_summary",
+      "french_meeting_minutes",
+    ]);
   });
 
   it("performs a real mistral_chat call through the built server", async () => {

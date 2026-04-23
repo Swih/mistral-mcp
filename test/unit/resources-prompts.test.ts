@@ -153,11 +153,18 @@ describe("Resources primitive - mistral://voices", () => {
 });
 
 describe("Prompts primitive - curated templates", () => {
-  it("lists the two curated prompts", async () => {
+  it("lists the six curated prompts (5 FR + 1 EN)", async () => {
     const { client } = await boot();
     const { prompts } = await client.listPrompts();
     const names = prompts.map((p) => p.name).sort();
-    expect(names).toEqual(["codestral_review", "french_invoice_reminder"]);
+    expect(names).toEqual([
+      "codestral_review",
+      "french_commit_message",
+      "french_email_reply",
+      "french_invoice_reminder",
+      "french_legal_summary",
+      "french_meeting_minutes",
+    ]);
   });
 
   it("french_invoice_reminder hydrates args into an assistant + user pair", async () => {
@@ -231,5 +238,104 @@ describe("Prompts primitive - curated templates", () => {
         },
       })
     ).rejects.toThrow();
+  });
+
+  it("french_meeting_minutes emits a structured user message", async () => {
+    const { client } = await boot();
+    const result = await client.getPrompt({
+      name: "french_meeting_minutes",
+      arguments: {
+        transcript: "Alice: on ship mardi. Bob: je prends le front.",
+        length: "courte",
+      },
+    });
+    expect(result.messages.length).toBe(1);
+    expect(result.messages[0]?.role).toBe("user");
+    const text = (result.messages[0]?.content as { type: "text"; text: string })
+      .text;
+    expect(text).toContain("compte-rendu");
+    expect(text).toContain("Alice: on ship mardi");
+    expect(text).toContain("Décisions prises");
+    expect(text).toContain("courte");
+  });
+
+  it("french_email_reply hydrates intent + tone into the prompt body", async () => {
+    const { client } = await boot();
+    const result = await client.getPrompt({
+      name: "french_email_reply",
+      arguments: {
+        original_email: "Pouvez-vous déplacer le call à vendredi ?",
+        intent: "repousser",
+        tone: "formel",
+      },
+    });
+    const text = (result.messages[0]?.content as { type: "text"; text: string })
+      .text;
+    expect(text).toContain("repousser");
+    expect(text).toContain("formel");
+    expect(text).toContain("déplacer le call");
+    expect(text).toContain("150 mots maximum");
+  });
+
+  it("french_commit_message injects scope and diff", async () => {
+    const { client } = await boot();
+    const result = await client.getPrompt({
+      name: "french_commit_message",
+      arguments: {
+        diff: "-  throw new Error\n+  return errorResult()",
+        scope: "fix",
+      },
+    });
+    const text = (result.messages[0]?.content as { type: "text"; text: string })
+      .text;
+    expect(text).toContain("Conventional Commits");
+    expect(text).toContain("fix");
+    expect(text).toContain("errorResult()");
+  });
+
+  it("french_legal_summary targets the requested audience", async () => {
+    const { client } = await boot();
+    const result = await client.getPrompt({
+      name: "french_legal_summary",
+      arguments: {
+        legal_text: "Article 1 — Durée : 12 mois renouvelable tacitement.",
+        audience: "dirigeant",
+      },
+    });
+    const text = (result.messages[0]?.content as { type: "text"; text: string })
+      .text;
+    expect(text).toContain("dirigeant");
+    expect(text).toContain("Résume le texte juridique");
+    expect(text).toContain("renouvellement tacite");
+    expect(text).toContain("pas un conseil juridique");
+  });
+
+  it("codestral_review completion proposes enum values matching the prefix", async () => {
+    const { client } = await boot();
+    const res = await client.complete({
+      ref: { type: "ref/prompt", name: "codestral_review" },
+      argument: { name: "focus", value: "sec" },
+    });
+    expect(res.completion.values).toContain("security");
+    expect(res.completion.values).not.toContain("correctness");
+  });
+
+  it("french_email_reply completion proposes intent + tone values", async () => {
+    const { client } = await boot();
+    const intentRes = await client.complete({
+      ref: { type: "ref/prompt", name: "french_email_reply" },
+      argument: { name: "intent", value: "re" },
+    });
+    expect(intentRes.completion.values).toEqual(
+      expect.arrayContaining(["refuser", "repousser"])
+    );
+
+    const toneRes = await client.complete({
+      ref: { type: "ref/prompt", name: "french_email_reply" },
+      argument: { name: "tone", value: "" },
+    });
+    expect(toneRes.completion.values).toEqual(
+      expect.arrayContaining(["cordial", "formel", "chaleureux", "direct"])
+    );
   });
 });
