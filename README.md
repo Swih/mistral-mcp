@@ -111,6 +111,21 @@ Relevant env vars:
 
 ## Install
 
+Run from npm:
+
+```bash
+npx -y mistral-mcp
+```
+
+Or install globally:
+
+```bash
+npm install -g mistral-mcp
+mistral-mcp
+```
+
+Build from source:
+
 ```bash
 git clone https://github.com/Swih/mistral-mcp.git
 cd mistral-mcp
@@ -148,14 +163,14 @@ npm run inspector
 
 ## Test strategy
 
-The suite currently contains 148 tests across 4 layers:
+The suite currently contains 151 tests across 4 layers:
 
 1. Unit tests for tools, resources, prompts, transport, audio, agents, files, batch, and sampling
 2. Contract tests for tool metadata and MCP-facing guarantees
 3. Live API tests against the real Mistral API when `MISTRAL_API_KEY` is set
 4. Stdio end-to-end tests against the built server
 
-Without `MISTRAL_API_KEY`, the local default is `139 passing` plus `9 gated` live/stdio tests.
+Without `MISTRAL_API_KEY`, the local default is `142 passing` plus `9 gated` live/stdio tests.
 
 ## Project layout
 

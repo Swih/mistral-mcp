@@ -111,6 +111,21 @@ Variables d'environnement pertinentes :
 
 ## Installation
 
+Depuis npm :
+
+```bash
+npx -y mistral-mcp
+```
+
+Ou en installation globale :
+
+```bash
+npm install -g mistral-mcp
+mistral-mcp
+```
+
+Build depuis les sources :
+
 ```bash
 git clone https://github.com/Swih/mistral-mcp.git
 cd mistral-mcp
@@ -148,14 +163,14 @@ npm run inspector
 
 ## Stratégie de tests
 
-La suite contient actuellement 148 tests sur 4 couches :
+La suite contient actuellement 151 tests sur 4 couches :
 
 1. Tests unitaires pour tools, resources, prompts, transport, audio, agents, files, batch et sampling
 2. Tests de contrat pour les métadonnées de tools et les garanties côté MCP
 3. Tests live contre l'API Mistral réelle quand `MISTRAL_API_KEY` est définie
 4. Tests stdio end-to-end contre le serveur buildé
 
-Sans `MISTRAL_API_KEY`, le défaut local est `139 tests passants` plus `9 tests gated` live/stdio.
+Sans `MISTRAL_API_KEY`, le défaut local est `142 tests passants` plus `9 tests gated` live/stdio.
 
 ## Structure du projet
 

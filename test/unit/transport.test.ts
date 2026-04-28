@@ -4,7 +4,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { resolveTransportOptions } from "../../src/transport.js";
+import {
+  resolveTransportOptions,
+  timingSafeTokenEquals,
+} from "../../src/transport.js";
 
 describe("resolveTransportOptions", () => {
   it("defaults to stdio on 127.0.0.1:3333/mcp", () => {
@@ -70,5 +73,19 @@ describe("resolveTransportOptions", () => {
     expect(() =>
       resolveTransportOptions([], { MCP_HTTP_PORT: "99999" })
     ).toThrow(/invalid MCP_HTTP_PORT/);
+  });
+});
+
+describe("timingSafeTokenEquals", () => {
+  it("accepts matching bearer tokens", () => {
+    expect(timingSafeTokenEquals("s3cret", "s3cret")).toBe(true);
+  });
+
+  it("rejects different bearer tokens", () => {
+    expect(timingSafeTokenEquals("wrong", "s3cret")).toBe(false);
+  });
+
+  it("rejects prefix matches", () => {
+    expect(timingSafeTokenEquals("s3", "s3cret")).toBe(false);
   });
 });

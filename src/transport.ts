@@ -24,7 +24,7 @@ import {
   type Server as HttpServer,
   type ServerResponse,
 } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 export type TransportMode = "stdio" | "http";
 
@@ -44,6 +44,12 @@ export interface ConnectedTransport {
   close: () => Promise<void>;
   /** For http only: the bound address (undefined for stdio). */
   address?: { host: string; port: number };
+}
+
+export function timingSafeTokenEquals(actual: string, expected: string): boolean {
+  const actualHash = createHash("sha256").update(actual).digest();
+  const expectedHash = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(actualHash, expectedHash);
 }
 
 /**
@@ -165,7 +171,7 @@ function handleHttpRequest(
   if (opts.httpAuthToken) {
     const header = req.headers.authorization ?? "";
     const got = header.replace(/^Bearer\s+/i, "").trim();
-    if (got !== opts.httpAuthToken) {
+    if (!timingSafeTokenEquals(got, opts.httpAuthToken)) {
       res.statusCode = 401;
       res.setHeader("content-type", "text/plain");
       res.setHeader("www-authenticate", "Bearer");
