@@ -26,10 +26,13 @@ import {
 } from "./models.js";
 import {
   ChatSamplingParams,
+  ResponseFormatSchema,
   TextMessageSchema,
   UsageSchema,
   errorResult,
+  extractTextAndReasoning,
   mapUsage,
+  toSdkResponseFormat,
   toTextBlock,
 } from "./shared.js";
 
@@ -40,6 +43,12 @@ export const ChatOutputShape = {
   model: z.string(),
   usage: UsageSchema.optional(),
   finish_reason: z.string().optional(),
+  reasoning_content: z
+    .string()
+    .optional()
+    .describe(
+      "Reasoning trace returned by Magistral models. Absent for non-reasoning models."
+    ),
 };
 export const ChatOutputSchema = z.object(ChatOutputShape);
 
@@ -49,6 +58,7 @@ export const ChatStreamOutputShape = {
   chunks: z.number().int(),
   finish_reason: z.string().optional(),
   usage: UsageSchema.optional(),
+  reasoning_content: z.string().optional(),
 };
 export const ChatStreamOutputSchema = z.object(ChatStreamOutputShape);
 
@@ -87,6 +97,9 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         model: ChatModelSchema.optional().describe(
           `Mistral chat model alias. Allowed: ${CHAT_MODELS.join(", ")}. Default: ${DEFAULT_CHAT_MODEL}.`
         ),
+        response_format: ResponseFormatSchema.optional().describe(
+          'Force a structured output: `{type:"json_object"}` for JSON mode, `{type:"json_schema", json_schema:{...}}` for strict schema mode.'
+        ),
         ...ChatSamplingParams,
       },
       outputSchema: ChatOutputShape,
@@ -107,17 +120,21 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
+          randomSeed: input.seed,
+          responseFormat: toSdkResponseFormat(input.response_format),
         });
 
         const choice = res.choices?.[0];
-        const content = choice?.message?.content ?? "";
-        const text = typeof content === "string" ? content : JSON.stringify(content);
+        const { text, reasoning_content } = extractTextAndReasoning(
+          choice?.message?.content
+        );
 
         const structured = {
           text,
           model,
           usage: mapUsage(res.usage),
           finish_reason: choice?.finishReason ?? undefined,
+          reasoning_content,
         };
 
         return {
@@ -147,6 +164,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
       inputSchema: {
         messages: z.array(TextMessageSchema).min(1),
         model: ChatModelSchema.optional(),
+        response_format: ResponseFormatSchema.optional(),
         ...ChatSamplingParams,
       },
       outputSchema: ChatStreamOutputShape,
@@ -167,10 +185,13 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
+          randomSeed: input.seed,
+          responseFormat: toSdkResponseFormat(input.response_format),
         });
 
         const progressToken = extra._meta?.progressToken;
         const parts: string[] = [];
+        const reasoningParts: string[] = [];
         let chunks = 0;
         let lastUsage: z.infer<typeof UsageSchema> | undefined;
         let finishReason: string | undefined;
@@ -179,8 +200,13 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
           const data = event.data;
           const choice = data.choices?.[0];
           const delta = choice?.delta?.content;
-          const deltaText =
-            typeof delta === "string" ? delta : delta == null ? "" : String(delta);
+          // Magistral streams reasoning as ThinkChunk arrays interleaved with TextChunks.
+          const split = extractTextAndReasoning(delta);
+          const deltaText = split.text;
+
+          if (split.reasoning_content) {
+            reasoningParts.push(split.reasoning_content);
+          }
 
           if (deltaText) {
             parts.push(deltaText);
@@ -206,12 +232,15 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         }
 
         const text = parts.join("");
+        const reasoning_content =
+          reasoningParts.length > 0 ? reasoningParts.join("") : undefined;
         const structured = {
           text,
           model,
           chunks,
           finish_reason: finishReason,
           usage: lastUsage,
+          reasoning_content,
         };
 
         return {

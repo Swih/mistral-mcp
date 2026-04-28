@@ -21,10 +21,12 @@ import {
 } from "./models.js";
 import {
   ChatSamplingParams,
+  ResponseFormatSchema,
   ToolMessageSchema,
   UsageSchema,
   errorResult,
   mapUsage,
+  toSdkResponseFormat,
   toTextBlock,
 } from "./shared.js";
 
@@ -93,6 +95,9 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
         model: ToolModelSchema.optional(),
         tool_choice: ToolChoiceSchema.optional(),
         parallel_tool_calls: z.boolean().optional(),
+        response_format: ResponseFormatSchema.optional().describe(
+          'Force structured output for the assistant text payload (json_object or json_schema). Tool-call arguments are independent and remain JSON per the function-calling spec.'
+        ),
         ...ChatSamplingParams,
       },
       outputSchema: ToolCallOutputShape,
@@ -116,6 +121,8 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
+          randomSeed: input.seed,
+          responseFormat: toSdkResponseFormat(input.response_format),
         };
         const res = await mistral.chat.complete(request);
 
@@ -199,6 +206,7 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
+          randomSeed: input.seed,
           stop: input.stop,
         });
 

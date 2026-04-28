@@ -105,11 +105,132 @@ export function errorResult(tool: string, err: unknown) {
 // ---------- Sampling-common param schema ----------
 
 /**
- * Shared chat sampling params (temperature/top_p/max_tokens).
+ * Shared chat sampling params (temperature/top_p/max_tokens/seed).
  * Re-exported as a plain object spread into `inputSchema`.
+ *
+ * `seed` maps to the SDK's `randomSeed` parameter — same semantics as
+ * OpenAI's `seed`: deterministic sampling across calls when set.
  */
 export const ChatSamplingParams = {
   temperature: z.number().min(0).max(2).optional(),
   max_tokens: z.number().int().positive().optional(),
   top_p: z.number().min(0).max(1).optional(),
+  seed: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      "Random seed for deterministic sampling. Maps to Mistral's `random_seed`."
+    ),
 };
+
+// ---------- response_format (structured outputs) ----------
+
+/**
+ * Mistral structured outputs — either JSON mode or strict JSON Schema mode.
+ *
+ * Source: https://docs.mistral.ai/capabilities/structured_output/
+ *
+ * - `{type: "text"}` is the SDK default and equivalent to omitting the field.
+ * - `{type: "json_object"}` enables JSON mode. The caller MUST also instruct
+ *   the model to produce JSON via a system or user message, per the API contract.
+ * - `{type: "json_schema", json_schema: {...}}` enables strict JSON Schema mode.
+ *   The model is constrained to the supplied schema. Recommended for agent
+ *   pipelines that need machine-parseable output without prompt-engineering.
+ *
+ * The wire format uses `random_seed` and `response_format` (snake_case) on
+ * the HTTP boundary; the SDK's TS surface uses camelCase (`responseFormat`,
+ * `jsonSchema`, `schemaDefinition`). We translate at the call site.
+ */
+export const ResponseFormatSchema = z.union([
+  z.object({ type: z.literal("text") }),
+  z.object({ type: z.literal("json_object") }),
+  z.object({
+    type: z.literal("json_schema"),
+    json_schema: z.object({
+      name: z
+        .string()
+        .min(1)
+        .max(64)
+        .describe("Identifier for the schema; surfaced in API errors."),
+      description: z.string().optional(),
+      schema: z
+        .record(z.string(), z.unknown())
+        .describe("JSON Schema object the response must conform to."),
+      strict: z
+        .boolean()
+        .optional()
+        .describe(
+          "If true, the API rejects responses that do not strictly match the schema."
+        ),
+    }),
+  }),
+]);
+
+export type ResponseFormat = z.infer<typeof ResponseFormatSchema>;
+
+/**
+ * Translate our snake_case `response_format` (zod-validated) to the SDK's
+ * camelCase shape. Returns `undefined` for `{type:"text"}` so the SDK uses
+ * its default.
+ */
+export function toSdkResponseFormat(rf: ResponseFormat | undefined) {
+  if (!rf) return undefined;
+  if (rf.type === "text") return undefined;
+  if (rf.type === "json_object") return { type: "json_object" as const };
+  return {
+    type: "json_schema" as const,
+    jsonSchema: {
+      name: rf.json_schema.name,
+      description: rf.json_schema.description,
+      schemaDefinition: rf.json_schema.schema,
+      strict: rf.json_schema.strict,
+    },
+  };
+}
+
+// ---------- Reasoning content (Magistral) ----------
+
+/**
+ * Mistral reasoning models (Magistral) return `message.content` as an array
+ * of chunks. `ThinkChunk` items hold the model's reasoning trace; `TextChunk`
+ * items hold the visible answer. Non-reasoning models return a plain string.
+ *
+ * Source: https://docs.mistral.ai/capabilities/reasoning/
+ *
+ * This helper splits the two so callers can surface reasoning separately
+ * without polluting the user-visible text.
+ */
+export function extractTextAndReasoning(raw: unknown): {
+  text: string;
+  reasoning_content?: string;
+} {
+  if (typeof raw === "string") {
+    return { text: raw };
+  }
+  if (!Array.isArray(raw)) {
+    return { text: raw == null ? "" : JSON.stringify(raw) };
+  }
+
+  const textParts: string[] = [];
+  const reasoningParts: string[] = [];
+
+  for (const chunk of raw as Array<Record<string, unknown>>) {
+    if (!chunk || typeof chunk !== "object") continue;
+    const type = chunk.type;
+    if (type === "thinking" && Array.isArray(chunk.thinking)) {
+      for (const inner of chunk.thinking as Array<Record<string, unknown>>) {
+        if (inner && typeof inner === "object" && typeof inner.text === "string") {
+          reasoningParts.push(inner.text);
+        }
+      }
+    } else if (type === "text" && typeof chunk.text === "string") {
+      textParts.push(chunk.text);
+    }
+  }
+
+  const text = textParts.join("");
+  const reasoning_content =
+    reasoningParts.length > 0 ? reasoningParts.join("") : undefined;
+  return { text, reasoning_content };
+}
