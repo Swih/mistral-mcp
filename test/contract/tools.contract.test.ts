@@ -118,10 +118,26 @@ function makeMock(): Mistral {
           {
             index: 0,
             markdown: "# Heading",
-            images: [],
+            images: [
+              {
+                id: "img_ct",
+                topLeftX: 1,
+                topLeftY: 2,
+                bottomRightX: 10,
+                bottomRightY: 20,
+                imageAnnotation: JSON.stringify({
+                  short_description: "Small chart",
+                }),
+              },
+            ],
             dimensions: { dpi: 150, height: 1000, width: 800 },
+            confidenceScores: {
+              averagePageConfidenceScore: 0.95,
+              minimumPageConfidenceScore: 0.9,
+            },
           },
         ],
+        documentAnnotation: JSON.stringify({ kind: "contract" }),
         usageInfo: { pagesProcessed: 1 },
       })),
     },

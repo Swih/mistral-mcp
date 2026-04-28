@@ -50,7 +50,7 @@ const mistral = new Mistral({
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.4.0",
+  version: "0.5.0",
 });
 
 registerMistralTools(server, mistral);
@@ -67,7 +67,7 @@ registerMistralPrompts(server);
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.4.0 connected via ${connected.mode}${
+  `[mistral-mcp] v0.5.0 connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""

@@ -16,7 +16,7 @@ Mistral has strong models for French, code, OCR, moderation, audio, and agent-st
 
 The goal of this repo is not "yet another thin wrapper". It aims to be a robust, maintainable MCP server with explicit schemas, predictable outputs, transport flexibility, and good test coverage.
 
-## Current surface (`v0.4.3`)
+## Current surface (`v0.5.0`)
 
 ### Tools (22)
 
@@ -76,6 +76,7 @@ Prompt enum arguments are wrapped with `completable()`, so MCP clients can call 
 - High-level `McpServer` API with `inputSchema`, `outputSchema`, and annotations on every tool
 - Dual transport support: stdio by default, Streamable HTTP for remote deployments
 - Structured outputs everywhere: `structuredContent` plus text fallback
+- OCR annotations: `mistral_ocr` can request document-level and image/bbox JSON annotations from Mistral Document AI
 - MCP sampling support through `mcp_sample`
 - Prompt completion support for enum-like prompt arguments
 - Resources and prompts registered alongside tools, not bolted on later
@@ -124,6 +125,15 @@ npm install -g mistral-mcp
 mistral-mcp
 ```
 
+Run with Docker:
+
+```bash
+docker build -t mistral-mcp:dev .
+docker run -i --rm -e MISTRAL_API_KEY=your_key_here mistral-mcp:dev
+```
+
+The image uses a multi-stage build and keeps the runtime container to production dependencies plus `dist/`.
+
 Build from source:
 
 ```bash
@@ -163,14 +173,14 @@ npm run inspector
 
 ## Test strategy
 
-The suite currently contains 151 tests across 4 layers:
+The suite currently contains 165 tests across 4 layers:
 
 1. Unit tests for tools, resources, prompts, transport, audio, agents, files, batch, and sampling
 2. Contract tests for tool metadata and MCP-facing guarantees
 3. Live API tests against the real Mistral API when `MISTRAL_API_KEY` is set
 4. Stdio end-to-end tests against the built server
 
-Without `MISTRAL_API_KEY`, the local default is `142 passing` plus `9 gated` live/stdio tests.
+Without `MISTRAL_API_KEY`, the local default is `156 passing` plus `9 gated` live/stdio tests.
 
 ## Project layout
 
@@ -198,10 +208,11 @@ mistral-mcp/
 
 ## Status
 
-`v0.4.3` — shipped. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.3.0`:
+`v0.5.0` — shipped 2026-04-28. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.4.3`:
 
 - shared helpers, live model + voice catalogs, contract tests
 - vision + OCR
+- OCR document and image/bbox annotations exposed through `mistral_ocr`
 - audio transcription + speech
 - agents + moderation + classification
 - files + batch APIs

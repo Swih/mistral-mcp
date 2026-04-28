@@ -213,4 +213,70 @@ describe("codestral_fim", () => {
     const call = (mock.fim.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(call?.stop).toEqual(["\n\n", "END"]);
   });
+
+  it("propagates `seed` to the SDK as `randomSeed`", async () => {
+    const { client, mock } = await bootPair();
+    await client.callTool({
+      name: "codestral_fim",
+      arguments: { prompt: "a", suffix: "b", seed: 99 },
+    });
+    const call = (mock.fim.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.randomSeed).toBe(99);
+  });
+});
+
+describe("mistral_tool_call — v0.5 surface", () => {
+  const fnTools = [
+    {
+      type: "function" as const,
+      function: {
+        name: "get_weather",
+        parameters: {
+          type: "object",
+          properties: { city: { type: "string" } },
+          required: ["city"],
+        },
+      },
+    },
+  ];
+
+  it("propagates `seed` to the SDK as `randomSeed`", async () => {
+    const { client, mock } = await bootPair();
+    await client.callTool({
+      name: "mistral_tool_call",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        tools: fnTools,
+        seed: 13,
+      },
+    });
+    const call = (mock.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.randomSeed).toBe(13);
+  });
+
+  it("translates response_format json_schema (snake_case) to SDK camelCase", async () => {
+    const { client, mock } = await bootPair();
+    const schema = { type: "object", properties: { ok: { type: "boolean" } } };
+    await client.callTool({
+      name: "mistral_tool_call",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        tools: fnTools,
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "answer", schema, strict: false },
+        },
+      },
+    });
+    const call = (mock.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.responseFormat).toEqual({
+      type: "json_schema",
+      jsonSchema: {
+        name: "answer",
+        description: undefined,
+        schemaDefinition: schema,
+        strict: false,
+      },
+    });
+  });
 });

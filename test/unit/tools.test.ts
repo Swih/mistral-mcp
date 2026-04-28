@@ -223,6 +223,145 @@ describe("mistral_chat_stream", () => {
   });
 });
 
+describe("mistral_chat — v0.5 surface", () => {
+  it("propagates `seed` to the SDK as `randomSeed`", async () => {
+    const { client, mockMistral } = await bootPair();
+    await client.callTool({
+      name: "mistral_chat",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        seed: 42,
+      },
+    });
+    const call = (mockMistral.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.randomSeed).toBe(42);
+  });
+
+  it("propagates `response_format: json_object` to the SDK", async () => {
+    const { client, mockMistral } = await bootPair();
+    await client.callTool({
+      name: "mistral_chat",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        response_format: { type: "json_object" },
+      },
+    });
+    const call = (mockMistral.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.responseFormat).toEqual({ type: "json_object" });
+  });
+
+  it("translates snake_case json_schema to camelCase + schemaDefinition", async () => {
+    const { client, mockMistral } = await bootPair();
+    const schema = {
+      type: "object",
+      properties: { city: { type: "string" } },
+      required: ["city"],
+    };
+    await client.callTool({
+      name: "mistral_chat",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        response_format: {
+          type: "json_schema",
+          json_schema: { name: "address", schema, strict: true },
+        },
+      },
+    });
+    const call = (mockMistral.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.responseFormat).toEqual({
+      type: "json_schema",
+      jsonSchema: {
+        name: "address",
+        description: undefined,
+        schemaDefinition: schema,
+        strict: true,
+      },
+    });
+  });
+
+  it("omits responseFormat when type is `text` (SDK default)", async () => {
+    const { client, mockMistral } = await bootPair();
+    await client.callTool({
+      name: "mistral_chat",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        response_format: { type: "text" },
+      },
+    });
+    const call = (mockMistral.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.responseFormat).toBeUndefined();
+  });
+
+  it("extracts Magistral reasoning into `reasoning_content` and keeps the visible text clean", async () => {
+    const mock = makeMockMistral();
+    (mock.chat.complete as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: [
+              {
+                type: "thinking",
+                thinking: [{ type: "text", text: "Let me reason... " }],
+              },
+              { type: "text", text: "Final answer." },
+            ],
+          },
+          finishReason: "stop",
+        },
+      ],
+      usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+    });
+    const { client } = await bootPair(mock);
+
+    const result = await client.callTool({
+      name: "mistral_chat",
+      arguments: {
+        messages: [{ role: "user", content: "Solve" }],
+        model: "magistral-medium-latest",
+      },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const sc = result.structuredContent as {
+      text: string;
+      reasoning_content?: string;
+    };
+    expect(sc.text).toBe("Final answer.");
+    expect(sc.reasoning_content).toBe("Let me reason... ");
+
+    // text fallback in content[] must NOT include the reasoning trace
+    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
+    expect(text).toBe("Final answer.");
+  });
+
+  it("leaves `reasoning_content` undefined for non-reasoning models (string content)", async () => {
+    const { client } = await bootPair();
+    const result = await client.callTool({
+      name: "mistral_chat",
+      arguments: { messages: [{ role: "user", content: "Hi" }] },
+    });
+    const sc = result.structuredContent as { reasoning_content?: string };
+    expect(sc.reasoning_content).toBeUndefined();
+  });
+});
+
+describe("mistral_chat_stream — v0.5 surface", () => {
+  it("propagates `seed` and `response_format` to `mistral.chat.stream`", async () => {
+    const { client, mockMistral } = await bootPair();
+    await client.callTool({
+      name: "mistral_chat_stream",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        seed: 7,
+        response_format: { type: "json_object" },
+      },
+    });
+    const call = (mockMistral.chat.stream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.randomSeed).toBe(7);
+    expect(call?.responseFormat).toEqual({ type: "json_object" });
+  });
+});
+
 describe("mistral_embed", () => {
   it("returns vectors + dimensions + usage in structuredContent, summary in text", async () => {
     const { client } = await bootPair();

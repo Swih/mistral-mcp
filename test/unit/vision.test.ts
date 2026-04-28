@@ -38,6 +38,10 @@ function makeMock(overrides: Partial<Record<string, unknown>> = {}): Mistral {
                 bottomRightX: 110,
                 bottomRightY: 120,
                 imageBase64: null,
+                imageAnnotation: JSON.stringify({
+                  image_type: "logo",
+                  short_description: "Example logo",
+                }),
               },
             ],
             tables: undefined,
@@ -45,6 +49,13 @@ function makeMock(overrides: Partial<Record<string, unknown>> = {}): Mistral {
             header: "Page header",
             footer: null,
             dimensions: { dpi: 150, height: 1200, width: 800 },
+            confidenceScores: {
+              averagePageConfidenceScore: 0.98,
+              minimumPageConfidenceScore: 0.91,
+              wordConfidenceScores: [
+                { text: "Title", confidence: 0.99, startIndex: 2 },
+              ],
+            },
           },
           {
             index: 1,
@@ -53,6 +64,7 @@ function makeMock(overrides: Partial<Record<string, unknown>> = {}): Mistral {
             dimensions: null,
           },
         ],
+        documentAnnotation: JSON.stringify({ vendor: "ACME", total: 42 }),
         usageInfo: { pagesProcessed: 2, docSizeBytes: 12345 },
       })),
     },
@@ -184,6 +196,19 @@ describe("mistral_vision", () => {
     expect(result.isError).toBeFalsy();
   });
 
+  it("propagates `seed` to the SDK as `randomSeed`", async () => {
+    const { client, mock } = await boot();
+    await client.callTool({
+      name: "mistral_vision",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        seed: 77,
+      },
+    });
+    const call = (mock.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.randomSeed).toBe(77);
+  });
+
   it("returns isError:true when the SDK throws", async () => {
     const mock = makeMock();
     (mock.chat.complete as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
@@ -221,12 +246,22 @@ describe("mistral_ocr", () => {
       pages: Array<{ index: number; markdown: string; hyperlinks?: string[] }>;
       model: string;
       pages_count: number;
+      document_annotation?: string;
+      annotations?: {
+        document_annotation?: string;
+        image_annotations?: Array<{ annotation: string }>;
+      };
       usage?: { pages_processed?: number };
     };
     expect(sc.pages_count).toBe(2);
     expect(sc.pages[0]?.markdown).toContain("Title");
     expect(sc.pages[0]?.hyperlinks?.[0]).toBe("https://example.com");
     expect(sc.model).toBe("mistral-ocr-latest");
+    expect(sc.document_annotation).toContain("ACME");
+    expect(sc.annotations?.document_annotation).toContain("vendor");
+    expect(sc.annotations?.image_annotations?.[0]?.annotation).toContain(
+      "logo"
+    );
     expect(sc.usage?.pages_processed).toBe(2);
   });
 
@@ -274,6 +309,66 @@ describe("mistral_ocr", () => {
     expect(arg?.tableFormat).toBe("html");
     expect(arg?.extractHeader).toBe(true);
     expect(arg?.pages).toEqual([0, 2, 4]);
+  });
+
+  it("forwards OCR annotation formats and confidence granularity", async () => {
+    const { client, mock } = await boot();
+    await client.callTool({
+      name: "mistral_ocr",
+      arguments: {
+        document: {
+          type: "document_url",
+          documentUrl: "https://example.com/invoice.pdf",
+        },
+        document_annotation_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "invoice",
+            schema: {
+              type: "object",
+              properties: {
+                vendor: { type: "string" },
+              },
+              required: ["vendor"],
+            },
+            strict: true,
+          },
+        },
+        bbox_annotation_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "figure",
+            schema: {
+              type: "object",
+              properties: {
+                short_description: { type: "string" },
+              },
+            },
+          },
+        },
+        document_annotation_prompt: "Extract invoice metadata.",
+        confidence_scores_granularity: "word",
+      },
+    });
+    const arg = (mock.ocr.process as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(arg?.documentAnnotationFormat).toEqual({
+      type: "json_schema",
+      jsonSchema: {
+        name: "invoice",
+        description: undefined,
+        schemaDefinition: {
+          type: "object",
+          properties: {
+            vendor: { type: "string" },
+          },
+          required: ["vendor"],
+        },
+        strict: true,
+      },
+    });
+    expect(arg?.bboxAnnotationFormat?.jsonSchema?.name).toBe("figure");
+    expect(arg?.documentAnnotationPrompt).toBe("Extract invoice metadata.");
+    expect(arg?.confidenceScoresGranularity).toBe("word");
   });
 
   it("rejects missing document", async () => {

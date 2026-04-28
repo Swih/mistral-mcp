@@ -118,4 +118,80 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     // The completion should include "a" and "b" in some form — we're tolerant.
     expect(text).toMatch(/a|b/);
   });
+
+  it("mistral.chat.complete with response_format:json_schema returns parseable JSON matching the schema", async () => {
+    const { Mistral } = await import("@mistralai/mistralai");
+    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+
+    const res = await mistral.chat.complete({
+      model: "mistral-small-latest",
+      messages: [
+        {
+          role: "user",
+          content:
+            "Return the capital of France as JSON: { country, capital }.",
+        },
+      ],
+      temperature: 0,
+      maxTokens: 64,
+      responseFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "capital",
+          schemaDefinition: {
+            type: "object",
+            properties: {
+              country: { type: "string" },
+              capital: { type: "string" },
+            },
+            required: ["country", "capital"],
+            additionalProperties: false,
+          },
+          strict: true,
+        },
+      },
+    });
+
+    const content = res.choices?.[0]?.message?.content ?? "";
+    const text = typeof content === "string" ? content : JSON.stringify(content);
+    const parsed = JSON.parse(text);
+    expect(typeof parsed.country).toBe("string");
+    expect(typeof parsed.capital).toBe("string");
+    expect(parsed.capital.toLowerCase()).toContain("paris");
+  });
+
+  it("mistral.ocr.process accepts document annotations when requested", async () => {
+    const { Mistral } = await import("@mistralai/mistralai");
+    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+
+    const res = await mistral.ocr.process({
+      model: "mistral-ocr-latest",
+      document: {
+        type: "document_url",
+        documentUrl: "https://arxiv.org/pdf/2410.07073",
+      },
+      pages: [0],
+      documentAnnotationFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "paper_metadata",
+          schemaDefinition: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+            },
+          },
+          strict: false,
+        },
+      },
+      documentAnnotationPrompt:
+        "Extract the visible paper title when present. Return only fields supported by the schema.",
+    });
+
+    expect(Array.isArray(res.pages)).toBe(true);
+    expect(res.pages.length).toBeGreaterThan(0);
+    if (res.documentAnnotation) {
+      expect(() => JSON.parse(res.documentAnnotation!)).not.toThrow();
+    }
+  });
 });

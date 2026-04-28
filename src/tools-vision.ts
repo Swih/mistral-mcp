@@ -24,10 +24,12 @@ import {
 } from "./models.js";
 import {
   ChatSamplingParams,
+  JsonSchemaResponseFormatSchema,
   MultimodalMessageSchema,
   UsageSchema,
   errorResult,
   mapUsage,
+  toSdkJsonSchemaFormat,
   toTextBlock,
 } from "./shared.js";
 
@@ -53,6 +55,7 @@ const OcrPageSchema = z.object({
         bottom_right_x: z.number().optional(),
         bottom_right_y: z.number().optional(),
         image_base64: z.string().optional(),
+        image_annotation: z.string().optional(),
       })
     )
     .optional(),
@@ -68,6 +71,21 @@ const OcrPageSchema = z.object({
     })
     .nullable()
     .optional(),
+  confidence_scores: z
+    .object({
+      average_page_confidence_score: z.number(),
+      minimum_page_confidence_score: z.number(),
+      word_confidence_scores: z
+        .array(
+          z.object({
+            text: z.string(),
+            confidence: z.number(),
+            start_index: z.number().int(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export const OcrOutputShape = {
@@ -75,6 +93,28 @@ export const OcrOutputShape = {
   model: z.string(),
   pages_count: z.number().int(),
   document_annotation: z.string().optional(),
+  annotations: z
+    .object({
+      document_annotation: z.string().optional(),
+      image_annotations: z
+        .array(
+          z.object({
+            page_index: z.number().int(),
+            image_id: z.string().optional(),
+            annotation: z.string(),
+            bbox: z
+              .object({
+                top_left_x: z.number().optional(),
+                top_left_y: z.number().optional(),
+                bottom_right_x: z.number().optional(),
+                bottom_right_y: z.number().optional(),
+              })
+              .optional(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
   usage: z
     .object({
       pages_processed: z.number().optional(),
@@ -156,6 +196,7 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
+          randomSeed: input.seed,
         });
 
         const choice = res.choices?.[0];
@@ -198,9 +239,12 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         "  - `tableFormat`: 'markdown' (default) or 'html'.",
         "  - `extractHeader` / `extractFooter`: include page header/footer when present.",
         "  - `includeImageBase64`: embed extracted image bytes as base64 in the response.",
+        "  - `document_annotation_format`: JSON schema for whole-document structured extraction.",
+        "  - `bbox_annotation_format`: JSON schema for extracted image / bbox annotations.",
+        "  - `confidence_scores_granularity`: 'page' or 'word'.",
         "",
         "Returns `pages[].markdown` plus optional `pages[].hyperlinks`, `header`, `footer`,",
-        "`images` bounding boxes, and `dimensions`.",
+        "`images` bounding boxes, annotations, confidence scores, and `dimensions`.",
       ].join("\n"),
       inputSchema: {
         document: OcrDocumentSchema,
@@ -216,6 +260,10 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         includeImageBase64: z.boolean().optional(),
         imageLimit: z.number().int().positive().optional(),
         imageMinSize: z.number().int().positive().optional(),
+        bbox_annotation_format: JsonSchemaResponseFormatSchema.optional(),
+        document_annotation_format: JsonSchemaResponseFormatSchema.optional(),
+        document_annotation_prompt: z.string().optional(),
+        confidence_scores_granularity: z.enum(["page", "word"]).optional(),
       },
       outputSchema: OcrOutputShape,
       annotations: {
@@ -239,6 +287,14 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
           includeImageBase64: input.includeImageBase64,
           imageLimit: input.imageLimit,
           imageMinSize: input.imageMinSize,
+          bboxAnnotationFormat: toSdkJsonSchemaFormat(
+            input.bbox_annotation_format
+          ),
+          documentAnnotationFormat: toSdkJsonSchemaFormat(
+            input.document_annotation_format
+          ),
+          documentAnnotationPrompt: input.document_annotation_prompt,
+          confidenceScoresGranularity: input.confidence_scores_granularity,
         });
 
         const pages = (res.pages ?? []).map((p) => ({
@@ -251,6 +307,9 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
             bottom_right_x: im.bottomRightX ?? undefined,
             bottom_right_y: im.bottomRightY ?? undefined,
             image_base64: im.imageBase64 ?? undefined,
+            image_annotation:
+              (im as { imageAnnotation?: string | null }).imageAnnotation ??
+              undefined,
           })),
           tables: p.tables,
           hyperlinks: p.hyperlinks,
@@ -263,7 +322,42 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
                 width: p.dimensions.width,
               }
             : undefined,
+          confidence_scores: p.confidenceScores
+            ? {
+                average_page_confidence_score:
+                  p.confidenceScores.averagePageConfidenceScore,
+                minimum_page_confidence_score:
+                  p.confidenceScores.minimumPageConfidenceScore,
+                word_confidence_scores: p.confidenceScores.wordConfidenceScores
+                  ? p.confidenceScores.wordConfidenceScores.map((score) => ({
+                      text: score.text,
+                      confidence: score.confidence,
+                      start_index: score.startIndex,
+                    }))
+                  : undefined,
+              }
+            : undefined,
         }));
+
+        const imageAnnotations = pages.flatMap((page) =>
+          (page.images ?? [])
+            .filter((im) => im.image_annotation)
+            .map((im) => ({
+              page_index: page.index,
+              image_id: im.id,
+              annotation: im.image_annotation!,
+              bbox: {
+                top_left_x: im.top_left_x,
+                top_left_y: im.top_left_y,
+                bottom_right_x: im.bottom_right_x,
+                bottom_right_y: im.bottom_right_y,
+              },
+            }))
+        );
+
+        const documentAnnotation =
+          (res as { documentAnnotation?: string | null }).documentAnnotation ??
+          undefined;
 
         const usageInfo = (res as { usageInfo?: unknown }).usageInfo as
           | { pagesProcessed?: number; docSizeBytes?: number }
@@ -273,9 +367,15 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
           pages,
           model: res.model,
           pages_count: pages.length,
-          document_annotation:
-            (res as { documentAnnotation?: string }).documentAnnotation ??
-            undefined,
+          document_annotation: documentAnnotation,
+          annotations:
+            documentAnnotation || imageAnnotations.length > 0
+              ? {
+                  document_annotation: documentAnnotation,
+                  image_annotations:
+                    imageAnnotations.length > 0 ? imageAnnotations : undefined,
+                }
+              : undefined,
           usage: usageInfo
             ? {
                 pages_processed: usageInfo.pagesProcessed,
@@ -284,7 +384,13 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
             : undefined,
         };
 
-        const summary = `OCR ${structured.pages_count} page(s) via ${res.model}.`;
+        const annotationCount =
+          (documentAnnotation ? 1 : 0) + imageAnnotations.length;
+        const summary =
+          `OCR ${structured.pages_count} page(s) via ${res.model}.` +
+          (annotationCount > 0
+            ? ` ${annotationCount} annotation(s) extracted.`
+            : "");
         return {
           content: [toTextBlock(summary)],
           structuredContent: structured,

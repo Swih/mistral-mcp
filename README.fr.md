@@ -16,7 +16,7 @@ Mistral propose des modèles solides sur le français, le code, l'OCR, la modér
 
 L'objectif de ce repo n'est pas « encore un wrapper ». C'est un serveur MCP robuste et maintenable, avec schémas explicites, sorties prédictibles, transports flexibles et bonne couverture de tests.
 
-## Surface actuelle (`v0.4.3`)
+## Surface actuelle (`v0.5.0`)
 
 ### Tools (22)
 
@@ -76,6 +76,7 @@ Les arguments enum des prompts sont enveloppés avec `completable()`, ce qui per
 - API haut niveau `McpServer` avec `inputSchema`, `outputSchema` et annotations sur chaque tool
 - Double transport : stdio par défaut, Streamable HTTP pour déploiements distants
 - Sorties structurées partout : `structuredContent` plus fallback texte
+- Annotations OCR : `mistral_ocr` peut demander des annotations JSON au niveau document et image/bbox via Mistral Document AI
 - Support MCP sampling via `mcp_sample`
 - Support completion sur les arguments de prompts (enums)
 - Resources et prompts enregistrés à côté des tools, pas plaqués après coup
@@ -124,6 +125,15 @@ npm install -g mistral-mcp
 mistral-mcp
 ```
 
+Lancer avec Docker :
+
+```bash
+docker build -t mistral-mcp:dev .
+docker run -i --rm -e MISTRAL_API_KEY=votre_cle mistral-mcp:dev
+```
+
+L'image utilise un build multi-stage et garde dans le conteneur runtime uniquement les dépendances de production plus `dist/`.
+
 Build depuis les sources :
 
 ```bash
@@ -163,14 +173,14 @@ npm run inspector
 
 ## Stratégie de tests
 
-La suite contient actuellement 151 tests sur 4 couches :
+La suite contient actuellement 165 tests sur 4 couches :
 
 1. Tests unitaires pour tools, resources, prompts, transport, audio, agents, files, batch et sampling
 2. Tests de contrat pour les métadonnées de tools et les garanties côté MCP
 3. Tests live contre l'API Mistral réelle quand `MISTRAL_API_KEY` est définie
 4. Tests stdio end-to-end contre le serveur buildé
 
-Sans `MISTRAL_API_KEY`, le défaut local est `142 tests passants` plus `9 tests gated` live/stdio.
+Sans `MISTRAL_API_KEY`, le défaut local est `156 tests passants` plus `9 tests gated` live/stdio.
 
 ## Structure du projet
 
@@ -198,10 +208,11 @@ mistral-mcp/
 
 ## Statut
 
-`v0.4.3` — livré. Voir [CHANGELOG.md](./CHANGELOG.md) pour le diff complet face à `v0.3.0` :
+`v0.5.0` — livré le 2026-04-28. Voir [CHANGELOG.md](./CHANGELOG.md) pour le diff complet face à `v0.4.3` :
 
 - helpers partagés, catalogues modèles + voix live, tests de contrat
 - vision + OCR
+- annotations OCR document et image/bbox exposées via `mistral_ocr`
 - transcription + synthèse vocale
 - agents + modération + classification
 - APIs files + batch
