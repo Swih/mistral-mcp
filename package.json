@@ -1,6 +1,6 @@
 {
   "name": "mistral-mcp",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "mcpName": "io.github.Swih/mistral-mcp",
   "description": "MCP server exposing Mistral AI capabilities over MCP: chat, embeddings, FIM, vision, OCR, audio, agents, moderation, classification, files, batch, sampling, prompts, resources, and Streamable HTTP.",
   "type": "module",
