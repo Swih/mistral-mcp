@@ -19,3 +19,7 @@ Thumbs.db
 
 # Marketing drafts — not for public repo
 /posts/
+
+# MCP registry CLI
+mcp-publisher.exe
+mcp-publisher.tar.gz
