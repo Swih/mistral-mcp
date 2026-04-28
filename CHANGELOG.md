@@ -4,6 +4,44 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-04-28
+
+### Fixed
+- Restored `README.md` and `LICENSE` after a tarball extraction overwrote them at the repo root during `mcp-publisher` setup. The previous two npm tarballs (`0.4.1`, `0.4.2`) shipped the wrong `README.md` and `LICENSE`; `0.4.3` is the first npm release with the canonical files restored.
+
+### Changed
+- User-facing `npx` invocation in the README is now `npx mistral-mcp` (was `npx -y mistral-mcp`). The `-y` flag silently accepts third-party package execution and was flagged as a supply-chain concern by an external reviewer.
+
+### Added
+- Community skill `mistral-mcp-openclaw@0.1.0` published on [ClawHub](https://clawhub.ai/swih/mistral-mcp-openclaw) to register this MCP server inside [OpenClaw](https://github.com/openclaw/openclaw). Source under `clawhub/mistral-mcp-openclaw/`.
+
+### Notes
+- Smithery submission was evaluated and skipped: their CLI requires either a hosted HTTPS endpoint or a `.mcpb` bundle, neither of which fits a stdio + bring-your-own-key model. `smithery.yaml` is kept on `main` so a hosted variant can be added later without re-doing the work.
+
+## [0.4.2] - 2026-04-27
+
+### Added
+- `server.json` (MCP Registry schema `2025-12-11`) so the package can be listed in the [Official MCP Registry](https://registry.modelcontextprotocol.io/) under the namespace `io.github.Swih/mistral-mcp`.
+- `mcpName` field in `package.json` to satisfy the registry's npm verification step.
+
+### Fixed
+- `mcpName` casing aligned with the GitHub username (`io.github.Swih/...`) after the registry rejected the lowercased form with a 403.
+- `server.json` description trimmed to ≤ 100 ASCII characters to satisfy the registry validator.
+
+### Notes
+- Registry-packaging release. No tool, resource, or prompt surface change.
+
+## [0.4.1] - 2026-04-25
+
+### Fixed
+- `package.json` `files` field now also ships `README.fr.md` and `SECURITY.md` in the npm tarball. The `0.4.0` tarball only included `dist/`, `README.md`, and `LICENSE`, so links to the French README and the security policy were broken on `npmjs.com`.
+
+### Added
+- `glama.json` (Glama MCP discovery service config) and `SECURITY.md` (vulnerability reporting policy via GitHub Security Advisories).
+
+### Notes
+- npm-tarball packaging release. No tool, resource, or prompt surface change.
+
 ## [0.4.0] - 2026-04-23
 
 ### Added

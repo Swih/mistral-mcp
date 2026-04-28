@@ -16,7 +16,7 @@ Mistral has strong models for French, code, OCR, moderation, audio, and agent-st
 
 The goal of this repo is not "yet another thin wrapper". It aims to be a robust, maintainable MCP server with explicit schemas, predictable outputs, transport flexibility, and good test coverage.
 
-## Current surface (`v0.4.0`)
+## Current surface (`v0.4.3`)
 
 ### Tools (22)
 
@@ -198,7 +198,7 @@ mistral-mcp/
 
 ## Status
 
-`v0.4.0` — shipped. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.3.0`:
+`v0.4.3` — shipped. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.3.0`:
 
 - shared helpers, live model + voice catalogs, contract tests
 - vision + OCR
@@ -207,6 +207,7 @@ mistral-mcp/
 - files + batch APIs
 - Streamable HTTP transport + MCP sampling
 - 5 French curated prompts + 1 English prompt + prompt argument completion
+- registry packaging: shipped on npm, the [Official MCP Registry](https://registry.modelcontextprotocol.io/), [Glama](https://glama.ai/mcp/servers/Swih/mistral-mcp), and [ClawHub](https://clawhub.ai/swih/mistral-mcp-openclaw) (community skill for OpenClaw)
 
 ## Examples
 
