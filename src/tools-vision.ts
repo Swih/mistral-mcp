@@ -24,10 +24,12 @@ import {
 } from "./models.js";
 import {
   ChatSamplingParams,
+  JsonSchemaResponseFormatSchema,
   MultimodalMessageSchema,
   UsageSchema,
   errorResult,
   mapUsage,
+  toSdkJsonSchemaFormat,
   toTextBlock,
 } from "./shared.js";
 
@@ -143,36 +145,6 @@ const OcrDocumentSchema = z.union([
       .describe("ID of a file previously uploaded via the Files API."),
   }),
 ]);
-
-const JsonSchemaResponseFormatSchema = z.object({
-  type: z
-    .literal("json_schema")
-    .describe("Only json_schema is accepted by OCR annotation formats."),
-  json_schema: z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
-    schema: z.record(z.string(), z.unknown()),
-    strict: z.boolean().optional(),
-  }),
-});
-
-function toMistralResponseFormat(
-  format: z.infer<typeof JsonSchemaResponseFormatSchema> | undefined
-) {
-  if (!format) {
-    return undefined;
-  }
-
-  return {
-    type: format.type,
-    jsonSchema: {
-      name: format.json_schema.name,
-      description: format.json_schema.description,
-      schemaDefinition: format.json_schema.schema,
-      strict: format.json_schema.strict,
-    },
-  };
-}
 
 // ---------- registration ----------
 
@@ -315,10 +287,10 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
           includeImageBase64: input.includeImageBase64,
           imageLimit: input.imageLimit,
           imageMinSize: input.imageMinSize,
-          bboxAnnotationFormat: toMistralResponseFormat(
+          bboxAnnotationFormat: toSdkJsonSchemaFormat(
             input.bbox_annotation_format
           ),
-          documentAnnotationFormat: toMistralResponseFormat(
+          documentAnnotationFormat: toSdkJsonSchemaFormat(
             input.document_annotation_format
           ),
           documentAnnotationPrompt: input.document_annotation_prompt,

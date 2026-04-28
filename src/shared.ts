@@ -170,6 +170,39 @@ export const ResponseFormatSchema = z.union([
 export type ResponseFormat = z.infer<typeof ResponseFormatSchema>;
 
 /**
+ * Restricted subset of ResponseFormatSchema for endpoints that only accept
+ * `json_schema` (e.g. OCR annotation formats). Reuses the same `json_schema`
+ * inner shape so callers stay consistent.
+ */
+export const JsonSchemaResponseFormatSchema = z.object({
+  type: z
+    .literal("json_schema")
+    .describe("Only json_schema is accepted by OCR annotation formats."),
+  json_schema: z.object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    schema: z.record(z.string(), z.unknown()),
+    strict: z.boolean().optional(),
+  }),
+});
+
+export type JsonSchemaResponseFormat = z.infer<typeof JsonSchemaResponseFormatSchema>;
+
+/** Translate a `json_schema`-only format to the SDK's camelCase shape. */
+export function toSdkJsonSchemaFormat(format: JsonSchemaResponseFormat | undefined) {
+  if (!format) return undefined;
+  return {
+    type: "json_schema" as const,
+    jsonSchema: {
+      name: format.json_schema.name,
+      description: format.json_schema.description,
+      schemaDefinition: format.json_schema.schema,
+      strict: format.json_schema.strict,
+    },
+  };
+}
+
+/**
  * Translate our snake_case `response_format` (zod-validated) to the SDK's
  * camelCase shape. Returns `undefined` for `{type:"text"}` so the SDK uses
  * its default.

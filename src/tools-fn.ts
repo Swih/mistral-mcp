@@ -25,6 +25,7 @@ import {
   ToolMessageSchema,
   UsageSchema,
   errorResult,
+  extractTextAndReasoning,
   mapUsage,
   toSdkResponseFormat,
   toTextBlock,
@@ -140,13 +141,8 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
               : JSON.stringify(c.function?.arguments ?? {}),
         }));
 
-        const content = choice?.message?.content;
-        const text =
-          typeof content === "string"
-            ? content
-            : content == null
-              ? undefined
-              : JSON.stringify(content);
+        const { text: rawText } = extractTextAndReasoning(choice?.message?.content);
+        const text = rawText || undefined;
 
         const structured = {
           tool_calls,

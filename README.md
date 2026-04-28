@@ -173,14 +173,14 @@ npm run inspector
 
 ## Test strategy
 
-The suite currently contains 151 tests across 4 layers:
+The suite currently contains 165 tests across 4 layers:
 
 1. Unit tests for tools, resources, prompts, transport, audio, agents, files, batch, and sampling
 2. Contract tests for tool metadata and MCP-facing guarantees
 3. Live API tests against the real Mistral API when `MISTRAL_API_KEY` is set
 4. Stdio end-to-end tests against the built server
 
-Without `MISTRAL_API_KEY`, the local default is `142 passing` plus `9 gated` live/stdio tests.
+Without `MISTRAL_API_KEY`, the local default is `156 passing` plus `9 gated` live/stdio tests.
 
 ## Project layout
 
@@ -208,7 +208,7 @@ mistral-mcp/
 
 ## Status
 
-`v0.5.0` — in development. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.4.3`:
+`v0.5.0` — shipped 2026-04-28. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.4.3`:
 
 - shared helpers, live model + voice catalogs, contract tests
 - vision + OCR
