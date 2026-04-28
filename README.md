@@ -4,15 +4,11 @@
 >
 > _Version française : [README.fr.md](./README.fr.md)_
 
-![version](https://img.shields.io/badge/version-v0.4.0-brightgreen)
-![license](https://img.shields.io/badge/license-MIT-black)
-![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
-![typescript](https://img.shields.io/badge/typescript-strict-blue)
-![mcp-spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
-![tools](https://img.shields.io/badge/tools-22-blue)
-![resources](https://img.shields.io/badge/resources-2-blueviolet)
-![prompts](https://img.shields.io/badge/prompts-6-ff69b4)
-![tests](https://img.shields.io/badge/tests-148%20total-brightgreen)
+[![npm version](https://img.shields.io/npm/v/mistral-mcp?color=brightgreen)](https://www.npmjs.com/package/mistral-mcp)
+[![CI](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml)
+[![Glama MCP score](https://glama.ai/mcp/servers/Swih/mistral-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Swih/mistral-mcp)
+[![license](https://img.shields.io/badge/license-MIT-black)](./LICENSE)
+![MCP spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
 
 ## Why
 
