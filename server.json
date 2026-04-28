@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Swih/mistral-mcp",
+  "description": "Mistral AI MCP server: chat, OCR, Voxtral audio, Codestral FIM, vision, agents, batch.",
+  "repository": {
+    "url": "https://github.com/Swih/mistral-mcp",
+    "source": "github"
+  },
+  "version": "0.4.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "mistral-mcp",
+      "version": "0.4.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MISTRAL_API_KEY",
+          "description": "Mistral API key from https://console.mistral.ai/. The free Experiment tier provides 1B tokens/month.",
+          "format": "string",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
