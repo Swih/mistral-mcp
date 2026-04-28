@@ -10,13 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker image support: multi-stage `Dockerfile` and `.dockerignore` for `docker run -i --rm` usage with MCP stdio clients.
 - `mistral_ocr` can request Mistral Document AI annotations through `document_annotation_format`, `bbox_annotation_format`, and `document_annotation_prompt`.
 - `mistral_ocr` now exposes `document_annotation`, per-image `image_annotation`, optional grouped `annotations`, and OCR confidence scores in `structuredContent`.
-- Placeholder for Lot B: `seed`, Magistral reasoning output, and `response_format: json_schema` for chat/function-calling tools.
+- `seed` input parameter on `mistral_chat`, `mistral_chat_stream`, `mistral_tool_call`, and `codestral_fim` for deterministic sampling — maps to the SDK's `randomSeed`. Source: [Mistral chat completion API](https://docs.mistral.ai/api/).
+- `response_format` input parameter on `mistral_chat`, `mistral_chat_stream`, and `mistral_tool_call` supporting `text`, `json_object`, and strict `json_schema` modes for structured outputs. Source: [Mistral structured outputs](https://docs.mistral.ai/capabilities/structured_output/).
+- `reasoning_content` field in `mistral_chat` / `mistral_chat_stream` `structuredContent`: Magistral models now expose their reasoning trace separately from the visible answer, parsed from the SDK's `ThinkChunk` / `TextChunk` content array. Source: [Mistral reasoning models](https://docs.mistral.ai/capabilities/reasoning/).
+- New shared helpers `toSdkResponseFormat` (snake_case ↔ camelCase translator) and `extractTextAndReasoning` (Magistral content splitter) in `src/shared.ts`.
 
 ### Changed
 - README and README.fr realigned to the v0.5.0 development surface and Docker usage.
+- `ChatSamplingParams` (shared) now includes `seed` so every chat-style tool that spreads it picks the parameter up.
 
 ### Notes
 - This is a SemVer minor bump: new optional inputs and output fields, no breaking changes.
+- Live test added for end-to-end `response_format: json_schema` against the Mistral API; runs only when `MISTRAL_API_KEY` is set.
 
 ## [0.4.3] - 2026-04-28
 
