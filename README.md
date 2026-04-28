@@ -1,153 +1,217 @@
-# MCP Registry
+# mistral-mcp
 
-The MCP registry provides MCP clients with a list of MCP servers, like an app store for MCP servers.
+> **MCP server exposing Mistral AI capabilities to any MCP client** - Claude Code, Cursor, Zed, Windsurf, Claude Desktop.
+>
+> _Version française : [README.fr.md](./README.fr.md)_
 
-[**📤 Publish my MCP server**](docs/modelcontextprotocol-io/quickstart.mdx) | [**⚡️ Live API docs**](https://registry.modelcontextprotocol.io/docs) | [**👀 Ecosystem vision**](docs/design/ecosystem-vision.md) | 📖 **[Full documentation](./docs)**
+[![npm version](https://img.shields.io/npm/v/mistral-mcp?color=brightgreen)](https://www.npmjs.com/package/mistral-mcp)
+[![CI](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml)
+[![Glama MCP score](https://glama.ai/mcp/servers/Swih/mistral-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Swih/mistral-mcp)
+[![license](https://img.shields.io/badge/license-MIT-black)](./LICENSE)
+![MCP spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
 
-## Development Status
+## Why
 
-**2025-10-24 update**: The Registry API has entered an **API freeze (v0.1)** 🎉. For the next month or more, the API will remain stable with no breaking changes, allowing integrators to confidently implement support. This freeze applies to v0.1 while development continues on v0. We'll use this period to validate the API in real-world integrations and gather feedback to shape v1 for general availability. Thank you to everyone for your contributions and patience—your involvement has been key to getting us here!
+Mistral has strong models for French, code, OCR, moderation, audio, and agent-style workflows, but most MCP-enabled IDEs default to Anthropic or OpenAI. `mistral-mcp` gives those Mistral capabilities a clean MCP surface so you can route the right subtask to the right model without rebuilding your agent loop.
 
-**2025-09-08 update**: The registry has launched in preview 🎉 ([announcement blog post](https://blog.modelcontextprotocol.io/posts/2025-09-08-mcp-registry-preview/)). While the system is now more stable, this is still a preview release and breaking changes or data resets may occur. A general availability (GA) release will follow later. We'd love your feedback in [GitHub discussions](https://github.com/modelcontextprotocol/registry/discussions/new?category=ideas) or in the [#registry-dev Discord](https://discord.com/channels/1358869848138059966/1369487942862504016) ([joining details here](https://modelcontextprotocol.io/community/communication)).
+The goal of this repo is not "yet another thin wrapper". It aims to be a robust, maintainable MCP server with explicit schemas, predictable outputs, transport flexibility, and good test coverage.
 
-Current key maintainers:
-- **Adam Jones** (Anthropic) [@domdomegg](https://github.com/domdomegg)  
-- **Tadas Antanavicius** (PulseMCP) [@tadasant](https://github.com/tadasant)
-- **Toby Padilla** (GitHub) [@toby](https://github.com/toby)
-- **Radoslav (Rado) Dimitrov** (Stacklok) [@rdimitrov](https://github.com/rdimitrov)
+## Current surface (`v0.4.0`)
 
-## Contributing
+### Tools (22)
 
-We use multiple channels for collaboration - see [modelcontextprotocol.io/community/communication](https://modelcontextprotocol.io/community/communication).
+Core generation:
+- `mistral_chat`
+- `mistral_chat_stream`
+- `mistral_embed`
+- `mistral_tool_call`
+- `codestral_fim`
 
-Often (but not always) ideas flow through this pipeline:
+Vision and audio:
+- `mistral_vision`
+- `mistral_ocr`
+- `voxtral_transcribe`
+- `voxtral_speak`
 
-- **[Discord](https://modelcontextprotocol.io/community/communication)** - Real-time community discussions
-- **[Discussions](https://github.com/modelcontextprotocol/registry/discussions)** - Propose and discuss product/technical requirements
-- **[Issues](https://github.com/modelcontextprotocol/registry/issues)** - Track well-scoped technical work  
-- **[Pull Requests](https://github.com/modelcontextprotocol/registry/pulls)** - Contribute work towards issues
+Agents and classifiers:
+- `mistral_agent`
+- `mistral_moderate`
+- `mistral_classify`
 
-### Quick start:
+Files and batch:
+- `files_upload`
+- `files_list`
+- `files_get`
+- `files_delete`
+- `files_signed_url`
+- `batch_create`
+- `batch_list`
+- `batch_get`
+- `batch_cancel`
 
-#### Pre-requisites
+MCP-native utility:
+- `mcp_sample` - delegates generation to the client model via MCP sampling
 
-- **Docker**
-- **Go 1.24.x**
-- **ko** - Container image builder for Go ([installation instructions](https://ko.build/install/))
-- **golangci-lint v2.4.0**
+### Resources (2)
 
-#### Running the server
+- `mistral://models` - accepted aliases and live model catalog
+- `mistral://voices` - live voice catalog for Voxtral TTS
 
-```bash
-# Start full development environment
-make dev-compose
-```
+### Prompts (6)
 
-This starts the registry at [`localhost:8080`](http://localhost:8080) with PostgreSQL. The database uses ephemeral storage and is reset each time you restart the containers, ensuring a clean state for development and testing.
+French curated prompts:
+- `french_invoice_reminder`
+- `french_meeting_minutes`
+- `french_email_reply`
+- `french_commit_message`
+- `french_legal_summary`
 
-**Note:** The registry uses [ko](https://ko.build) to build container images. The `make dev-compose` command automatically builds the registry image with ko and loads it into your local Docker daemon before starting the services.
+English curated prompt:
+- `codestral_review`
 
-By default, the registry seeds from the production API with a filtered subset of servers (to keep startup fast). This ensures your local environment mirrors production behavior and all seed data passes validation. For offline development you can seed from a file without validation with `MCP_REGISTRY_SEED_FROM=data/seed.json MCP_REGISTRY_ENABLE_REGISTRY_VALIDATION=false make dev-compose`.
+Prompt enum arguments are wrapped with `completable()`, so MCP clients can call prompt argument completion via `completion/complete`.
 
-The setup can be configured with environment variables in [docker-compose.yml](./docker-compose.yml) - see [.env.example](./.env.example) for a reference.
+## Highlights
 
-<details>
-<summary>Alternative: Running a pre-built Docker image</summary>
+- High-level `McpServer` API with `inputSchema`, `outputSchema`, and annotations on every tool
+- Dual transport support: stdio by default, Streamable HTTP for remote deployments
+- Structured outputs everywhere: `structuredContent` plus text fallback
+- MCP sampling support through `mcp_sample`
+- Prompt completion support for enum-like prompt arguments
+- Resources and prompts registered alongside tools, not bolted on later
+- Retry/backoff and request timeout on the Mistral SDK client
 
-Pre-built Docker images are automatically published to GitHub Container Registry. Note that the image does not bundle PostgreSQL, so you need to run your own and point the registry at it via `MCP_REGISTRY_DATABASE_URL` (see [docker-compose.yml](./docker-compose.yml) for a working example):
+## Transport
 
-```bash
-# Run latest stable release
-docker run -p 8080:8080 ghcr.io/modelcontextprotocol/registry:latest
+### Stdio
 
-# Run latest from main branch (continuous deployment)
-docker run -p 8080:8080 ghcr.io/modelcontextprotocol/registry:main
-
-# Run specific release version
-docker run -p 8080:8080 ghcr.io/modelcontextprotocol/registry:v1.0.0
-
-# Run development build from main branch
-docker run -p 8080:8080 ghcr.io/modelcontextprotocol/registry:main-20250906-abc123d
-```
-
-**Available tags:** 
-- **Releases**: `latest`, `v1.0.0`, `v1.1.0`, etc.
-- **Continuous**: `main` (latest main branch build)
-- **Development**: `main-<date>-<sha>` (specific commit builds)
-
-</details>
-
-#### Publishing a server
-
-To publish a server, we've built a simple CLI. You can use it with:
-
-```bash
-# Build the latest CLI
-make publisher
-
-# Use it!
-./bin/mcp-publisher --help
-```
-
-See [the publisher guide](./docs/modelcontextprotocol-io/quickstart.mdx) for more details.
-
-#### Other commands
+Default mode. This is what Claude Code and most local MCP clients use.
 
 ```bash
-# Run lint, unit tests and integration tests
-make check
+node dist/index.js
 ```
 
-There are also a few more helpful commands for development. Run `make help` to learn more, or look in [Makefile](./Makefile).
+### Streamable HTTP
 
-<!--
-For Claude and other AI tools: Always prefer make targets over custom commands where possible.
--->
+Enable with `--http` or `MCP_TRANSPORT=http`.
 
-## Architecture
-
-### Project Structure
-
-```
-├── cmd/                     # Application entry points
-│   └── publisher/           # Server publishing tool
-├── data/                    # Seed data
-├── deploy/                  # Deployment configuration (Pulumi)
-├── docs/                    # Documentation
-├── internal/                # Private application code
-│   ├── api/                 # HTTP handlers and routing
-│   ├── auth/                # Authentication (GitHub OAuth, JWT, namespace blocking)
-│   ├── config/              # Configuration management
-│   ├── database/            # Data persistence (PostgreSQL)
-│   ├── service/             # Business logic
-│   ├── telemetry/           # Metrics and monitoring
-│   └── validators/          # Input validation
-├── pkg/                     # Public packages
-│   ├── api/                 # API types and structures
-│   │   └── v0/              # Version 0 API types
-│   └── model/               # Data models for server.json
-├── scripts/                 # Development and testing scripts
-├── tests/                   # Integration tests
-└── tools/                   # CLI tools and utilities
-    └── validate-*.sh        # Schema validation tools
+```bash
+MCP_TRANSPORT=http node dist/index.js
 ```
 
-### Authentication
+Relevant env vars:
+- `MCP_HTTP_HOST` - default `127.0.0.1`
+- `MCP_HTTP_PORT` - default `3333`
+- `MCP_HTTP_PATH` - default `/mcp`
+- `MCP_HTTP_TOKEN` - optional bearer token
+- `MCP_HTTP_ALLOWED_ORIGINS` - optional comma-separated allow-list
+- `MCP_HTTP_STATELESS=1` - stateless session mode
 
-Publishing supports multiple authentication methods:
-- **GitHub OAuth** - For publishing by logging into GitHub
-- **GitHub OIDC** - For publishing from GitHub Actions
-- **DNS verification** - For proving ownership of a domain and its subdomains
-- **HTTP verification** - For proving ownership of a domain
+`/healthz` is intentionally public and does not touch the MCP server.
 
-The registry validates namespace ownership when publishing. E.g. to publish...:
-- `io.github.domdomegg/my-cool-mcp` you must login to GitHub as `domdomegg`, or be in a GitHub Action on domdomegg's repos
-- `me.adamjones/my-cool-mcp` you must prove ownership of `adamjones.me` via DNS or HTTP challenge
+## Install
 
-## Community Projects
+Run from npm:
 
-Check out [community projects](docs/community-projects.md) to explore notable registry-related work created by the community.
+```bash
+npx mistral-mcp
+```
 
-## More documentation
+Or install globally:
 
-See the [documentation](./docs) for more details if your question has not been answered here!
+```bash
+npm install -g mistral-mcp
+mistral-mcp
+```
+
+Build from source:
+
+```bash
+git clone https://github.com/Swih/mistral-mcp.git
+cd mistral-mcp
+npm install
+npm run build
+```
+
+Set your API key:
+
+```bash
+export MISTRAL_API_KEY=your_key_here
+```
+
+Or use `.env` at the repo root. Never commit it.
+
+## Use in Claude Code
+
+```bash
+claude mcp add mistral -- node /absolute/path/to/mistral-mcp/dist/index.js
+```
+
+Example prompt:
+
+> Use `mistral_ocr` on this PDF, then run `french_meeting_minutes` on the extracted text.
+
+## Develop
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm test
+npm run inspector
+```
+
+## Test strategy
+
+The suite currently contains 151 tests across 4 layers:
+
+1. Unit tests for tools, resources, prompts, transport, audio, agents, files, batch, and sampling
+2. Contract tests for tool metadata and MCP-facing guarantees
+3. Live API tests against the real Mistral API when `MISTRAL_API_KEY` is set
+4. Stdio end-to-end tests against the built server
+
+Without `MISTRAL_API_KEY`, the local default is `142 passing` plus `9 gated` live/stdio tests.
+
+## Project layout
+
+```text
+mistral-mcp/
+|-- src/
+|   |-- index.ts
+|   |-- transport.ts
+|   |-- tools.ts
+|   |-- tools-fn.ts
+|   |-- tools-vision.ts
+|   |-- tools-audio.ts
+|   |-- tools-agents.ts
+|   |-- tools-files.ts
+|   |-- tools-batch.ts
+|   |-- tools-sampling.ts
+|   |-- resources.ts
+|   `-- prompts.ts
+|-- test/
+|-- examples/
+|-- .github/workflows/ci.yml
+|-- package.json
+`-- tsconfig.test.json
+```
+
+## Status
+
+`v0.4.0` — shipped. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.3.0`:
+
+- shared helpers, live model + voice catalogs, contract tests
+- vision + OCR
+- audio transcription + speech
+- agents + moderation + classification
+- files + batch APIs
+- Streamable HTTP transport + MCP sampling
+- 5 French curated prompts + 1 English prompt + prompt argument completion
+
+## Examples
+
+Runnable scripts live in [`examples/`](./examples/). See [`examples/README.md`](./examples/README.md).
+
+## License
+
+MIT Copyright Dayan Decamp

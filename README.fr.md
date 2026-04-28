@@ -114,7 +114,7 @@ Variables d'environnement pertinentes :
 Depuis npm :
 
 ```bash
-npx -y mistral-mcp
+npx mistral-mcp
 ```
 
 Ou en installation globale :
