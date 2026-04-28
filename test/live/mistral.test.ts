@@ -118,4 +118,39 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     // The completion should include "a" and "b" in some form — we're tolerant.
     expect(text).toMatch(/a|b/);
   });
+
+  it("mistral.ocr.process accepts document annotations when requested", async () => {
+    const { Mistral } = await import("@mistralai/mistralai");
+    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+
+    const res = await mistral.ocr.process({
+      model: "mistral-ocr-latest",
+      document: {
+        type: "document_url",
+        documentUrl: "https://arxiv.org/pdf/2410.07073",
+      },
+      pages: [0],
+      documentAnnotationFormat: {
+        type: "json_schema",
+        jsonSchema: {
+          name: "paper_metadata",
+          schemaDefinition: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+            },
+          },
+          strict: false,
+        },
+      },
+      documentAnnotationPrompt:
+        "Extract the visible paper title when present. Return only fields supported by the schema.",
+    });
+
+    expect(Array.isArray(res.pages)).toBe(true);
+    expect(res.pages.length).toBeGreaterThan(0);
+    if (res.documentAnnotation) {
+      expect(() => JSON.parse(res.documentAnnotation!)).not.toThrow();
+    }
+  });
 });
