@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mistral": {
+      "command": "npx",
+      "args": ["-y", "mistral-mcp@^0.5.0"],
+      "env": {
+        "MISTRAL_API_KEY": "${user_config.mistral_api_key}"
+      }
+    }
+  }
+}

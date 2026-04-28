@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "mistral-mcp",
+  "version": "0.5.0",
+  "description": "Mistral AI capabilities for Claude Code: chat, OCR, vision, audio (Voxtral), Codestral FIM, agents, and curated French workflows. Auto-installs the mistral-mcp server from npm.",
+  "author": {
+    "name": "Dayan Decamp",
+    "email": "akaswitsh@gmail.com",
+    "url": "https://github.com/Swih"
+  },
+  "homepage": "https://github.com/Swih/mistral-mcp",
+  "repository": "https://github.com/Swih/mistral-mcp",
+  "license": "MIT",
+  "keywords": [
+    "mistral",
+    "mcp",
+    "ocr",
+    "codestral",
+    "voxtral",
+    "french",
+    "ai",
+    "vision",
+    "audio"
+  ],
+  "userConfig": {
+    "mistral_api_key": {
+      "type": "string",
+      "title": "Mistral API key",
+      "description": "Your Mistral API key. Get one at https://console.mistral.ai/. Stored by Claude Code's secrets storage, never written to settings.json.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}
