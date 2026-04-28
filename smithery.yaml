@@ -1,0 +1,22 @@
+# Smithery configuration for mistral-mcp
+# https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - mistralApiKey
+    properties:
+      mistralApiKey:
+        type: string
+        title: Mistral API key
+        description: >-
+          Get one at https://console.mistral.ai/. The free Experiment tier
+          gives 1B tokens/month.
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "mistral-mcp"],
+      env: { MISTRAL_API_KEY: config.mistralApiKey }
+    })
