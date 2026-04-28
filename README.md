@@ -153,8 +153,35 @@ Or use `.env` at the repo root. Never commit it.
 
 ## Use in Claude Code
 
+### Option A — Claude Code plugin (recommended)
+
+The fastest path: install the bundled Claude Code plugin from the `swih-plugins` marketplace. It auto-installs the MCP server, prompts for your API key (stored in Claude Code's secrets storage), and ships 5 curated skills.
+
+```text
+/plugin marketplace add Swih/mistral-mcp
+/plugin install mistral-mcp@swih-plugins
+```
+
+The plugin adds these namespaced skills:
+
+- `/mistral-mcp:mistral-router` — picks the right Mistral model + tool for a given task
+- `/mistral-mcp:codestral-review` — auto-fetches the diff, runs a focused code review
+- `/mistral-mcp:french-commit-message` — generates a Conventional Commits message in French
+- `/mistral-mcp:french-meeting-minutes` — audio file or text → structured French meeting minutes
+- `/mistral-mcp:french-invoice-reminder` — French B2B dunning letter with controlled tone
+
+See [`claude-plugin/README.md`](./claude-plugin/README.md) for plugin-specific details.
+
+### Option B — Manual MCP server registration
+
 ```bash
 claude mcp add mistral -- node /absolute/path/to/mistral-mcp/dist/index.js
+```
+
+Or via npx, no global install needed:
+
+```bash
+claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
 Example prompt:

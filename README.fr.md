@@ -153,8 +153,35 @@ Ou utilisez un `.env` à la racine. Ne le committez jamais.
 
 ## Usage dans Claude Code
 
+### Option A — Plugin Claude Code (recommandé)
+
+Le chemin le plus rapide : installer le plugin Claude Code depuis la marketplace `swih-plugins`. Il auto-installe le serveur MCP, prompte la clé API (stockée dans le secrets storage de Claude Code), et ship 5 skills curés.
+
+```text
+/plugin marketplace add Swih/mistral-mcp
+/plugin install mistral-mcp@swih-plugins
+```
+
+Le plugin ajoute ces skills nommés :
+
+- `/mistral-mcp:mistral-router` — sélectionne le bon modèle + tool Mistral pour une tâche
+- `/mistral-mcp:codestral-review` — récupère le diff automatiquement, review focus auto-detect
+- `/mistral-mcp:french-commit-message` — message de commit Conventional Commits en français
+- `/mistral-mcp:french-meeting-minutes` — fichier audio ou texte → compte-rendu structuré FR
+- `/mistral-mcp:french-invoice-reminder` — relance B2B française avec ton contrôlé
+
+Voir [`claude-plugin/README.md`](./claude-plugin/README.md) pour les détails plugin.
+
+### Option B — Enregistrement manuel du serveur MCP
+
 ```bash
 claude mcp add mistral -- node /chemin/absolu/vers/mistral-mcp/dist/index.js
+```
+
+Ou via npx, sans install globale :
+
+```bash
+claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
 Exemple de prompt :
