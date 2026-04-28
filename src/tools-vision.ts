@@ -224,6 +224,7 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
           temperature: input.temperature,
           maxTokens: input.max_tokens,
           topP: input.top_p,
+          randomSeed: input.seed,
         });
 
         const choice = res.choices?.[0];

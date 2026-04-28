@@ -196,6 +196,19 @@ describe("mistral_vision", () => {
     expect(result.isError).toBeFalsy();
   });
 
+  it("propagates `seed` to the SDK as `randomSeed`", async () => {
+    const { client, mock } = await boot();
+    await client.callTool({
+      name: "mistral_vision",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        seed: 77,
+      },
+    });
+    const call = (mock.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.randomSeed).toBe(77);
+  });
+
   it("returns isError:true when the SDK throws", async () => {
     const mock = makeMock();
     (mock.chat.complete as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
