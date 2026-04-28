@@ -16,7 +16,7 @@ Mistral propose des modèles solides sur le français, le code, l'OCR, la modér
 
 L'objectif de ce repo n'est pas « encore un wrapper ». C'est un serveur MCP robuste et maintenable, avec schémas explicites, sorties prédictibles, transports flexibles et bonne couverture de tests.
 
-## Surface actuelle (`v0.4.3`)
+## Surface actuelle (`v0.5.0`)
 
 ### Tools (22)
 
@@ -76,6 +76,7 @@ Les arguments enum des prompts sont enveloppés avec `completable()`, ce qui per
 - API haut niveau `McpServer` avec `inputSchema`, `outputSchema` et annotations sur chaque tool
 - Double transport : stdio par défaut, Streamable HTTP pour déploiements distants
 - Sorties structurées partout : `structuredContent` plus fallback texte
+- Annotations OCR : `mistral_ocr` peut demander des annotations JSON au niveau document et image/bbox via Mistral Document AI
 - Support MCP sampling via `mcp_sample`
 - Support completion sur les arguments de prompts (enums)
 - Resources et prompts enregistrés à côté des tools, pas plaqués après coup
@@ -123,6 +124,15 @@ Ou en installation globale :
 npm install -g mistral-mcp
 mistral-mcp
 ```
+
+Lancer avec Docker :
+
+```bash
+docker build -t mistral-mcp:dev .
+docker run -i --rm -e MISTRAL_API_KEY=votre_cle mistral-mcp:dev
+```
+
+L'image utilise un build multi-stage et garde dans le conteneur runtime uniquement les dépendances de production plus `dist/`.
 
 Build depuis les sources :
 
@@ -198,10 +208,11 @@ mistral-mcp/
 
 ## Statut
 
-`v0.4.3` — livré. Voir [CHANGELOG.md](./CHANGELOG.md) pour le diff complet face à `v0.3.0` :
+`v0.5.0` — en développement. Voir [CHANGELOG.md](./CHANGELOG.md) pour le diff complet face à `v0.4.3` :
 
 - helpers partagés, catalogues modèles + voix live, tests de contrat
 - vision + OCR
+- annotations OCR document et image/bbox exposées via `mistral_ocr`
 - transcription + synthèse vocale
 - agents + modération + classification
 - APIs files + batch
