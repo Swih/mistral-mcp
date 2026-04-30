@@ -24,6 +24,7 @@ import {
   DEFAULT_EMBED_MODEL,
   EmbedModelSchema,
 } from "./models.js";
+import type { MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
@@ -72,7 +73,13 @@ export const EmbedOutputSchema = z.object(EmbedOutputShape);
 
 // ---------- registration ----------
 
-export function registerMistralTools(server: McpServer, mistral: Mistral) {
+export function registerMistralTools(
+  server: McpServer,
+  mistral: Mistral,
+  profile: MistralProfile = "core"
+) {
+  if (profile === "workflows") return;
+
   // ========== mistral_chat (non-streaming) ==========
   server.registerTool(
     "mistral_chat",
@@ -100,6 +107,12 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
         response_format: ResponseFormatSchema.optional().describe(
           'Force a structured output: `{type:"json_object"}` for JSON mode, `{type:"json_schema", json_schema:{...}}` for strict schema mode.'
         ),
+        reasoning_effort: z
+          .enum(["none", "high"])
+          .optional()
+          .describe(
+            "Controls reasoning depth for Magistral models. 'high' enables full chain-of-thought; 'none' disables it. Ignored on non-reasoning models."
+          ),
         ...ChatSamplingParams,
       },
       outputSchema: ChatOutputShape,
@@ -122,6 +135,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
           topP: input.top_p,
           randomSeed: input.seed,
           responseFormat: toSdkResponseFormat(input.response_format),
+          reasoningEffort: input.reasoning_effort,
         });
 
         const choice = res.choices?.[0];
@@ -147,6 +161,7 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
     }
   );
 
+  if (profile === "full") {
   // ========== mistral_chat_stream (streaming with progress) ==========
   server.registerTool(
     "mistral_chat_stream",
@@ -318,4 +333,5 @@ export function registerMistralTools(server: McpServer, mistral: Mistral) {
       }
     }
   );
+  } // end profile === "full"
 }

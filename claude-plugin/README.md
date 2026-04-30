@@ -4,7 +4,7 @@ Mistral AI capabilities for Claude Code, packaged as a one-click plugin. Auto-in
 
 ## What you get
 
-- **Auto-installed MCP server** (`mistral`) exposing 22 Mistral tools, 2 resources, and 6 prompts (chat, OCR, vision, Voxtral audio, Codestral, agents, moderation, files, batch). See the [main README](../README.md) for the full surface.
+- **Auto-installed MCP server** (`mistral`) exposing 25 Mistral tools, 3 resources, and 6 prompts (chat, OCR, vision, Voxtral audio, Codestral, agents, moderation, files, batch, workflows). See the [main README](../README.md) for the full surface.
 - **Five curated skills** that orchestrate the underlying tools/prompts with smart defaults:
 
 | Skill | What it does |
@@ -46,7 +46,7 @@ The plugin's `.mcp.json` declares one MCP server:
   "mcpServers": {
     "mistral": {
       "command": "npx",
-      "args": ["-y", "mistral-mcp@^0.5.0"],
+      "args": ["-y", "mistral-mcp@^0.6.0"],
       "env": {
         "MISTRAL_API_KEY": "${user_config.mistral_api_key}"
       }
@@ -59,7 +59,7 @@ When the plugin is enabled, Claude Code spawns `npx -y mistral-mcp@^0.5.0` and c
 
 ## Versioning
 
-This plugin tracks the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) npm package version. Plugin `0.5.x` pulls `mistral-mcp@^0.5.0` (any `0.5.x` patch, no minor bump). When `mistral-mcp@0.6.0` ships, this plugin will be bumped to `0.6.x` and `.mcp.json` updated in the same release.
+This plugin tracks the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) npm package version. Plugin `0.6.x` pulls `mistral-mcp@^0.6.0` (any `0.6.x` patch, no minor bump). When `mistral-mcp@0.7.0` ships, this plugin will be bumped to `0.7.x` and `.mcp.json` updated in the same release.
 
 ## Security
 

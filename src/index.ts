@@ -21,9 +21,11 @@ import { registerAgentTools } from "./tools-agents.js";
 import { registerFileTools } from "./tools-files.js";
 import { registerBatchTools } from "./tools-batch.js";
 import { registerSamplingTools } from "./tools-sampling.js";
+import { registerWorkflowTools } from "./tools-workflows.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
+import { resolveProfile } from "./profile.js";
 
 const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
@@ -48,26 +50,40 @@ const mistral = new Mistral({
   timeoutMs: 60_000,
 });
 
+const profile = resolveProfile();
+
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.5.0",
+  version: "0.6.0",
 });
 
-registerMistralTools(server, mistral);
-registerFunctionTools(server, mistral);
-registerVisionTools(server, mistral);
-registerAudioTools(server, mistral);
-registerAgentTools(server, mistral);
-registerFileTools(server, mistral);
-registerBatchTools(server, mistral);
-registerSamplingTools(server);
-registerMistralResources(server, mistral);
+registerMistralTools(server, mistral, profile);
+registerFunctionTools(server, mistral, profile);
+
+if (profile !== "workflows") {
+  // core + full both get vision/OCR tools
+  registerVisionTools(server, mistral);
+}
+
+registerAudioTools(server, mistral, profile);
+
+if (profile === "full") {
+  registerAgentTools(server, mistral);
+  registerFileTools(server, mistral);
+  registerBatchTools(server, mistral);
+  registerSamplingTools(server);
+}
+
+// workflow tools are present in every profile
+registerWorkflowTools(server, mistral);
+
+registerMistralResources(server, mistral, profile);
 registerMistralPrompts(server);
 
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.5.0 connected via ${connected.mode}${
+  `[mistral-mcp] v0.6.0 (profile=${profile}) connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""

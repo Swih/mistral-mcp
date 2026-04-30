@@ -9,6 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Mistral } from "@mistralai/mistralai";
 import { registerAudioTools } from "../../src/tools-audio.js";
 import { STT_MODELS } from "../../src/models.js";
+import type { MistralProfile } from "../../src/profile.js";
 
 function makeMock(): Mistral {
   return {
@@ -48,9 +49,9 @@ function makeMock(): Mistral {
   } as unknown as Mistral;
 }
 
-async function boot(mock: Mistral = makeMock()) {
+async function boot(mock: Mistral = makeMock(), profile: MistralProfile = "full") {
   const server = new McpServer({ name: "audio-test", version: "0.0.0" });
-  registerAudioTools(server, mock);
+  registerAudioTools(server, mock, profile);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -58,8 +59,8 @@ async function boot(mock: Mistral = makeMock()) {
 }
 
 describe("tool listing (audio)", () => {
-  it("exposes voxtral_transcribe and voxtral_speak with annotations", async () => {
-    const { client } = await boot();
+  it("full profile exposes voxtral_transcribe and voxtral_speak", async () => {
+    const { client } = await boot(makeMock(), "full");
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(["voxtral_speak", "voxtral_transcribe"]);
@@ -68,6 +69,13 @@ describe("tool listing (audio)", () => {
       expect(t.annotations?.readOnlyHint).toBe(true);
       expect(t.annotations?.openWorldHint).toBe(true);
     }
+  });
+
+  it("core profile exposes only voxtral_transcribe", async () => {
+    const { client } = await boot(makeMock(), "core");
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name);
+    expect(names).toEqual(["voxtral_transcribe"]);
   });
 });
 

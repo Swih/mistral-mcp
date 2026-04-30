@@ -19,6 +19,7 @@ import {
   FimModelSchema,
   ToolModelSchema,
 } from "./models.js";
+import type { MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
@@ -73,7 +74,12 @@ export const FimOutputShape = {
 };
 export const FimOutputSchema = z.object(FimOutputShape);
 
-export function registerFunctionTools(server: McpServer, mistral: Mistral) {
+export function registerFunctionTools(
+  server: McpServer,
+  mistral: Mistral,
+  profile: MistralProfile = "core"
+) {
+  if (profile === "full") {
   // ========== mistral_tool_call ==========
   server.registerTool(
     "mistral_tool_call",
@@ -161,6 +167,7 @@ export function registerFunctionTools(server: McpServer, mistral: Mistral) {
       }
     }
   );
+  } // end profile === "full"
 
   // ========== codestral_fim ==========
   server.registerTool(

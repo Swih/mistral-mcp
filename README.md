@@ -16,9 +16,23 @@ Mistral has strong models for French, code, OCR, moderation, audio, and agent-st
 
 The goal of this repo is not "yet another thin wrapper". It aims to be a robust, maintainable MCP server with explicit schemas, predictable outputs, transport flexibility, and good test coverage.
 
-## Current surface (`v0.5.0`)
+## Current surface (`v0.6.0`)
 
-### Tools (22)
+### Profiles
+
+`MISTRAL_MCP_PROFILE` controls how many tools are exposed (default: `core`):
+
+| Profile | Tools | Description |
+|---|---|---|
+| `core` (default) | 8 | `mistral_chat`, `mistral_vision`, `mistral_ocr`, `codestral_fim`, `voxtral_transcribe` + 3 workflow tools |
+| `full` | 25 | All v0.5 tools + 3 workflow tools. Opt-in for `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call`, etc. |
+| `workflows` | 3 | Workflow tools only — for pipeline orchestration use-cases |
+
+```bash
+MISTRAL_MCP_PROFILE=full node dist/index.js
+```
+
+### Tools (25 in `full` profile — 8 in `core`)
 
 Core generation:
 - `mistral_chat`
@@ -50,12 +64,18 @@ Files and batch:
 - `batch_cancel`
 
 MCP-native utility:
-- `mcp_sample` - delegates generation to the client model via MCP sampling
+- `mcp_sample` - delegates generation to the client model via MCP sampling (`full` profile)
 
-### Resources (2)
+Workflows (durable execution engine):
+- `workflow_execute`
+- `workflow_status`
+- `workflow_interact` — polymorphic: `signal` or `query` against a running execution
+
+### Resources (3)
 
 - `mistral://models` - accepted aliases and live model catalog
 - `mistral://voices` - live voice catalog for Voxtral TTS
+- `mistral://workflows` - live list of deployed Mistral Workflows (use `name` as `workflowIdentifier`)
 
 ### Prompts (6)
 
@@ -74,10 +94,12 @@ Prompt enum arguments are wrapped with `completable()`, so MCP clients can call 
 ## Highlights
 
 - High-level `McpServer` API with `inputSchema`, `outputSchema`, and annotations on every tool
+- Profile system: `MISTRAL_MCP_PROFILE=core|full|workflows` — `core` by default for a lean context footprint
+- Mistral Workflows: `workflow_execute` / `workflow_status` / `workflow_interact` in every profile
 - Dual transport support: stdio by default, Streamable HTTP for remote deployments
 - Structured outputs everywhere: `structuredContent` plus text fallback
 - OCR annotations: `mistral_ocr` can request document-level and image/bbox JSON annotations from Mistral Document AI
-- MCP sampling support through `mcp_sample`
+- MCP sampling support through `mcp_sample` (`full` profile)
 - Prompt completion support for enum-like prompt arguments
 - Resources and prompts registered alongside tools, not bolted on later
 - Retry/backoff and request timeout on the Mistral SDK client
@@ -200,14 +222,14 @@ npm run inspector
 
 ## Test strategy
 
-The suite currently contains 165 tests across 4 layers:
+The suite currently contains 172 tests across 4 layers:
 
 1. Unit tests for tools, resources, prompts, transport, audio, agents, files, batch, and sampling
 2. Contract tests for tool metadata and MCP-facing guarantees
 3. Live API tests against the real Mistral API when `MISTRAL_API_KEY` is set
 4. Stdio end-to-end tests against the built server
 
-Without `MISTRAL_API_KEY`, the local default is `156 passing` plus `9 gated` live/stdio tests.
+Without `MISTRAL_API_KEY`, the local default is `161 passing` plus `11 gated` live/stdio tests.
 
 ## Project layout
 
@@ -215,6 +237,7 @@ Without `MISTRAL_API_KEY`, the local default is `156 passing` plus `9 gated` liv
 mistral-mcp/
 |-- src/
 |   |-- index.ts
+|   |-- profile.ts
 |   |-- transport.ts
 |   |-- tools.ts
 |   |-- tools-fn.ts
@@ -224,6 +247,7 @@ mistral-mcp/
 |   |-- tools-files.ts
 |   |-- tools-batch.ts
 |   |-- tools-sampling.ts
+|   |-- tools-workflows.ts
 |   |-- resources.ts
 |   `-- prompts.ts
 |-- test/
@@ -235,17 +259,12 @@ mistral-mcp/
 
 ## Status
 
-`v0.5.0` — shipped 2026-04-28. See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.4.3`:
+`v0.6.0` — See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.5.0`:
 
-- shared helpers, live model + voice catalogs, contract tests
-- vision + OCR
-- OCR document and image/bbox annotations exposed through `mistral_ocr`
-- audio transcription + speech
-- agents + moderation + classification
-- files + batch APIs
-- Streamable HTTP transport + MCP sampling
-- 5 French curated prompts + 1 English prompt + prompt argument completion
-- registry packaging: shipped on npm, the [Official MCP Registry](https://registry.modelcontextprotocol.io/), [Glama](https://glama.ai/mcp/servers/Swih/mistral-mcp), and [ClawHub](https://clawhub.ai/swih/mistral-mcp-openclaw) (community skill for OpenClaw)
+- profile system (`MISTRAL_MCP_PROFILE=core|full|workflows`) — `core` as default for lean tool context
+- 3 new workflow tools: `workflow_execute`, `workflow_status`, `workflow_interact`
+- `mistral://workflows` resource — live catalog of deployed workflows
+- 172 tests (134 unit + 27 contract + 5 stdio e2e + 6 live API)
 
 ## Examples
 

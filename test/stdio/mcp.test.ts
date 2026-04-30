@@ -45,6 +45,7 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       env: {
         ...(process.env as Record<string, string>),
         MISTRAL_API_KEY: process.env.MISTRAL_API_KEY!,
+        MISTRAL_MCP_PROFILE: "full",
       },
     });
     client = new Client({ name: "e2e-client", version: "0.0.0" });
@@ -81,6 +82,9 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       "mistral_vision",
       "voxtral_speak",
       "voxtral_transcribe",
+      "workflow_execute",
+      "workflow_interact",
+      "workflow_status",
     ]);
     for (const t of tools) {
       expect(t.outputSchema).toBeTruthy();
@@ -110,6 +114,7 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
     const { resources } = await client.listResources();
     expect(resources.some((r) => r.uri === "mistral://models")).toBe(true);
     expect(resources.some((r) => r.uri === "mistral://voices")).toBe(true);
+    expect(resources.some((r) => r.uri === "mistral://workflows")).toBe(true);
 
     const { prompts } = await client.listPrompts();
     const promptNames = prompts.map((p) => p.name).sort();
