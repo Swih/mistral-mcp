@@ -7,6 +7,10 @@
  * (completion/complete request, spec 2025-03-26+).
  *
  * Language policy: FR canonical, EN optional. No other languages.
+ *
+ * Prompt engineering: long data inputs are placed BEFORE instructions
+ * (Anthropic guideline: ~30 % quality gain). XML tags wrap document content
+ * for unambiguous separation from instructions.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -98,12 +102,12 @@ export function registerMistralPrompts(server: McpServer) {
               "- Termine par une proposition d'action concrète (contact, plan)",
               "- Pas de formule automatique du type « Cordialement, L'équipe »",
               "",
+              "<contexte>",
               `Débiteur : ${debtor_name}`,
               `Montant dû : ${amount_eur}€`,
               `Retard : ${days_overdue} jours`,
               `Ton : ${tone}`,
-              "",
-              "Rédige la relance complète, prête à envoyer.",
+              "</contexte>",
             ].join("\n"),
           },
         },
@@ -139,7 +143,11 @@ export function registerMistralPrompts(server: McpServer) {
           content: {
             type: "text",
             text: [
-              "Rédige un compte-rendu de réunion structuré en français à partir de la transcription ci-dessous.",
+              "<transcript>",
+              transcript,
+              "</transcript>",
+              "",
+              "Rédige un compte-rendu de réunion structuré en français à partir de la transcription ci-dessus.",
               `Longueur cible : ${length}.`,
               "",
               "Structure obligatoire :",
@@ -150,14 +158,9 @@ export function registerMistralPrompts(server: McpServer) {
               "5. **Points ouverts** — puces des questions non tranchées.",
               "",
               "Règles :",
-              "- Reste factuel. N'invente pas de participant, de date ou de chiffre.",
+              "- Reste factuel. Appuie-toi uniquement sur le contenu de la transcription.",
               "- Si une information manque, écris explicitement « non précisé ».",
               "- Pas de paraphrase moralisatrice, pas de « il est important de ».",
-              "",
-              "Transcription :",
-              "```",
-              transcript,
-              "```",
             ].join("\n"),
           },
         },
@@ -201,7 +204,11 @@ export function registerMistralPrompts(server: McpServer) {
           content: {
             type: "text",
             text: [
-              "Rédige une réponse à l'e-mail ci-dessous, en français.",
+              "<email_recu>",
+              original_email,
+              "</email_recu>",
+              "",
+              "Rédige une réponse à cet e-mail, en français.",
               `Intention : ${intent}.`,
               `Ton : ${tone}.`,
               "",
@@ -209,13 +216,8 @@ export function registerMistralPrompts(server: McpServer) {
               "- 150 mots maximum",
               "- Reprends explicitement le point principal du message reçu",
               "- Termine par une phrase actionnable (date, décision, prochaine étape)",
-              "- Pas de « En espérant que ce message vous trouve en bonne santé »",
+              "- Formule de politesse directe, sans rhétorique convenue",
               "- Pas de signature, l'expéditeur la rajoutera",
-              "",
-              "E-mail reçu :",
-              "```",
-              original_email,
-              "```",
               "",
               "Rédige uniquement le corps de la réponse.",
             ].join("\n"),
@@ -253,7 +255,11 @@ export function registerMistralPrompts(server: McpServer) {
           content: {
             type: "text",
             text: [
-              "Rédige un message de commit git en français à partir du diff ci-dessous.",
+              "```diff",
+              diff,
+              "```",
+              "",
+              "Rédige un message de commit git en français pour le diff ci-dessus.",
               `Type Conventional Commits : ${scope}.`,
               "",
               "Format exact :",
@@ -268,11 +274,6 @@ export function registerMistralPrompts(server: McpServer) {
               "- Si le diff touche plusieurs fichiers liés, garde un seul sujet cohérent",
               "- Corps uniquement si le « pourquoi » n'est pas trivial",
               "- Pas d'émoji, pas de majuscule au début du sujet",
-              "",
-              "Diff :",
-              "```diff",
-              diff,
-              "```",
             ].join("\n"),
           },
         },
@@ -306,7 +307,11 @@ export function registerMistralPrompts(server: McpServer) {
           content: {
             type: "text",
             text: [
-              "Résume le texte juridique ci-dessous en français.",
+              "<document>",
+              legal_text,
+              "</document>",
+              "",
+              "Résume le texte juridique ci-dessus en français.",
               `Audience cible : ${audience}.`,
               "",
               "Structure obligatoire :",
@@ -318,13 +323,8 @@ export function registerMistralPrompts(server: McpServer) {
               "",
               "Règles :",
               "- Adapte le niveau de vocabulaire à l'audience (jargon accepté pour « juriste », vulgarisation pour « grand_public »).",
-              "- Ne donne jamais de conseil juridique personnalisé ; termine par : « Ceci est une synthèse informative, pas un conseil juridique. »",
-              "- N'invente aucune clause, aucune date, aucun montant.",
-              "",
-              "Texte :",
-              "```",
-              legal_text,
-              "```",
+              "- Base chaque information strictement sur le texte source fourni.",
+              "- Termine par : « Ceci est une synthèse informative, pas un conseil juridique. »",
             ].join("\n"),
           },
         },
@@ -360,20 +360,19 @@ export function registerMistralPrompts(server: McpServer) {
           content: {
             type: "text",
             text: [
-              "You are a senior code reviewer. Critique the following diff through the lens of: " +
+              "```diff",
+              diff,
+              "```",
+              "",
+              "You are a senior code reviewer. Critique the diff above through the lens of: " +
                 focus +
                 ".",
               "",
               "Rules:",
               "- Be concrete: cite exact lines or token ranges from the diff.",
-              "- Flag real risks only. Don't invent issues.",
+              "- Flag only risks that are explicitly present in the diff.",
               "- Prefer 3 high-signal findings over 10 shallow ones.",
               "- End with a verdict: ship / change-requested / block.",
-              "",
-              "Diff:",
-              "```diff",
-              diff,
-              "```",
             ].join("\n"),
           },
         },

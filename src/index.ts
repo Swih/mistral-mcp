@@ -54,7 +54,7 @@ const profile = resolveProfile();
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.6.0",
+  version: "0.7.0",
 });
 
 registerMistralTools(server, mistral, profile);
