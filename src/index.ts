@@ -83,7 +83,7 @@ registerMistralPrompts(server);
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.6.0 (profile=${profile}) connected via ${connected.mode}${
+  `[mistral-mcp] v0.7.0 (profile=${profile}) connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""
