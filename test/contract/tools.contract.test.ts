@@ -58,6 +58,12 @@ import {
   registerSamplingTools,
   SampleOutputSchema,
 } from "../../src/tools-sampling.js";
+import {
+  registerWorkflowTools,
+  WorkflowExecuteOutputSchema,
+  WorkflowStatusOutputSchema,
+  WorkflowInteractOutputSchema,
+} from "../../src/tools-workflows.js";
 
 function makeMock(): Mistral {
   return {
@@ -293,19 +299,55 @@ function makeMock(): Mistral {
         })),
       },
     },
+    workflows: {
+      executeWorkflow: vi.fn(async () => ({
+        workflowName: "my-workflow",
+        executionId: "exec-ct-1",
+        rootExecutionId: "exec-ct-1",
+        status: "RUNNING",
+        startTime: new Date("2026-01-01T00:00:00Z"),
+        endTime: null,
+        result: null,
+        totalDurationMs: null,
+      })),
+      executions: {
+        getWorkflowExecution: vi.fn(async () => ({
+          workflowName: "my-workflow",
+          executionId: "exec-ct-1",
+          rootExecutionId: "exec-ct-1",
+          status: "COMPLETED",
+          startTime: new Date("2026-01-01T00:00:00Z"),
+          endTime: new Date("2026-01-01T00:00:01Z"),
+          result: { answer: 42 },
+          totalDurationMs: 1000,
+        })),
+        signalWorkflowExecution: vi.fn(async () => ({
+          message: "Signal accepted",
+        })),
+        queryWorkflowExecution: vi.fn(async () => ({
+          queryName: "getStatus",
+          result: { step: "processing" },
+        })),
+        updateWorkflowExecution: vi.fn(async () => ({
+          updateName: "setConfig",
+          result: { applied: true },
+        })),
+      },
+    },
   } as unknown as Mistral;
 }
 
 async function boot(mock: Mistral = makeMock()) {
   const server = new McpServer({ name: "contract-test", version: "0.0.0" });
-  registerMistralTools(server, mock);
-  registerFunctionTools(server, mock);
+  registerMistralTools(server, mock, "full");
+  registerFunctionTools(server, mock, "full");
   registerVisionTools(server, mock);
-  registerAudioTools(server, mock);
+  registerAudioTools(server, mock, "full");
   registerAgentTools(server, mock);
   registerFileTools(server, mock);
   registerBatchTools(server, mock);
   registerSamplingTools(server);
+  registerWorkflowTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -692,13 +734,96 @@ describe("contract: structuredContent matches outputSchema", () => {
     expect(shape.text).toBeTruthy();
     expect(shape.model).toBeTruthy();
   });
+
+  it("workflow_execute", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "workflow_execute",
+      arguments: {
+        workflowIdentifier: "my-workflow",
+        input: { foo: "bar" },
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowExecuteOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_execute): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("workflow_status", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "workflow_status",
+      arguments: { executionId: "exec-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowStatusOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_status): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("workflow_interact (signal)", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "workflow_interact",
+      arguments: { action: "signal", executionId: "exec-ct-1", name: "approve" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowInteractOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_interact/signal): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("workflow_interact (query)", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "workflow_interact",
+      arguments: { action: "query", executionId: "exec-ct-1", name: "getStatus" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowInteractOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_interact/query): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("workflow_interact (update)", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "workflow_interact",
+      arguments: { action: "update", executionId: "exec-ct-1", name: "setConfig", input: { key: "val" } },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowInteractOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_interact/update): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(22);
+    expect(tools.length).toBe(25); // 22 v0.5 tools + 3 workflow tools
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

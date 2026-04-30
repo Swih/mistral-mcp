@@ -9,6 +9,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { registerMistralTools } from "../../src/tools.js";
 import { CHAT_MODELS } from "../../src/models.js";
+import type { MistralProfile } from "../../src/profile.js";
 
 type ChatArgs = Parameters<
   InstanceType<typeof import("@mistralai/mistralai").Mistral>["chat"]["complete"]
@@ -54,9 +55,12 @@ function makeMockMistral(overrides: Partial<Record<string, unknown>> = {}) {
   } as unknown as InstanceType<typeof import("@mistralai/mistralai").Mistral>;
 }
 
-async function bootPair(mockMistral = makeMockMistral()) {
+async function bootPair(
+  mockMistral = makeMockMistral(),
+  profile: MistralProfile = "full"
+) {
   const server = new McpServer({ name: "mistral-mcp-test", version: "0.0.0" });
-  registerMistralTools(server, mockMistral);
+  registerMistralTools(server, mockMistral, profile);
   const client = new Client({ name: "test-client", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -64,8 +68,8 @@ async function bootPair(mockMistral = makeMockMistral()) {
 }
 
 describe("tool listing", () => {
-  it("exposes the three expected tools with annotations + outputSchema", async () => {
-    const { client } = await bootPair();
+  it("full profile exposes all three tools with annotations + outputSchema", async () => {
+    const { client } = await bootPair(makeMockMistral(), "full");
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(["mistral_chat", "mistral_chat_stream", "mistral_embed"]);
@@ -75,11 +79,25 @@ describe("tool listing", () => {
       expect(t.inputSchema).toBeTruthy();
       expect(t.outputSchema).toBeTruthy();
       expect(t.annotations).toBeTruthy();
-      // All our tools are read-only by design
       expect(t.annotations?.readOnlyHint).toBe(true);
       expect(t.annotations?.destructiveHint).toBe(false);
       expect(t.annotations?.openWorldHint).toBe(true);
     }
+  });
+
+  it("core profile exposes only mistral_chat", async () => {
+    const { client } = await bootPair(makeMockMistral(), "core");
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name).sort();
+    expect(names).toEqual(["mistral_chat"]);
+  });
+
+  it("workflows profile exposes no tools from this module", async () => {
+    const { client } = await bootPair(makeMockMistral(), "workflows");
+    // Server has no tools → SDK does not advertise the tools capability →
+    // listTools throws McpError -32601. Treat that as an empty tool list.
+    const result = await client.listTools().catch(() => ({ tools: [] as unknown[] }));
+    expect(result.tools).toHaveLength(0);
   });
 });
 
@@ -342,6 +360,19 @@ describe("mistral_chat — v0.5 surface", () => {
     });
     const sc = result.structuredContent as { reasoning_content?: string };
     expect(sc.reasoning_content).toBeUndefined();
+  });
+
+  it("propagates `reasoning_effort` to the SDK as `reasoningEffort`", async () => {
+    const { client, mockMistral } = await bootPair();
+    await client.callTool({
+      name: "mistral_chat",
+      arguments: {
+        messages: [{ role: "user", content: "x" }],
+        reasoning_effort: "high",
+      },
+    });
+    const call = (mockMistral.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(call?.reasoningEffort).toBe("high");
   });
 });
 

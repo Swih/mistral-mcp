@@ -11,7 +11,7 @@
       "name": "mistral-mcp",
       "source": "./claude-plugin",
       "description": "Mistral AI capabilities for Claude Code: chat, OCR, vision, audio (Voxtral), Codestral FIM, agents, and curated French workflows.",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "author": {
         "name": "Dayan Decamp",
         "email": "akaswitsh@gmail.com"

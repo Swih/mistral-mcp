@@ -4,6 +4,27 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-28
+
+### Added
+- **Profile system** (`MISTRAL_MCP_PROFILE=core|full|workflows`): `core` is now the default profile, exposing only 8 tools to keep LLM tool context lean. `full` restores the complete v0.5 surface. `workflows` exposes workflow tools only.
+- **`workflow_execute`**: start a Mistral Workflow execution (sync or async). Returns `execution_id` + status or inline `result` when `waitForResult=true`.
+- **`workflow_status`**: poll execution state, status, and result by `execution_id`.
+- **`workflow_interact`**: polymorphic tool — `action: "signal"` fires a named signal to a running workflow; `action: "query"` reads internal workflow state synchronously.
+- **`mistral://workflows` resource**: live `GET /v1/workflows` catalog. Use the `name` field as `workflowIdentifier` in `workflow_execute`.
+- 7 new tests (4 contract + 3 unit profile coverage tests), bringing the suite to **172 tests** (134 unit + 27 contract + 5 stdio e2e + 6 live API).
+
+### Changed
+- `core` profile (default): `mistral_chat`, `mistral_vision`, `mistral_ocr`, `codestral_fim`, `voxtral_transcribe` + 3 workflow tools.
+- `full` profile (opt-in): all 22 v0.5 tools + 3 new workflow tools = 25 tools total.
+- `resources.ts`, `tools.ts`, `tools-fn.ts`, `tools-audio.ts` accept a `profile` parameter.
+- Plugin `.mcp.json` bumped to `mistral-mcp@^0.6.0`.
+
+### Notes
+- This is a SemVer minor bump: new tools/resource, no signature changes to existing tools.
+- Workflow tools require a Mistral Workflows account and deployed workflows. They degrade gracefully with `isError:true` if the API is unavailable.
+- `MISTRAL_MCP_PROFILE=full node dist/index.js` restores the complete v0.5 tool surface for existing integrations.
+
 ## [0.5.0] - 2026-04-28
 
 ### Added

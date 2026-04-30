@@ -22,6 +22,7 @@ import {
   TOOL_CAPABLE_MODELS,
   VISION_MODELS,
 } from "./models.js";
+import type { MistralProfile } from "./profile.js";
 
 const STATIC_CATALOG = {
   chat: CHAT_MODELS,
@@ -35,7 +36,8 @@ const STATIC_CATALOG = {
 
 export function registerMistralResources(
   server: McpServer,
-  mistral: Mistral
+  mistral: Mistral,
+  profile: MistralProfile = "core"
 ) {
   server.registerResource(
     "mistral-models",
@@ -141,6 +143,63 @@ export function registerMistralResources(
         count: items.length,
         total,
         items,
+        fallback,
+        ...(fallback_reason ? { fallback_reason } : {}),
+      };
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(payload, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerResource(
+    "mistral-workflows",
+    "mistral://workflows",
+    {
+      title: "Mistral workflow catalog",
+      description:
+        "Live list of Mistral Workflows deployed to this API key. " +
+        "Use the `name` field as `workflowIdentifier` in workflow_execute. " +
+        "Falls back to an empty list if the API call fails.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const now = new Date().toISOString();
+      let workflows: unknown[] = [];
+      let fallback = false;
+      let fallback_reason: string | undefined;
+
+      try {
+        const pages = await mistral.workflows.getWorkflows({ limit: 100 });
+        for await (const page of pages) {
+          for (const w of page.result.workflows) {
+            workflows.push({
+              id: w.id,
+              name: w.name,
+              display_name: w.displayName,
+              description: w.description ?? undefined,
+              archived: w.archived,
+            });
+          }
+          if (!page.result.nextCursor) break;
+        }
+      } catch (err) {
+        fallback = true;
+        fallback_reason = err instanceof Error ? err.message : String(err);
+      }
+
+      const payload = {
+        source_api: "GET /v1/workflows (live)",
+        fetched_at: now,
+        count: workflows.length,
+        workflows,
         fallback,
         ...(fallback_reason ? { fallback_reason } : {}),
       };

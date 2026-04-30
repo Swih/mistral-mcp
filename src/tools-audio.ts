@@ -22,6 +22,7 @@ import {
   STT_MODELS,
   SttModelSchema,
 } from "./models.js";
+import type { MistralProfile } from "./profile.js";
 import { UsageSchema, errorResult, mapUsage, toTextBlock } from "./shared.js";
 
 // ---------- output schemas (exported for contract tests) ----------
@@ -84,7 +85,11 @@ const AudioSourceSchema = z.union([
 
 // ---------- registration ----------
 
-export function registerAudioTools(server: McpServer, mistral: Mistral) {
+export function registerAudioTools(
+  server: McpServer,
+  mistral: Mistral,
+  profile: MistralProfile = "core"
+) {
   // ========== voxtral_transcribe ==========
   server.registerTool(
     "voxtral_transcribe",
@@ -187,6 +192,7 @@ export function registerAudioTools(server: McpServer, mistral: Mistral) {
     }
   );
 
+  if (profile === "full") {
   // ========== voxtral_speak ==========
   server.registerTool(
     "voxtral_speak",
@@ -281,4 +287,5 @@ export function registerAudioTools(server: McpServer, mistral: Mistral) {
       }
     }
   );
+  } // end profile === "full"
 }
