@@ -1,7 +1,7 @@
 ---
 name: mistral-mcp-openclaw
-description: Configure OpenClaw to use the community mistral-mcp stdio server for Mistral OCR, Codestral FIM, Voxtral audio, moderation, classification, files, batch, and model/voice resources.
-version: 0.1.0
+description: Configure OpenClaw to use the community mistral-mcp stdio server for Mistral OCR, Codestral FIM, Voxtral audio, durable workflows, moderation, classification, files, batch, and model/voice resources.
+version: 0.2.0
 metadata:
   openclaw:
     requires:
@@ -27,9 +27,10 @@ metadata:
 
 Use this skill when you want OpenClaw to access Mistral capabilities beyond the built-in chat/model routing provider:
 
-- OCR for documents and images
+- OCR for documents and images (Mistral Document AI)
 - Codestral fill-in-the-middle (FIM) code completion
-- Voxtral transcription and speech tools
+- Voxtral transcription with speaker diarization, and TTS
+- Durable workflows with human-in-the-loop signals (`workflow_execute / status / interact`)
 - Moderation and classification endpoints
 - Files and batch API workflows
 - Live model and voice resources
@@ -75,7 +76,8 @@ Use this skill for workflows where the agent needs a Mistral-specific tool, not 
 
 - Extract text from a PDF or image with OCR
 - Ask Codestral for FIM / inline code completion
-- Transcribe or generate audio with Voxtral
+- Transcribe or generate audio with Voxtral (diarization supported)
+- Run durable multi-step workflows with human approval gates
 - Run moderation or classification before taking an action
 - Submit larger async workloads through the batch API
 - Inspect live model and voice catalogs as MCP resources

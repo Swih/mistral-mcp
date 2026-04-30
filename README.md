@@ -1,6 +1,7 @@
 # mistral-mcp
 
-> **MCP server exposing Mistral AI capabilities to any MCP client** - Claude Code, Cursor, Zed, Windsurf, Claude Desktop.
+> **MCP server for Mistral AI — chat, OCR, audio (Voxtral), code (Codestral), vision, agents, batch, and durable workflows.**
+> Plug into Claude Code, Cursor, Zed, Windsurf, or Claude Desktop in one command.
 >
 > _Version française : [README.fr.md](./README.fr.md)_
 
@@ -10,266 +11,185 @@
 [![license](https://img.shields.io/badge/license-MIT-black)](./LICENSE)
 ![MCP spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
 
-## Why
+---
 
-Mistral has strong models for French, code, OCR, moderation, audio, and agent-style workflows, but most MCP-enabled IDEs default to Anthropic or OpenAI. `mistral-mcp` gives those Mistral capabilities a clean MCP surface so you can route the right subtask to the right model without rebuilding your agent loop.
+## What this is
 
-The goal of this repo is not "yet another thin wrapper". It aims to be a robust, maintainable MCP server with explicit schemas, predictable outputs, transport flexibility, and good test coverage.
+`mistral-mcp` exposes the full Mistral AI API as a set of MCP tools, resources, and prompts. An MCP client (Claude Code, Cursor, etc.) can call `mistral_ocr` to extract text from a PDF, `voxtral_transcribe` to transcribe a meeting recording, or `workflow_execute` to start a durable multi-step process — all without leaving the agent loop.
 
-## Current surface (`v0.6.0`)
+**Unique to Mistral and not available from other MCP servers:**
+- `mistral_ocr` — Mistral Document AI: structured text + bbox annotations from any PDF or image
+- `voxtral_transcribe` — Voxtral: transcription with optional speaker diarization
+- `codestral_fim` — Codestral fill-in-the-middle (FIM) for inline code completion
+- `workflow_execute / status / interact` — Temporal-backed durable execution with human-in-the-loop signals
+- French-optimized models (`mistral-large-latest`, `mistral-medium-latest`) and curated French prompts
 
-### Profiles
+**What this server does not expose:** fine-tuning, user management, non-FR/EN prompts.
 
-`MISTRAL_MCP_PROFILE` controls how many tools are exposed (default: `core`):
+---
 
-| Profile | Tools | Description |
-|---|---|---|
-| `core` (default) | 8 | `mistral_chat`, `mistral_vision`, `mistral_ocr`, `codestral_fim`, `voxtral_transcribe` + 3 workflow tools |
-| `full` | 25 | All v0.5 tools + 3 workflow tools. Opt-in for `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call`, etc. |
-| `workflows` | 3 | Workflow tools only — for pipeline orchestration use-cases |
-
-```bash
-MISTRAL_MCP_PROFILE=full node dist/index.js
-```
-
-### Tools (25 in `full` profile — 8 in `core`)
-
-Core generation:
-- `mistral_chat`
-- `mistral_chat_stream`
-- `mistral_embed`
-- `mistral_tool_call`
-- `codestral_fim`
-
-Vision and audio:
-- `mistral_vision`
-- `mistral_ocr`
-- `voxtral_transcribe`
-- `voxtral_speak`
-
-Agents and classifiers:
-- `mistral_agent`
-- `mistral_moderate`
-- `mistral_classify`
-
-Files and batch:
-- `files_upload`
-- `files_list`
-- `files_get`
-- `files_delete`
-- `files_signed_url`
-- `batch_create`
-- `batch_list`
-- `batch_get`
-- `batch_cancel`
-
-MCP-native utility:
-- `mcp_sample` - delegates generation to the client model via MCP sampling (`full` profile)
-
-Workflows (durable execution engine):
-- `workflow_execute`
-- `workflow_status`
-- `workflow_interact` — polymorphic: `signal` or `query` against a running execution
-
-### Resources (3)
-
-- `mistral://models` - accepted aliases and live model catalog
-- `mistral://voices` - live voice catalog for Voxtral TTS
-- `mistral://workflows` - live list of deployed Mistral Workflows (use `name` as `workflowIdentifier`)
-
-### Prompts (6)
-
-French curated prompts:
-- `french_invoice_reminder`
-- `french_meeting_minutes`
-- `french_email_reply`
-- `french_commit_message`
-- `french_legal_summary`
-
-English curated prompt:
-- `codestral_review`
-
-Prompt enum arguments are wrapped with `completable()`, so MCP clients can call prompt argument completion via `completion/complete`.
-
-## Highlights
-
-- High-level `McpServer` API with `inputSchema`, `outputSchema`, and annotations on every tool
-- Profile system: `MISTRAL_MCP_PROFILE=core|full|workflows` — `core` by default for a lean context footprint
-- Mistral Workflows: `workflow_execute` / `workflow_status` / `workflow_interact` in every profile
-- Dual transport support: stdio by default, Streamable HTTP for remote deployments
-- Structured outputs everywhere: `structuredContent` plus text fallback
-- OCR annotations: `mistral_ocr` can request document-level and image/bbox JSON annotations from Mistral Document AI
-- MCP sampling support through `mcp_sample` (`full` profile)
-- Prompt completion support for enum-like prompt arguments
-- Resources and prompts registered alongside tools, not bolted on later
-- Retry/backoff and request timeout on the Mistral SDK client
-
-## Transport
-
-### Stdio
-
-Default mode. This is what Claude Code and most local MCP clients use.
+## Quick start
 
 ```bash
-node dist/index.js
+# Claude Code — recommended path (auto-installs, prompts for API key, ships 11 skills)
+/plugin install mistral-mcp@swih-plugins
+
+# Or: manual MCP registration via npx
+claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
-### Streamable HTTP
-
-Enable with `--http` or `MCP_TRANSPORT=http`.
-
-```bash
-MCP_TRANSPORT=http node dist/index.js
-```
-
-Relevant env vars:
-- `MCP_HTTP_HOST` - default `127.0.0.1`
-- `MCP_HTTP_PORT` - default `3333`
-- `MCP_HTTP_PATH` - default `/mcp`
-- `MCP_HTTP_TOKEN` - optional bearer token
-- `MCP_HTTP_ALLOWED_ORIGINS` - optional comma-separated allow-list
-- `MCP_HTTP_STATELESS=1` - stateless session mode
-
-`/healthz` is intentionally public and does not touch the MCP server.
-
-## Install
-
-Run from npm:
-
-```bash
-npx mistral-mcp
-```
-
-Or install globally:
-
-```bash
-npm install -g mistral-mcp
-mistral-mcp
-```
-
-Run with Docker:
-
-```bash
-docker build -t mistral-mcp:dev .
-docker run -i --rm -e MISTRAL_API_KEY=your_key_here mistral-mcp:dev
-```
-
-The image uses a multi-stage build and keeps the runtime container to production dependencies plus `dist/`.
-
-Build from source:
-
-```bash
-git clone https://github.com/Swih/mistral-mcp.git
-cd mistral-mcp
-npm install
-npm run build
-```
-
-Set your API key:
+Set your key:
 
 ```bash
 export MISTRAL_API_KEY=your_key_here
 ```
 
-Or use `.env` at the repo root. Never commit it.
+---
 
-## Use in Claude Code
+## Profiles
 
-### Option A — Claude Code plugin (recommended)
+`MISTRAL_MCP_PROFILE` controls how many tools are exposed (default: `core`).
 
-The fastest path: install the bundled Claude Code plugin from the `swih-plugins` marketplace. It auto-installs the MCP server, prompts for your API key (stored in Claude Code's secrets storage), and ships 5 curated skills.
-
-```text
-/plugin marketplace add Swih/mistral-mcp
-/plugin install mistral-mcp@swih-plugins
-```
-
-The plugin adds these namespaced skills:
-
-- `/mistral-mcp:mistral-router` — picks the right Mistral model + tool for a given task
-- `/mistral-mcp:codestral-review` — auto-fetches the diff, runs a focused code review
-- `/mistral-mcp:french-commit-message` — generates a Conventional Commits message in French
-- `/mistral-mcp:french-meeting-minutes` — audio file or text → structured French meeting minutes
-- `/mistral-mcp:french-invoice-reminder` — French B2B dunning letter with controlled tone
-
-See [`claude-plugin/README.md`](./claude-plugin/README.md) for plugin-specific details.
-
-### Option B — Manual MCP server registration
+| Profile | Tools | Use when |
+|---|---|---|
+| `core` (default) | 8 | Daily use — lean context footprint |
+| `full` | 25 | Need embeddings, streaming, batch, classify, files, agents, TTS |
+| `workflows` | 3 | Pipeline orchestration only |
 
 ```bash
-claude mcp add mistral -- node /absolute/path/to/mistral-mcp/dist/index.js
+MISTRAL_MCP_PROFILE=full npx mistral-mcp
 ```
 
-Or via npx, no global install needed:
+---
+
+## Tools
+
+### Core profile (8 tools — always available)
+
+| Tool | What it does |
+|---|---|
+| `mistral_chat` | Chat completion. Supports all Mistral models, `response_format`, `reasoning_effort` for Magistral. |
+| `mistral_vision` | Multimodal chat with images (URL or base64). |
+| `mistral_ocr` | Document AI — extract text, bbox, and JSON annotations from PDFs/images. |
+| `codestral_fim` | Fill-in-the-middle code completion (Codestral model). |
+| `voxtral_transcribe` | Audio → text. Pass `diarize: true` for speaker separation. |
+| `workflow_execute` | Start a Mistral Workflow (Temporal-backed durable execution). |
+| `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |
+| `workflow_interact` | Signal / query a running workflow. Used for human-in-the-loop checkpoints. |
+
+### Full profile only (+17 tools, set `MISTRAL_MCP_PROFILE=full`)
+
+| Group | Tools |
+|---|---|
+| Generation | `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call` |
+| Agents | `mistral_agent`, `mistral_moderate`, `mistral_classify` |
+| Audio | `voxtral_speak` (TTS) |
+| Files | `files_upload`, `files_list`, `files_get`, `files_delete`, `files_signed_url` |
+| Batch | `batch_create`, `batch_get`, `batch_list`, `batch_cancel` |
+| Sampling | `mcp_sample` (delegates generation to the MCP client's own model) |
+
+---
+
+## Resources
+
+| URI | What it returns |
+|---|---|
+| `mistral://models` | Live model catalog + accepted aliases |
+| `mistral://voices` | Live Voxtral TTS voice catalog |
+| `mistral://workflows` | Live list of deployed workflows (use `name` as `workflowIdentifier`) |
+
+---
+
+## Prompts
+
+Curated prompts with structured arguments and MCP completion support:
+
+| Prompt | Input | Output |
+|---|---|---|
+| `french_meeting_minutes` | transcript text | Structured French meeting minutes |
+| `french_email_reply` | received email + context | Polished French reply |
+| `french_commit_message` | git diff | Conventional Commits message in French |
+| `french_legal_summary` | legal document text | Plain-French summary + key clauses |
+| `french_invoice_reminder` | debtor, amount, days overdue, tone | B2B dunning letter in French |
+| `codestral_review` | git diff | Focused code review (security / logic / style) |
+
+---
+
+## Claude Code skills (11)
+
+Install via the `swih-plugins` marketplace to get these namespaced skills:
+
+**Routing**
+- `/mistral-mcp:mistral-router` — picks the right Mistral model + tool for any task
+
+**Code**
+- `/mistral-mcp:codestral-review` — fetches the current diff, runs a focused review
+
+**French workflows**
+- `/mistral-mcp:french-commit-message` — Conventional Commits message in French
+- `/mistral-mcp:french-meeting-minutes` — audio or text → structured French minutes
+- `/mistral-mcp:french-invoice-reminder` — B2B dunning letter with controlled tone
+
+**Document & audio processing**
+- `/mistral-mcp:contract-analyzer` — OCR → risk-rated clause extraction (JSON)
+- `/mistral-mcp:pdf-invoice-extractor` — OCR → structured invoice fields for reconciliation
+- `/mistral-mcp:audio-dispatch` — transcribe + diarize → per-speaker action plan
+
+**Human-in-the-loop workflows**
+- `/mistral-mcp:contract-review-workflow` — durable contract review with approval gates
+- `/mistral-mcp:compliance-audit-workflow` — multi-step audit with mid-run findings + decisions
+- `/mistral-mcp:research-pipeline-workflow` — hypothesis-driven research with amendment injection
+
+---
+
+## Install
 
 ```bash
-claude mcp add mistral -- npx -y mistral-mcp@latest
+# Run directly (no global install)
+npx mistral-mcp
+
+# Global install
+npm install -g mistral-mcp && mistral-mcp
+
+# Docker
+docker build -t mistral-mcp .
+docker run -i --rm -e MISTRAL_API_KEY=your_key mistral-mcp
+
+# From source
+git clone https://github.com/Swih/mistral-mcp.git
+cd mistral-mcp && npm install && npm run build
+node dist/index.js
 ```
 
-Example prompt:
+---
 
-> Use `mistral_ocr` on this PDF, then run `french_meeting_minutes` on the extracted text.
+## Transport
 
-## Develop
+| Mode | How to enable | Default |
+|---|---|---|
+| **stdio** | Default | `node dist/index.js` |
+| **Streamable HTTP** | `MCP_TRANSPORT=http` or `--http` flag | `127.0.0.1:3333/mcp` |
+
+HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`, `MCP_HTTP_STATELESS=1`.
+
+`/healthz` is public and does not touch the MCP server.
+
+---
+
+## Development
 
 ```bash
-npm run dev
-npm run build
-npm run lint
-npm test
+npm run dev      # tsx watch
+npm run build    # tsc → dist/
+npm run lint     # tsc --noEmit
+npm test         # all 174 tests
 npm run inspector
 ```
 
-## Test strategy
+Test pyramid: unit → contract → stdio e2e → live API (requires `MISTRAL_API_KEY`).
 
-The suite currently contains 172 tests across 4 layers:
-
-1. Unit tests for tools, resources, prompts, transport, audio, agents, files, batch, and sampling
-2. Contract tests for tool metadata and MCP-facing guarantees
-3. Live API tests against the real Mistral API when `MISTRAL_API_KEY` is set
-4. Stdio end-to-end tests against the built server
-
-Without `MISTRAL_API_KEY`, the local default is `161 passing` plus `11 gated` live/stdio tests.
-
-## Project layout
-
-```text
-mistral-mcp/
-|-- src/
-|   |-- index.ts
-|   |-- profile.ts
-|   |-- transport.ts
-|   |-- tools.ts
-|   |-- tools-fn.ts
-|   |-- tools-vision.ts
-|   |-- tools-audio.ts
-|   |-- tools-agents.ts
-|   |-- tools-files.ts
-|   |-- tools-batch.ts
-|   |-- tools-sampling.ts
-|   |-- tools-workflows.ts
-|   |-- resources.ts
-|   `-- prompts.ts
-|-- test/
-|-- examples/
-|-- .github/workflows/ci.yml
-|-- package.json
-`-- tsconfig.test.json
-```
-
-## Status
-
-`v0.6.0` — See [CHANGELOG.md](./CHANGELOG.md) for the full diff against `v0.5.0`:
-
-- profile system (`MISTRAL_MCP_PROFILE=core|full|workflows`) — `core` as default for lean tool context
-- 3 new workflow tools: `workflow_execute`, `workflow_status`, `workflow_interact`
-- `mistral://workflows` resource — live catalog of deployed workflows
-- 172 tests (134 unit + 27 contract + 5 stdio e2e + 6 live API)
-
-## Examples
-
-Runnable scripts live in [`examples/`](./examples/). See [`examples/README.md`](./examples/README.md).
+---
 
 ## License
 
-MIT Copyright Dayan Decamp
+MIT — Copyright Dayan Decamp
