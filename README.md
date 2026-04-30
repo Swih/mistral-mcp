@@ -30,18 +30,27 @@
 
 ## Quick start
 
-```bash
-# Claude Code — recommended path (auto-installs, prompts for API key, ships 11 skills)
+**Claude Code** (recommended — auto-installs, prompts for API key, ships 11 skills):
+```text
 /plugin install mistral-mcp@swih-plugins
-
-# Or: manual MCP registration via npx
-claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
-Set your key:
+**Cursor / Zed / Windsurf / Claude Desktop** — add to your MCP settings JSON:
+```json
+{
+  "mcpServers": {
+    "mistral": {
+      "command": "npx",
+      "args": ["-y", "mistral-mcp@latest"],
+      "env": { "MISTRAL_API_KEY": "your_key_here" }
+    }
+  }
+}
+```
 
+**Manual Claude Code registration:**
 ```bash
-export MISTRAL_API_KEY=your_key_here
+claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
 ---

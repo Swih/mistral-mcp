@@ -30,18 +30,27 @@
 
 ## Démarrage rapide
 
-```bash
-# Claude Code — chemin recommandé (auto-installe, demande la clé API, ship 11 skills)
+**Claude Code** (recommandé — auto-installe, demande la clé API, ship 11 skills) :
+```text
 /plugin install mistral-mcp@swih-plugins
-
-# Ou : enregistrement MCP manuel via npx
-claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
-Déclarez votre clé :
+**Cursor / Zed / Windsurf / Claude Desktop** — ajoutez à votre JSON de config MCP :
+```json
+{
+  "mcpServers": {
+    "mistral": {
+      "command": "npx",
+      "args": ["-y", "mistral-mcp@latest"],
+      "env": { "MISTRAL_API_KEY": "votre_cle" }
+    }
+  }
+}
+```
 
+**Enregistrement manuel Claude Code :**
 ```bash
-export MISTRAL_API_KEY=votre_cle
+claude mcp add mistral -- npx -y mistral-mcp@latest
 ```
 
 ---
