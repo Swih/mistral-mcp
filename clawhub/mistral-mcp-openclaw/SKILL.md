@@ -1,7 +1,7 @@
 ---
 name: mistral-mcp-openclaw
 description: Configure OpenClaw to use the community mistral-mcp stdio server for Mistral OCR, Codestral FIM, Voxtral audio, durable workflows, moderation, classification, files, batch, and model/voice resources.
-version: 0.2.0
+version: 0.3.0
 metadata:
   openclaw:
     requires:
