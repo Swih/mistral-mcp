@@ -4,6 +4,38 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v0.8 in progress
+
+### Added
+- **`process_document` macro-tool** — single-call OCR + typed extraction pipeline. Kinds: `contract`, `invoice`, `id_document`, `generic` (auto-classification when `kind:"auto"`). Discriminated-union output, JSON-schema-strict extraction, file-based cache (sha256 + pipeline version, override via `MISTRAL_MCP_CACHE_DIR`).
+- **`metier-docs` profile** — exposes the core tools + `process_document` for documents-vertical agents.
+- **Mistral Connectors readiness** — `Dockerfile` exposes port 3333; new `examples/deploy/` guide for Cloudflare Tunnel / Fly.io / Render. README "Use as a Mistral Connector" section in EN+FR.
+- **Comparison section** in README (positioning vs other Mistral MCP servers).
+- 9 unit tests for `process_document` (input parsing, registration, cache hit, OCR confidence guard).
+
+### Changed
+- **Profile rename**: `full` → `admin` (with `full` accepted as a deprecated alias that emits a console warning). The new `metier-docs` profile is the place for vertical macro-tools.
+- `workflows` profile no longer leaks `codestral_fim` / `voxtral_transcribe` (registration was unconditional, now gated).
+- npm keywords expanded (`mistral-ocr`, `document-ai`, `embeddings`, `function-calling`, `vision`, `agents`, `batch-api`, `agent-tools`, `mistral-connectors`, `workflows`).
+
+## [0.7.1] - 2026-05-05
+
+### Changed
+- README and README.fr.md fully rewritten: SEO-oriented, droit au but, human + AI-agent readable. Removes v0.6.0 relics. Adds Cursor/Zed/Windsurf JSON config block in quick start.
+- All 11 Claude Code skills now documented (was 5 in previous README).
+- Test count corrected to 174 throughout docs.
+
+## [0.7.0] - 2026-04-30
+
+### Added
+- 6 new Claude Code skills: `contract-analyzer`, `pdf-invoice-extractor`, `audio-dispatch`, `contract-review-workflow`, `compliance-audit-workflow`, `research-pipeline-workflow`.
+- Live integration test suite for Workflow tools (`test/live/workflows.test.ts`): connectivity, execute → poll → status cycle, bogus executionId graceful error, interact query.
+- `marketplace.json` bumped to 0.7.0 with full 11-skill description.
+
+### Changed
+- `claude-plugin/` updated: all 11 skills registered, ClawHub SKILL.md bumped to 0.2.0.
+- 174 tests total (added 2 live workflow tests vs. 0.6.0).
+
 ## [0.6.0] - 2026-04-28
 
 ### Added
