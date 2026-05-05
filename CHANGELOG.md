@@ -4,19 +4,26 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v0.8 in progress
+## [0.8.0] - 2026-05-05
 
 ### Added
 - **`process_document` macro-tool** — single-call OCR + typed extraction pipeline. Kinds: `contract`, `invoice`, `id_document`, `generic` (auto-classification when `kind:"auto"`). Discriminated-union output, JSON-schema-strict extraction, file-based cache (sha256 + pipeline version, override via `MISTRAL_MCP_CACHE_DIR`).
+- **PII-safe cache**: `id_document` payloads bypass cache by default. Two-layer safeguard: read-time refusal of cached id_document content, write-time bypass even when `kind:"auto"` resolves to id_document. Explicit `cache:"read_write"` opt-in is preserved.
+- **Configurable OCR floor** — `options.minOcrConfidence` (default 0.3, empirical). Below the floor the tool returns `isError`.
 - **`metier-docs` profile** — exposes the core tools + `process_document` for documents-vertical agents.
-- **Mistral Connectors readiness** — `Dockerfile` exposes port 3333; new `examples/deploy/` guide for Cloudflare Tunnel / Fly.io / Render. README "Use as a Mistral Connector" section in EN+FR.
-- **Comparison section** in README (positioning vs other Mistral MCP servers).
-- 9 unit tests for `process_document` (input parsing, registration, cache hit, OCR confidence guard).
+- **Mistral Connectors readiness** — `Dockerfile` exposes port 3333; new `examples/deploy/` guide for Cloudflare Tunnel / Fly.io / Render. README "Use as a Mistral Connector" section in EN+FR with a status matrix (tested locally vs. e2e pending vs. OAuth pending).
+- **Comparison section** in README (positioning vs other Mistral MCP servers — `mcp-mistral-ocr`, Speakeasy example, Composio).
+- **Better onboarding error** — missing `MISTRAL_API_KEY` prints a one-shot link to `console.mistral.ai/api-keys` and mentions the free Experiment tier.
+- 14 new tests for `process_document`: 9 unit (input parsing, registration, cache modes, OCR confidence guard, schema permissiveness with null fields) + 1 contract pattern + 4 live e2e on synthetic PDFs (contract, invoice, id_document, generic).
+- `test/fixtures/` with 4 synthetic reportlab-generated PDFs and the Python generator script.
+- `.gitattributes` (PDFs as binary, LF-default text).
 
 ### Changed
 - **Profile rename**: `full` → `admin` (with `full` accepted as a deprecated alias that emits a console warning). The new `metier-docs` profile is the place for vertical macro-tools.
 - `workflows` profile no longer leaks `codestral_fim` / `voxtral_transcribe` (registration was unconditional, now gated).
+- Schema robustness for `process_document`: `risk_score`, `summary`, `total`, `currency`, `clauses[].risk`, `parties[].role` are now nullable in both zod and the JSON schemas sent to the model. Real-world docs miss fields and the model should be able to say "unknown" rather than fabricate.
 - npm keywords expanded (`mistral-ocr`, `document-ai`, `embeddings`, `function-calling`, `vision`, `agents`, `batch-api`, `agent-tools`, `mistral-connectors`, `workflows`).
+- README and README.fr.md test-count phrasing made evergreen (`190+ tests` instead of a hard count).
 
 ## [0.7.1] - 2026-05-05
 

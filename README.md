@@ -229,7 +229,7 @@ curl -X POST https://api.mistral.ai/v1/connectors \
 npm run dev      # tsx watch
 npm run build    # tsc → dist/
 npm run lint     # tsc --noEmit
-npm test         # all 174 tests
+npm test         # 190+ tests (unit + contract + stdio e2e + live API)
 npm run inspector
 ```
 

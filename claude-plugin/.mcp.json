@@ -2,7 +2,7 @@
   "mcpServers": {
     "mistral": {
       "command": "npx",
-      "args": ["-y", "mistral-mcp@^0.7.0"],
+      "args": ["-y", "mistral-mcp@^0.8.0"],
       "env": {
         "MISTRAL_API_KEY": "${user_config.mistral_api_key}"
       }
