@@ -61,12 +61,15 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 
 | Profile | Tools | Use when |
 |---|---|---|
-| `core` (default) | 8 | Daily use — lean context footprint |
-| `full` | 25 | Need embeddings, streaming, batch, classify, files, agents, TTS |
+| `core` (default) | 8 | Daily agentic use — lean context footprint |
+| `admin` | 25 | Full Mistral API surface — embeddings, streaming, batch, classify, files, agents, TTS. Best for debug, CI, scripts. |
 | `workflows` | 3 | Pipeline orchestration only |
+| `metier-docs` | _coming v0.8_ | Documents vertical — adds `process_document` macro-tool |
+
+> `full` is accepted as a deprecated alias of `admin` for backward compatibility.
 
 ```bash
-MISTRAL_MCP_PROFILE=full npx mistral-mcp
+MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 ```
 
 ---
@@ -86,7 +89,7 @@ MISTRAL_MCP_PROFILE=full npx mistral-mcp
 | `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |
 | `workflow_interact` | Signal / query a running workflow. Used for human-in-the-loop checkpoints. |
 
-### Full profile only (+17 tools, set `MISTRAL_MCP_PROFILE=full`)
+### Admin profile only (+17 tools, set `MISTRAL_MCP_PROFILE=admin`)
 
 | Group | Tools |
 |---|---|
@@ -182,6 +185,35 @@ node dist/index.js
 HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`, `MCP_HTTP_STATELESS=1`.
 
 `/healthz` is public and does not touch the MCP server.
+
+---
+
+## Use as a Mistral Connector
+
+`mistral-mcp` is compatible with [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) (beta). Deploy the server over HTTPS, register it once via `POST /v1/connectors`, then call it from Mistral Conversations or Agents.
+
+See [`examples/deploy/README.md`](./examples/deploy/) for end-to-end guides (Cloudflare Tunnel, Fly.io, Render).
+
+```bash
+curl -X POST https://api.mistral.ai/v1/connectors \
+  -H "Authorization: Bearer $MISTRAL_API_KEY" \
+  -d '{"name":"mistral_self","server":"https://your-deploy/mcp","visibility":"private"}'
+```
+
+Connectors expose **tools only**. Resources, prompts, sampling, and elicitation remain available via local clients (Claude Code, Cursor, Zed, Windsurf, Claude Desktop).
+
+---
+
+## Comparison with other Mistral MCP servers
+
+| Project | Scope | Best for |
+|---|---|---|
+| **mistral-mcp** | Full Mistral API + Workflows + 11 Claude Code skills | All-in-one self-hosted |
+| `mcp-mistral-ocr` (community) | OCR only | Lightweight OCR-only setup |
+| Speakeasy `mistral-mcp-server-example` | Generated demo | Reference / SDK template |
+| Composio `mistral_ai` toolkit | SaaS-routed Mistral tools | Hosted, no infra |
+
+`mistral-mcp` differentiates by combining OCR, Voxtral diarization, Codestral FIM, and Temporal-backed Workflows in one server, with French-first prompts and a Claude Code plugin marketplace.
 
 ---
 
