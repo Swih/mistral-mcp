@@ -28,18 +28,30 @@
 
 ---
 
-## Pourquoi Mistral + mistral-mcp pour les entreprises européennes
+## Pourquoi c'est pertinent pour les équipes européennes
 
-`mistral-mcp` est la première intégration MCP conçue de bout en bout autour d'un fournisseur de modèles basé en UE. Pour les organisations soumises au RGPD, à DORA, aux orientations EBA, à HDS, ou à des règles de souveraineté du secteur public, c'est un vrai avantage :
+`mistral-mcp` est conçu pour les équipes qui veulent utiliser les capacités Mistral depuis des clients MCP (Claude Code, Cursor, Zed, Windsurf, Claude Desktop) tout en gardant la main sur le déploiement, les clés API, le comportement du cache et l'exposition des tools.
 
-- **Données traitées en UE** — Mistral héberge ses modèles sur infrastructure européenne. Pas d'exposition Cloud Act US par défaut sur votre trafic d'inférence.
-- **RGPD-friendly par défaut** — `process_document` bypass automatiquement le cache pour `id_document` afin d'éviter de persister du PII. Emplacement du cache disque configurable (`MISTRAL_MCP_CACHE_DIR`) pour contrôle on-premise. Transport HTTP avec bearer token et allow-list d'origines.
-- **Secteurs régulés / souverains** — banques, assurances, santé (HDS), juridique (notaires, avocats), secteur public. Le positionnement produit Mistral vous permet d'entrer dans des appels d'offres qui excluent les fournisseurs uniquement US.
-- **Prompts et skills français** — déjà shippés : `french_meeting_minutes`, `french_email_reply`, `french_commit_message`, `french_legal_summary`, `french_invoice_reminder`. Intégrés, pas en option.
-- **Auto-hébergeable** — stdio pour agents locaux, Docker + Streamable HTTP pour déploiements internes. Pas de saut SaaS obligatoire.
-- **Tier gratuit Experiment** — l'API gratuite Mistral fournit ~1 milliard de tokens/mois, suffisant pour évaluer le vertical documentaire sans engagement.
+Cela peut être utile pour les organisations européennes qui évaluent une stack IA sous RGPD, DORA, contraintes sectorielles (HDS, EBA), ou exigences internes de souveraineté.
 
-> Avertissement : ce repo est maintenu par la communauté, ce n'est pas une intégration Mistral officielle. Il ne modifie pas les conditions contractuelles de traitement des données de Mistral — consultez [mistral.ai/terms](https://mistral.ai/terms) pour votre cas d'usage spécifique.
+**Ce que ce projet apporte :**
+
+- serveur MCP auto-hébergeable, pas de proxy SaaS obligatoire
+- bring-your-own Mistral API key (BYOK) — Mistral déclare ne pas utiliser les données API pour entraîner ses modèles
+- profil `core` léger et profil `metier-docs` ciblé pour limiter l'exposition de tools
+- cache `process_document` configurable par appel et via `MISTRAL_MCP_CACHE_DIR`
+- bypass du cache pour les documents d'identité activé par défaut, même quand `kind:"auto"` résout en `id_document`
+- transport Streamable HTTP + bearer pour déploiements contrôlés / on-premise
+- prompts et skills français de série (compte-rendu de réunion, résumé juridique, relance facture, message de commit, réponse email)
+- tier Experiment gratuit côté Mistral suffisant pour évaluer (~1 milliard de tokens/mois)
+
+**Ce que ce projet ne prétend PAS être :**
+
+- ce n'est pas une certification RGPD, DORA, HDS ou ISO, et il ne remplace ni une AIPD, ni un vendor review, ni un audit de sécurité, ni une analyse juridique
+- les conditions Mistral, la résidence des données, la liste des sous-traitants, les paramètres de rétention et la gestion d'incidents doivent être revus séparément sur [mistral.ai/terms](https://mistral.ai/terms) et [legal.mistral.ai](https://legal.mistral.ai)
+- ce repo est maintenu par la communauté, ce n'est pas une intégration Mistral officielle ; rien ici ne modifie vos conditions contractuelles avec Mistral
+
+En pratique, `mistral-mcp` réduit la surface d'intégration à évaluer. Il ne remplace pas le travail juridique et conformité lui-même.
 
 ---
 

@@ -28,18 +28,30 @@
 
 ---
 
-## Why Mistral + mistral-mcp for European businesses
+## Why this matters for European teams
 
-`mistral-mcp` is the first MCP integration designed end-to-end around an EU-headquartered model provider. For organisations subject to GDPR, DORA, EBA guidelines, HDS, or public-sector sovereignty rules, this matters:
+`mistral-mcp` is designed for teams that want to use Mistral capabilities inside MCP clients (Claude Code, Cursor, Zed, Windsurf, Claude Desktop) while keeping control over deployment, API keys, cache behavior, and tool exposure.
 
-- **EU data residency** — Mistral hosts models on European infrastructure. No US Cloud Act exposure on your inference traffic by default.
-- **GDPR-friendly defaults** — `process_document` auto-bypasses cache for `id_document` to avoid persisting PII. Disk cache location is configurable (`MISTRAL_MCP_CACHE_DIR`) for on-prem control. Bearer-token HTTP transport with origin allow-list.
-- **Sovereign / regulated sectors** — banks, insurers, healthcare (HDS), legal (notaires, avocats), public sector. Mistral's product positioning lets you enter procurement processes that exclude US-only vendors.
-- **French-first prompts and skills** — already shipped: `french_meeting_minutes`, `french_email_reply`, `french_commit_message`, `french_legal_summary`, `french_invoice_reminder`. Built-in, not afterthoughts.
-- **Self-hostable** — stdio for local agents, Docker + Streamable HTTP for self-hosted deployments. No mandatory SaaS hop.
-- **Free Experiment tier** — Mistral's free API tier provides ~1B tokens/month, enough to evaluate the full document vertical without commitment.
+This can be useful for European organisations evaluating AI stacks under GDPR, DORA, sector-specific constraints (HDS, EBA), or internal sovereignty requirements.
 
-> Disclaimer: this repo is community-maintained and not an official Mistral integration. It does not change Mistral's contractual data terms — review them at [mistral.ai/terms](https://mistral.ai/terms) for your specific use case.
+**What this project provides:**
+
+- self-hosted MCP server, no mandatory SaaS proxy
+- bring-your-own Mistral API key (BYOK) — Mistral states API data is not used to train its models
+- lean `core` profile and focused `metier-docs` profile to limit tool exposure
+- `process_document` cache configurable per-call and via `MISTRAL_MCP_CACHE_DIR`
+- ID document cache bypass enabled by default, even when `kind:"auto"` resolves to `id_document`
+- Streamable HTTP + bearer auth path for controlled / on-prem deployments
+- French-first prompts and skills (meeting minutes, legal summary, invoice reminder, commit message, email reply)
+- free Experiment tier on the Mistral side covers most evaluation needs (~1B tokens/month)
+
+**What this project does NOT claim:**
+
+- it is not a GDPR, DORA, HDS, or ISO certification, and it does not replace a DPIA, vendor review, security audit, or legal assessment
+- Mistral provider terms, data residency, subprocessor list, retention settings, and incident handling must be reviewed separately at [mistral.ai/terms](https://mistral.ai/terms) and [legal.mistral.ai](https://legal.mistral.ai)
+- this repo is community-maintained, not an official Mistral integration; nothing here modifies Mistral's contractual data terms with you
+
+In practice, `mistral-mcp` reduces the integration surface you have to assess. It does not replace the legal/compliance work itself.
 
 ---
 
