@@ -48,7 +48,7 @@ function makeMock() {
   } as unknown as InstanceType<typeof import("@mistralai/mistralai").Mistral>;
 }
 
-async function bootPair(mock = makeMock(), profile: MistralProfile = "full") {
+async function bootPair(mock = makeMock(), profile: MistralProfile = "admin") {
   const server = new McpServer({ name: "fn-test", version: "0.0.0" });
   registerFunctionTools(server, mock, profile);
   const client = new Client({ name: "c", version: "0.0.0" });

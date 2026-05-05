@@ -1,18 +1,28 @@
 /**
  * Profile system — controls which tools are registered at startup.
  *
- * core (default): 8 tools for the most common Mistral workflows.
- *   Keeps the LLM tool context small; correct default for new installs.
- * full: all v0.5 tools + workflow tools (legacy surface, opt-in).
- * workflows: workflow tools only (mistral_chat excluded).
+ * core (default): lean agentic surface — chat, vision, OCR, FIM, transcribe,
+ *   sampling. Keeps the LLM tool context small.
+ * admin: full API surface (formerly "full") — adds embeddings, streaming,
+ *   classify/moderate, batch, files, agents. Opt-in for debug, CI, advanced
+ *   scripting. "full" remains accepted as a deprecated alias.
+ * workflows: workflow tools only — pipeline orchestration use cases.
+ * metier-docs: documents vertical — adds the process_document macro-tool
+ *   on top of the core surface.
  *
- * Set MISTRAL_MCP_PROFILE=core|full|workflows before launching the server.
+ * Set MISTRAL_MCP_PROFILE=core|admin|workflows|metier-docs at launch.
  */
 
-export type MistralProfile = "core" | "full" | "workflows";
+export type MistralProfile = "core" | "admin" | "workflows" | "metier-docs";
 
 export function resolveProfile(): MistralProfile {
   const raw = process.env.MISTRAL_MCP_PROFILE?.toLowerCase().trim();
-  if (raw === "full" || raw === "workflows") return raw;
+  if (raw === "admin" || raw === "workflows" || raw === "metier-docs") return raw;
+  if (raw === "full") {
+    console.error(
+      '[mistral-mcp] profile "full" is deprecated, use "admin" (same behaviour).'
+    );
+    return "admin";
+  }
   return "core";
 }

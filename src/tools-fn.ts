@@ -79,7 +79,9 @@ export function registerFunctionTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
-  if (profile === "full") {
+  if (profile === "workflows") return;
+
+  if (profile === "admin") {
   // ========== mistral_tool_call ==========
   server.registerTool(
     "mistral_tool_call",
@@ -167,7 +169,7 @@ export function registerFunctionTools(
       }
     }
   );
-  } // end profile === "full"
+  } // end profile === "admin"
 
   // ========== codestral_fim ==========
   server.registerTool(

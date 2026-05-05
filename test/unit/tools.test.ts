@@ -57,7 +57,7 @@ function makeMockMistral(overrides: Partial<Record<string, unknown>> = {}) {
 
 async function bootPair(
   mockMistral = makeMockMistral(),
-  profile: MistralProfile = "full"
+  profile: MistralProfile = "admin"
 ) {
   const server = new McpServer({ name: "mistral-mcp-test", version: "0.0.0" });
   registerMistralTools(server, mockMistral, profile);
@@ -68,8 +68,8 @@ async function bootPair(
 }
 
 describe("tool listing", () => {
-  it("full profile exposes all three tools with annotations + outputSchema", async () => {
-    const { client } = await bootPair(makeMockMistral(), "full");
+  it("admin profile exposes all three tools with annotations + outputSchema", async () => {
+    const { client } = await bootPair(makeMockMistral(), "admin");
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(["mistral_chat", "mistral_chat_stream", "mistral_embed"]);

@@ -22,6 +22,7 @@ import { registerFileTools } from "./tools-files.js";
 import { registerBatchTools } from "./tools-batch.js";
 import { registerSamplingTools } from "./tools-sampling.js";
 import { registerWorkflowTools } from "./tools-workflows.js";
+import { registerDocsTools } from "./tools-docs.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
@@ -54,20 +55,20 @@ const profile = resolveProfile();
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.7.0",
+  version: "0.7.1",
 });
 
 registerMistralTools(server, mistral, profile);
 registerFunctionTools(server, mistral, profile);
 
 if (profile !== "workflows") {
-  // core + full both get vision/OCR tools
+  // core, admin and metier-docs all get vision/OCR tools
   registerVisionTools(server, mistral);
 }
 
 registerAudioTools(server, mistral, profile);
 
-if (profile === "full") {
+if (profile === "admin") {
   registerAgentTools(server, mistral);
   registerFileTools(server, mistral);
   registerBatchTools(server, mistral);
@@ -77,13 +78,17 @@ if (profile === "full") {
 // workflow tools are present in every profile
 registerWorkflowTools(server, mistral);
 
+if (profile === "metier-docs" || profile === "admin") {
+  registerDocsTools(server, mistral);
+}
+
 registerMistralResources(server, mistral, profile);
 registerMistralPrompts(server);
 
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.7.0 (profile=${profile}) connected via ${connected.mode}${
+  `[mistral-mcp] v0.7.1 (profile=${profile}) connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""

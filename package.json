@@ -1,6 +1,6 @@
 {
   "name": "mistral-mcp",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "mcpName": "io.github.Swih/mistral-mcp",
   "description": "MCP server exposing Mistral AI capabilities over MCP: chat, embeddings, FIM, vision, OCR, audio, agents, moderation, classification, files, batch, workflows, sampling, prompts, resources, and Streamable HTTP.",
   "type": "module",
@@ -47,7 +47,17 @@
     "streamable-http",
     "ocr",
     "codestral",
-    "voxtral"
+    "voxtral",
+    "mistral-ocr",
+    "document-ai",
+    "embeddings",
+    "function-calling",
+    "vision",
+    "agents",
+    "batch-api",
+    "agent-tools",
+    "mistral-connectors",
+    "workflows"
   ],
   "author": "Dayan Decamp",
   "license": "MIT",

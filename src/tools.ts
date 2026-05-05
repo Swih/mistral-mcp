@@ -161,7 +161,7 @@ export function registerMistralTools(
     }
   );
 
-  if (profile === "full") {
+  if (profile === "admin") {
   // ========== mistral_chat_stream (streaming with progress) ==========
   server.registerTool(
     "mistral_chat_stream",
@@ -333,5 +333,5 @@ export function registerMistralTools(
       }
     }
   );
-  } // end profile === "full"
+  } // end profile === "admin"
 }

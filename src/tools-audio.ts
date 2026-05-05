@@ -90,6 +90,8 @@ export function registerAudioTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
+  if (profile === "workflows") return;
+
   // ========== voxtral_transcribe ==========
   server.registerTool(
     "voxtral_transcribe",
@@ -192,7 +194,7 @@ export function registerAudioTools(
     }
   );
 
-  if (profile === "full") {
+  if (profile === "admin") {
   // ========== voxtral_speak ==========
   server.registerTool(
     "voxtral_speak",
@@ -287,5 +289,5 @@ export function registerAudioTools(
       }
     }
   );
-  } // end profile === "full"
+  } // end profile === "admin"
 }

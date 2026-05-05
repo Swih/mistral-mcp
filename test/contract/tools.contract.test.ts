@@ -339,10 +339,10 @@ function makeMock(): Mistral {
 
 async function boot(mock: Mistral = makeMock()) {
   const server = new McpServer({ name: "contract-test", version: "0.0.0" });
-  registerMistralTools(server, mock, "full");
-  registerFunctionTools(server, mock, "full");
+  registerMistralTools(server, mock, "admin");
+  registerFunctionTools(server, mock, "admin");
   registerVisionTools(server, mock);
-  registerAudioTools(server, mock, "full");
+  registerAudioTools(server, mock, "admin");
   registerAgentTools(server, mock);
   registerFileTools(server, mock);
   registerBatchTools(server, mock);

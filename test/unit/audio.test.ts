@@ -49,7 +49,7 @@ function makeMock(): Mistral {
   } as unknown as Mistral;
 }
 
-async function boot(mock: Mistral = makeMock(), profile: MistralProfile = "full") {
+async function boot(mock: Mistral = makeMock(), profile: MistralProfile = "admin") {
   const server = new McpServer({ name: "audio-test", version: "0.0.0" });
   registerAudioTools(server, mock, profile);
   const client = new Client({ name: "c", version: "0.0.0" });
@@ -59,8 +59,8 @@ async function boot(mock: Mistral = makeMock(), profile: MistralProfile = "full"
 }
 
 describe("tool listing (audio)", () => {
-  it("full profile exposes voxtral_transcribe and voxtral_speak", async () => {
-    const { client } = await boot(makeMock(), "full");
+  it("admin profile exposes voxtral_transcribe and voxtral_speak", async () => {
+    const { client } = await boot(makeMock(), "admin");
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(["voxtral_speak", "voxtral_transcribe"]);

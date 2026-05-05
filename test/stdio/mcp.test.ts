@@ -45,7 +45,7 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       env: {
         ...(process.env as Record<string, string>),
         MISTRAL_API_KEY: process.env.MISTRAL_API_KEY!,
-        MISTRAL_MCP_PROFILE: "full",
+        MISTRAL_MCP_PROFILE: "admin",
       },
     });
     client = new Client({ name: "e2e-client", version: "0.0.0" });
@@ -80,6 +80,7 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       "mistral_ocr",
       "mistral_tool_call",
       "mistral_vision",
+      "process_document",
       "voxtral_speak",
       "voxtral_transcribe",
       "workflow_execute",
