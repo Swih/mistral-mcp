@@ -68,10 +68,19 @@ export const ProcessDocumentInputShape = {
     .object({
       languageHints: z.array(z.string().length(2)).optional(),
       maxPages: z.number().int().positive().max(200).optional().default(50),
+      minOcrConfidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .default(0.3)
+        .describe("Empirical floor; tune via real eval. Below this, the tool returns isError."),
       cache: z
         .enum(["read_write", "read_only", "bypass"])
         .optional()
-        .default("read_write"),
+        .describe(
+          "Default depends on kind: 'bypass' for id_document (PII), 'read_write' otherwise. Override explicitly to opt in to caching for sensitive kinds."
+        ),
     })
     .optional()
     .default({}),
@@ -83,7 +92,8 @@ type ProcessDocumentInput = {
   options: {
     languageHints?: string[];
     maxPages: number;
-    cache: "read_write" | "read_only" | "bypass";
+    minOcrConfidence: number;
+    cache?: "read_write" | "read_only" | "bypass";
   };
 };
 
@@ -106,24 +116,24 @@ const ContractPayloadSchema = z.object({
   parties: z.array(
     z.object({
       name: z.string(),
-      role: z.string().optional(),
+      role: z.string().nullable().optional(),
     })
   ),
   clauses: z.array(
     z.object({
       heading: z.string(),
       text: z.string(),
-      risk: z.enum(["low", "medium", "high"]).optional(),
+      risk: z.enum(["low", "medium", "high"]).nullable().optional(),
     })
   ),
-  risk_score: z.number().min(0).max(1),
+  risk_score: z.number().min(0).max(1).nullable(),
   key_dates: z.array(
     z.object({
       label: z.string(),
       iso: z.string(),
     })
   ),
-  summary: z.string(),
+  summary: z.string().nullable(),
 });
 
 const InvoicePayloadSchema = z.object({
@@ -133,8 +143,8 @@ const InvoicePayloadSchema = z.object({
     name: z.string(),
     tax_id: z.string().nullable().optional(),
   }),
-  total: z.number(),
-  currency: z.string().length(3),
+  total: z.number().nullable(),
+  currency: z.string().length(3).nullable(),
   line_items: z.array(
     z.object({
       desc: z.string(),
@@ -182,12 +192,12 @@ export const ProcessDocumentOutputShape = {
   // Optional kind-specific fields (validated via union at runtime)
   parties: z.array(z.unknown()).optional(),
   clauses: z.array(z.unknown()).optional(),
-  risk_score: z.number().optional(),
+  risk_score: z.number().nullable().optional(),
   key_dates: z.array(z.unknown()).optional(),
-  summary: z.string().optional(),
+  summary: z.string().nullable().optional(),
   vendor: z.unknown().optional(),
-  total: z.number().optional(),
-  currency: z.string().optional(),
+  total: z.number().nullable().optional(),
+  currency: z.string().nullable().optional(),
   line_items: z.array(z.unknown()).optional(),
   due_date: z.string().nullable().optional(),
   anomalies: z.array(z.string()).optional(),
@@ -230,11 +240,11 @@ const CONTRACT_JSON_SCHEMA = {
           properties: {
             heading: { type: "string" },
             text: { type: "string" },
-            risk: { type: "string", enum: ["low", "medium", "high"] },
+            risk: { type: ["string", "null"], enum: ["low", "medium", "high", null] },
           },
         },
       },
-      risk_score: { type: "number", minimum: 0, maximum: 1 },
+      risk_score: { type: ["number", "null"], minimum: 0, maximum: 1 },
       key_dates: {
         type: "array",
         items: {
@@ -247,7 +257,7 @@ const CONTRACT_JSON_SCHEMA = {
           },
         },
       },
-      summary: { type: "string" },
+      summary: { type: ["string", "null"] },
     },
   },
 };
@@ -269,8 +279,8 @@ const INVOICE_JSON_SCHEMA = {
           tax_id: { type: ["string", "null"] },
         },
       },
-      total: { type: "number" },
-      currency: { type: "string", minLength: 3, maxLength: 3 },
+      total: { type: ["number", "null"] },
+      currency: { type: ["string", "null"], minLength: 3, maxLength: 3 },
       line_items: {
         type: "array",
         items: {
@@ -550,9 +560,13 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "Kinds: contract | invoice | id_document | generic. Use kind=auto to let the server classify.",
         "Returns a discriminated union — switch on `kind` to access typed fields.",
         "",
-        "Cache: results are cached by sha256(source) + kind + pipeline_version. Subsequent calls return",
-        "instantly with cache_hit=true. Override location with MISTRAL_MCP_CACHE_DIR or disable with",
-        "options.cache='bypass'.",
+        "Cache: results are cached on disk by sha256(source) + kind + pipeline_version.",
+        "Override location with MISTRAL_MCP_CACHE_DIR. Override mode with options.cache.",
+        "Default cache mode is 'read_write' EXCEPT for kind=id_document (auto-bypass to avoid",
+        "persisting PII). Set options.cache='read_write' explicitly to opt in for id documents.",
+        "",
+        "OCR confidence floor is options.minOcrConfidence (default 0.3, empirical — tune via eval).",
+        "Below the floor the tool returns isError rather than risking hallucinated extraction.",
       ].join("\n"),
       inputSchema: ProcessDocumentInputShape,
       outputSchema: ProcessDocumentOutputShape,
@@ -570,10 +584,16 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         const { source, kind: requestedKind } = input as ProcessDocumentInput;
         const opts = (input as ProcessDocumentInput).options ?? {
           maxPages: 50,
-          cache: "read_write" as const,
+          minOcrConfidence: 0.3,
+          cache: undefined,
         };
-        const cacheMode = opts.cache;
         const maxPages = opts.maxPages;
+        const minConfidence = opts.minOcrConfidence;
+
+        // Cache mode resolution: explicit user choice wins; otherwise auto-bypass
+        // for id_document (PII risk). All other kinds default to read_write.
+        const cacheMode: "read_write" | "read_only" | "bypass" =
+          opts.cache ?? (requestedKind === "id_document" ? "bypass" : "read_write");
 
         // 1. cache check (we cache final payload by source+kind)
         const sourceId = sourceHash(source);
@@ -595,10 +615,10 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
 
         // 2. OCR
         const ocr = await runOcr(mistral, source, maxPages);
-        if (ocr.pages === 0 || ocr.confidence < 0.3) {
+        if (ocr.pages === 0 || ocr.confidence < minConfidence) {
           return errorResult(
             "process_document",
-            `OCR quality too low (pages=${ocr.pages}, confidence=${ocr.confidence.toFixed(2)})`
+            `OCR quality too low (pages=${ocr.pages}, confidence=${ocr.confidence.toFixed(2)}, min=${minConfidence})`
           );
         }
 

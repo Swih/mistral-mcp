@@ -188,11 +188,17 @@ HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKE
 
 ---
 
-## Use as a Mistral Connector
+## Use as a Mistral Connector (beta)
 
-`mistral-mcp` is compatible with [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) (beta). Deploy the server over HTTPS, register it once via `POST /v1/connectors`, then call it from Mistral Conversations or Agents.
+`mistral-mcp` ships the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-11-25/) and bearer auth that [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) require. Deployment guides for Cloudflare Tunnel, Fly.io, and Render are in [`examples/deploy/README.md`](./examples/deploy/).
 
-See [`examples/deploy/README.md`](./examples/deploy/) for end-to-end guides (Cloudflare Tunnel, Fly.io, Render).
+| Surface | Status |
+|---|---|
+| Local MCP clients (Claude Code, Cursor, Zed, Windsurf, Claude Desktop) | Stable |
+| Streamable HTTP transport + bearer auth | Tested locally (handshake + 401 + initialize verified) |
+| Mistral Connector registration via `POST /v1/connectors` | **Setup guide provided — Connectors are a beta feature, the API may change** |
+| Connector tool calls in Conversations/Agents | Untested end-to-end (requires public HTTPS deployment) |
+| OAuth 2.1 Connector auth | Pending — bearer-only today |
 
 ```bash
 curl -X POST https://api.mistral.ai/v1/connectors \
@@ -200,7 +206,7 @@ curl -X POST https://api.mistral.ai/v1/connectors \
   -d '{"name":"mistral_self","server":"https://your-deploy/mcp","visibility":"private"}'
 ```
 
-Connectors expose **tools only**. Resources, prompts, sampling, and elicitation remain available via local clients (Claude Code, Cursor, Zed, Windsurf, Claude Desktop).
+> Mistral Connectors expose **tools only** today. Resources, prompts, sampling, and elicitation remain available via local clients.
 
 ---
 
