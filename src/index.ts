@@ -31,7 +31,11 @@ import { resolveProfile } from "./profile.js";
 const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
   console.error(
-    "[mistral-mcp] MISTRAL_API_KEY is not set. Export it or provide it via MCP client config."
+    "[mistral-mcp] MISTRAL_API_KEY is not set.\n" +
+      "  → Get a free key (1B tokens/month on the Experiment tier):\n" +
+      "    https://console.mistral.ai/api-keys\n" +
+      "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
+      "  → Or pass it in your MCP client config (env block)."
   );
   process.exit(1);
 }
