@@ -590,26 +590,36 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         const maxPages = opts.maxPages;
         const minConfidence = opts.minOcrConfidence;
 
-        // Cache mode resolution: explicit user choice wins; otherwise auto-bypass
-        // for id_document (PII risk). All other kinds default to read_write.
-        const cacheMode: "read_write" | "read_only" | "bypass" =
+        // Tentative cache mode (may be overridden after classification if the
+        // resolved kind is id_document and the user did not explicitly opt in).
+        const cacheModeInitial: "read_write" | "read_only" | "bypass" =
           opts.cache ?? (requestedKind === "id_document" ? "bypass" : "read_write");
 
         // 1. cache check (we cache final payload by source+kind)
         const sourceId = sourceHash(source);
         const cacheLookupKind = requestedKind === "auto" ? "auto" : requestedKind;
         const key = cacheKey(source, cacheLookupKind);
-        if (cacheMode !== "bypass") {
+        if (cacheModeInitial !== "bypass") {
           const cached = readCache(key) as Record<string, unknown> | undefined;
           if (cached) {
-            return {
-              content: [
-                toTextBlock(
-                  `[process_document] cache hit (kind=${cached.kind}, source_id=${sourceId.slice(0, 12)}…)`
-                ),
-              ],
-              structuredContent: { ...cached, cache_hit: true, total_duration_ms: Date.now() - start },
-            };
+            // PII safety: never serve cached id_document payloads unless the
+            // caller explicitly set cache='read_write'. Catches the case where
+            // a previous kind='auto' call cached an id_document under the auto key.
+            const isCachedId = cached.kind === "id_document";
+            if (!isCachedId || opts.cache === "read_write") {
+              return {
+                content: [
+                  toTextBlock(
+                    `[process_document] cache hit (kind=${cached.kind}, source_id=${sourceId.slice(0, 12)}…)`
+                  ),
+                ],
+                structuredContent: {
+                  ...cached,
+                  cache_hit: true,
+                  total_duration_ms: Date.now() - start,
+                },
+              };
+            }
           }
         }
 
@@ -668,7 +678,14 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
           );
         }
 
-        // 7. Cache write (under both the resolved-kind key and the auto key if applicable)
+        // 7. Cache write — final mode resolution:
+        //    if resolved kind is id_document and the caller did NOT explicitly opt in
+        //    via cache='read_write', force bypass regardless of requestedKind.
+        const cacheMode: "read_write" | "read_only" | "bypass" =
+          kind === "id_document" && opts.cache !== "read_write"
+            ? "bypass"
+            : cacheModeInitial;
+
         if (cacheMode === "read_write") {
           writeCache(cacheKey(source, kind), validated.data);
           if (requestedKind === "auto") writeCache(key, validated.data);
