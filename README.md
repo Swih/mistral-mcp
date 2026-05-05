@@ -28,6 +28,21 @@
 
 ---
 
+## Why Mistral + mistral-mcp for European businesses
+
+`mistral-mcp` is the first MCP integration designed end-to-end around an EU-headquartered model provider. For organisations subject to GDPR, DORA, EBA guidelines, HDS, or public-sector sovereignty rules, this matters:
+
+- **EU data residency** — Mistral hosts models on European infrastructure. No US Cloud Act exposure on your inference traffic by default.
+- **GDPR-friendly defaults** — `process_document` auto-bypasses cache for `id_document` to avoid persisting PII. Disk cache location is configurable (`MISTRAL_MCP_CACHE_DIR`) for on-prem control. Bearer-token HTTP transport with origin allow-list.
+- **Sovereign / regulated sectors** — banks, insurers, healthcare (HDS), legal (notaires, avocats), public sector. Mistral's product positioning lets you enter procurement processes that exclude US-only vendors.
+- **French-first prompts and skills** — already shipped: `french_meeting_minutes`, `french_email_reply`, `french_commit_message`, `french_legal_summary`, `french_invoice_reminder`. Built-in, not afterthoughts.
+- **Self-hostable** — stdio for local agents, Docker + Streamable HTTP for self-hosted deployments. No mandatory SaaS hop.
+- **Free Experiment tier** — Mistral's free API tier provides ~1B tokens/month, enough to evaluate the full document vertical without commitment.
+
+> Disclaimer: this repo is community-maintained and not an official Mistral integration. It does not change Mistral's contractual data terms — review them at [mistral.ai/terms](https://mistral.ai/terms) for your specific use case.
+
+---
+
 ## Quick start
 
 **Claude Code** (recommended — auto-installs, prompts for API key, ships 11 skills):
@@ -62,9 +77,9 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 | Profile | Tools | Use when |
 |---|---|---|
 | `core` (default) | 8 | Daily agentic use — lean context footprint |
-| `admin` | 25 | Full Mistral API surface — embeddings, streaming, batch, classify, files, agents, TTS. Best for debug, CI, scripts. |
+| `admin` | 26 | Full Mistral API surface — embeddings, streaming, batch, classify, files, agents, TTS, document extraction. Best for debug, CI, scripts. |
 | `workflows` | 3 | Pipeline orchestration only |
-| `metier-docs` | _coming v0.8_ | Documents vertical — adds `process_document` macro-tool |
+| `metier-docs` | 9 | Documents vertical — core + `process_document` macro-tool |
 
 > `full` is accepted as a deprecated alias of `admin` for backward compatibility.
 
@@ -89,7 +104,13 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |
 | `workflow_interact` | Signal / query a running workflow. Used for human-in-the-loop checkpoints. |
 
-### Admin profile only (+17 tools, set `MISTRAL_MCP_PROFILE=admin`)
+### Documents vertical (`MISTRAL_MCP_PROFILE=metier-docs`)
+
+| Tool | What it does |
+|---|---|
+| `process_document` | Single-call macro-tool: OCR → classify (kind=auto) → typed extraction → validation → cache. Kinds: `contract` / `invoice` / `id_document` / `generic`. Returns a discriminated union. PII-safe cache (id_document auto-bypass). Configurable `minOcrConfidence`. |
+
+### Admin profile only (+18 tools, set `MISTRAL_MCP_PROFILE=admin`)
 
 | Group | Tools |
 |---|---|

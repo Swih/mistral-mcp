@@ -28,6 +28,21 @@
 
 ---
 
+## Pourquoi Mistral + mistral-mcp pour les entreprises européennes
+
+`mistral-mcp` est la première intégration MCP conçue de bout en bout autour d'un fournisseur de modèles basé en UE. Pour les organisations soumises au RGPD, à DORA, aux orientations EBA, à HDS, ou à des règles de souveraineté du secteur public, c'est un vrai avantage :
+
+- **Données traitées en UE** — Mistral héberge ses modèles sur infrastructure européenne. Pas d'exposition Cloud Act US par défaut sur votre trafic d'inférence.
+- **RGPD-friendly par défaut** — `process_document` bypass automatiquement le cache pour `id_document` afin d'éviter de persister du PII. Emplacement du cache disque configurable (`MISTRAL_MCP_CACHE_DIR`) pour contrôle on-premise. Transport HTTP avec bearer token et allow-list d'origines.
+- **Secteurs régulés / souverains** — banques, assurances, santé (HDS), juridique (notaires, avocats), secteur public. Le positionnement produit Mistral vous permet d'entrer dans des appels d'offres qui excluent les fournisseurs uniquement US.
+- **Prompts et skills français** — déjà shippés : `french_meeting_minutes`, `french_email_reply`, `french_commit_message`, `french_legal_summary`, `french_invoice_reminder`. Intégrés, pas en option.
+- **Auto-hébergeable** — stdio pour agents locaux, Docker + Streamable HTTP pour déploiements internes. Pas de saut SaaS obligatoire.
+- **Tier gratuit Experiment** — l'API gratuite Mistral fournit ~1 milliard de tokens/mois, suffisant pour évaluer le vertical documentaire sans engagement.
+
+> Avertissement : ce repo est maintenu par la communauté, ce n'est pas une intégration Mistral officielle. Il ne modifie pas les conditions contractuelles de traitement des données de Mistral — consultez [mistral.ai/terms](https://mistral.ai/terms) pour votre cas d'usage spécifique.
+
+---
+
 ## Démarrage rapide
 
 **Claude Code** (recommandé — auto-installe, demande la clé API, ship 11 skills) :
@@ -62,9 +77,9 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 | Profil | Tools | Quand l'utiliser |
 |---|---|---|
 | `core` (défaut) | 8 | Usage agentique quotidien — contexte minimal |
-| `admin` | 25 | Surface API complète — embeddings, streaming, batch, classify, files, agents, TTS. Pour debug, CI, scripts. |
+| `admin` | 26 | Surface API complète — embeddings, streaming, batch, classify, files, agents, TTS, extraction documentaire. Pour debug, CI, scripts. |
 | `workflows` | 3 | Orchestration de pipeline uniquement |
-| `metier-docs` | _v0.8 à venir_ | Vertical documents — ajoute le macro-tool `process_document` |
+| `metier-docs` | 9 | Vertical documents — core + macro-tool `process_document` |
 
 > `full` est accepté comme alias déprécié de `admin` pour rétro-compatibilité.
 
@@ -89,7 +104,13 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | `workflow_status` | Interroge un workflow en cours — retourne `RUNNING \| COMPLETED \| FAILED \| ...`. |
 | `workflow_interact` | Signale / interroge un workflow en cours. Utilisé pour les checkpoints humains-dans-la-boucle. |
 
-### Profil admin uniquement (+17 tools, `MISTRAL_MCP_PROFILE=admin`)
+### Vertical documents (`MISTRAL_MCP_PROFILE=metier-docs`)
+
+| Tool | Ce qu'il fait |
+|---|---|
+| `process_document` | Macro-tool en un appel : OCR → classification (kind=auto) → extraction typée → validation → cache. Kinds : `contract` / `invoice` / `id_document` / `generic`. Retourne une union discriminée. Cache PII-safe (auto-bypass id_document). `minOcrConfidence` configurable. |
+
+### Profil admin uniquement (+18 tools, `MISTRAL_MCP_PROFILE=admin`)
 
 | Groupe | Tools |
 |---|---|

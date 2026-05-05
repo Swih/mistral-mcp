@@ -16,6 +16,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+.claude/
 
 # Marketing drafts — not for public repo
 /posts/

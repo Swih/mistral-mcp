@@ -4,6 +4,15 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-05-05
+
+### Changed
+- README and README.fr.md: removed leftover "coming v0.8" placeholder for `metier-docs` (now shipped). Corrected `admin` profile count `25 → 26` (process_document is registered in admin too). Added a dedicated `process_document` row in the Tools section. Added a new **"Why Mistral + mistral-mcp for European businesses"** section (EN+FR) framing GDPR / DORA / sovereignty / regulated-sectors positioning, with explicit disclaimer that this is not an official Mistral integration.
+- `SECURITY.md`: supported-versions table updated `0.4.x → 0.8.x` (was stale since the v0.4 release).
+
+### Fixed
+- Documentation cohérence post-v0.8.0 release.
+
 ## [0.8.0] - 2026-05-05
 
 ### Added
