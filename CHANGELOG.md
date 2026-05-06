@@ -4,6 +4,14 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-05-06
+
+### Fixed
+- **Boot without `MISTRAL_API_KEY` no longer crashes the process.** Previous behaviour `process.exit(1)` broke sandbox builds (Glama, Smithery) and any introspection flow that needs `tools/list` without auth. The server now logs the same friendly onboarding warning, then continues startup with a placeholder key. Tool calls fail with a clean 401 from the Mistral SDK if no real key is provided. Fixes the Glama auto-build pipeline and lets MCP clients enumerate the tool catalog before the user enters credentials.
+
+### Changed
+- README "Why this matters for European teams" section softened: replaced strong claims (e.g. "no Cloud Act exposure", "GDPR-friendly defaults") with a precise "what this project provides" vs "what this project does NOT claim" framing. EN+FR mirror. A DPO / RSSI evaluating the project will trust this framing more — and it accurately reflects that mistral-mcp does not replace a DPIA, vendor review, or legal assessment.
+
 ## [0.8.1] - 2026-05-05
 
 ### Changed

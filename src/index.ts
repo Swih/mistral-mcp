@@ -35,13 +35,15 @@ if (!API_KEY) {
       "  → Get a free key (1B tokens/month on the Experiment tier):\n" +
       "    https://console.mistral.ai/api-keys\n" +
       "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
-      "  → Or pass it in your MCP client config (env block)."
+      "  → Or pass it in your MCP client config (env block).\n" +
+      "  Server will start without auth so tools/list works for sandboxed\n" +
+      "  introspection (Glama, Smithery, etc.). Tool calls will fail with\n" +
+      "  a 401 from Mistral until a valid key is provided."
   );
-  process.exit(1);
 }
 
 const mistral = new Mistral({
-  apiKey: API_KEY,
+  apiKey: API_KEY ?? "missing",
   retryConfig: {
     strategy: "backoff",
     backoff: {
@@ -59,7 +61,7 @@ const profile = resolveProfile();
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.8.1",
+  version: "0.8.2",
 });
 
 registerMistralTools(server, mistral, profile);
@@ -92,7 +94,7 @@ registerMistralPrompts(server);
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.8.1 (profile=${profile}) connected via ${connected.mode}${
+  `[mistral-mcp] v0.8.2 (profile=${profile}) connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""
