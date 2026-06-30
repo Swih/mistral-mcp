@@ -8,7 +8,7 @@
  *     MCP_TRANSPORT=http env)            by default, optional bearer auth.
  *
  * SDK: @modelcontextprotocol/sdk 1.29.0 (high-level McpServer API).
- * Mistral: @mistralai/mistralai 2.2.0 (speakeasy-generated, built-in retry).
+ * Mistral: @mistralai/mistralai 2.3.0 (speakeasy-generated, built-in retry).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -22,6 +22,7 @@ import { registerFileTools } from "./tools-files.js";
 import { registerBatchTools } from "./tools-batch.js";
 import { registerSamplingTools } from "./tools-sampling.js";
 import { registerWorkflowTools } from "./tools-workflows.js";
+import { registerConnectorTools } from "./tools-connectors.js";
 import { registerDocsTools } from "./tools-docs.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
@@ -61,7 +62,7 @@ const profile = resolveProfile();
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.8.2",
+  version: "0.9.0",
 });
 
 registerMistralTools(server, mistral, profile);
@@ -81,8 +82,9 @@ if (profile === "admin") {
   registerSamplingTools(server);
 }
 
-// workflow tools are present in every profile
+// workflow and connector tools are present in every profile
 registerWorkflowTools(server, mistral);
+registerConnectorTools(server, mistral);
 
 if (profile === "metier-docs" || profile === "admin") {
   registerDocsTools(server, mistral);
@@ -94,7 +96,7 @@ registerMistralPrompts(server);
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.8.2 (profile=${profile}) connected via ${connected.mode}${
+  `[mistral-mcp] v0.9.0 (profile=${profile}) connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""

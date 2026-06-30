@@ -194,4 +194,33 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
       expect(() => JSON.parse(res.documentAnnotation!)).not.toThrow();
     }
   });
+
+  it("mistral.ocr.process returns paragraph-level blocks when includeBlocks is set", async () => {
+    const { Mistral } = await import("@mistralai/mistralai");
+    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+
+    const res = await mistral.ocr.process({
+      model: "mistral-ocr-latest",
+      document: {
+        type: "document_url",
+        documentUrl: "https://arxiv.org/pdf/2410.07073",
+      },
+      pages: [0],
+      includeBlocks: true,
+    });
+
+    expect(Array.isArray(res.pages)).toBe(true);
+    expect(res.pages.length).toBeGreaterThan(0);
+    // Older OCR models accept includeBlocks but return an empty array — only
+    // assert shape (bounding box + type) when at least one block comes back.
+    const blocks = (res.pages[0]?.blocks ?? []).filter(
+      (b): b is Exclude<typeof b, { isUnknown: true }> => !("isUnknown" in b)
+    );
+    if (blocks.length > 0) {
+      const block = blocks[0]!;
+      expect(typeof block.type).toBe("string");
+      expect(typeof block.topLeftX).toBe("number");
+      expect(typeof block.content).toBe("string");
+    }
+  });
 });

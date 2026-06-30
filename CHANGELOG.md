@@ -4,6 +4,17 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-30
+
+### Added
+- **OCR 4 paragraph-level blocks** — `mistral_ocr` accepts `includeBlocks: true` and returns `pages[].blocks[]`: bounding box + one of 13 content-block types (`text`, `title`, `list`, `table`, `image`, `equation`, `caption`, `code`, `references`, `aside_text`, `header`, `footer`, `signature`) in reading order, each carrying its own `top_left_x/y` / `bottom_right_x/y`. `type:"table"` blocks carry `table_id` linking back to `pages[].tables[]`; `type:"image"` blocks carry `image_id` linking back to `pages[].images[]`. Requires OCR 4 (`mistral-ocr-4-0`); older OCR models accept the flag but return an empty `blocks` array (verified against `@mistralai/mistralai` SDK source, not assumed).
+- `@mistralai/mistralai` bumped `^2.2.0 → ^2.3.0` (ships the OCR 4 block types).
+- **Mistral Connectors tools** — four new tools to discover and call already-activated Mistral Connectors (MCP/HTTP integrations) directly from the agent loop: `connectors_list` (discovery, with `active` filter + pagination), `connectors_get` (public metadata for one connector), `connectors_list_tools` (a connector's MCP tool catalog with JSON Schema input shape), `connectors_call_tool` (invoke a connector tool — passes through the real MCP `CallToolResult.content` blocks alongside a flattened snake_case `structuredContent` summary). Connector admin (create/update/delete, activation, credentials management) is deliberately out of scope: those endpoints mutate org-wide state and/or return connection secrets, which doesn't fit a tool an LLM drives unattended. `connectors_get` never forwards the SDK's `fetchUserData`/`fetchCustomerData` flags for the same reason. Present in every profile, like Workflows.
+
+### Changed
+- 1 new unit test (forwards `includeBlocks`, validates `blocks[]` mapping incl. `table_id`), 1 contract test extended to exercise `includeBlocks`, 1 new live test (skipIf no API key) asserting block shape when the API returns blocks.
+- Connectors: 6 new unit tests, 4 new contract tests, 5 new live tests (skipIf no API key, tolerant of accounts with zero activated connectors).
+
 ## [0.8.2] - 2026-05-06
 
 ### Fixed

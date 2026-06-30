@@ -64,6 +64,13 @@ import {
   WorkflowStatusOutputSchema,
   WorkflowInteractOutputSchema,
 } from "../../src/tools-workflows.js";
+import {
+  registerConnectorTools,
+  ConnectorsListOutputSchema,
+  ConnectorsGetOutputSchema,
+  ConnectorsListToolsOutputSchema,
+  ConnectorsCallToolOutputSchema,
+} from "../../src/tools-connectors.js";
 
 function makeMock(): Mistral {
   return {
@@ -137,6 +144,16 @@ function makeMock(): Mistral {
               },
             ],
             dimensions: { dpi: 150, height: 1000, width: 800 },
+            blocks: [
+              {
+                type: "text",
+                topLeftX: 0,
+                topLeftY: 0,
+                bottomRightX: 100,
+                bottomRightY: 10,
+                content: "Heading",
+              },
+            ],
             confidenceScores: {
               averagePageConfidenceScore: 0.95,
               minimumPageConfidenceScore: 0.9,
@@ -334,6 +351,60 @@ function makeMock(): Mistral {
         })),
       },
     },
+    beta: {
+      connectors: {
+        list: vi.fn(async () => ({
+          items: [
+            {
+              id: "conn-ct-1",
+              name: "github",
+              title: "GitHub",
+              description: "Read and write GitHub issues/PRs.",
+              protocol: "mcp",
+              visibility: "shared_org",
+              active: true,
+              mistral: true,
+              privateToolExecution: false,
+              isAuthenticated: true,
+              iconUrl: "https://example.com/github.png",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              modifiedAt: new Date("2026-02-01T00:00:00Z"),
+            },
+          ],
+          pagination: { nextCursor: null, pageSize: 100 },
+        })),
+        get: vi.fn(async () => ({
+          id: "conn-ct-1",
+          name: "github",
+          title: "GitHub",
+          description: "Read and write GitHub issues/PRs.",
+          protocol: "mcp",
+          visibility: "shared_org",
+          active: true,
+          mistral: true,
+          privateToolExecution: false,
+          isAuthenticated: true,
+          iconUrl: "https://example.com/github.png",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+          modifiedAt: new Date("2026-02-01T00:00:00Z"),
+        })),
+        listTools: vi.fn(async () => [
+          {
+            name: "list_issues",
+            description: "List open issues in a repo.",
+            inputSchema: {
+              type: "object",
+              properties: { repo: { type: "string" } },
+              required: ["repo"],
+            },
+          },
+        ]),
+        callTool: vi.fn(async () => ({
+          content: [{ type: "text", text: "3 open issues found." }],
+          metadata: { mcpMeta: { isError: false } },
+        })),
+      },
+    },
   } as unknown as Mistral;
 }
 
@@ -348,6 +419,7 @@ async function boot(mock: Mistral = makeMock()) {
   registerBatchTools(server, mock);
   registerSamplingTools(server);
   registerWorkflowTools(server, mock);
+  registerConnectorTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -490,6 +562,7 @@ describe("contract: structuredContent matches outputSchema", () => {
           type: "document_url",
           documentUrl: "https://example.com/doc.pdf",
         },
+        includeBlocks: true,
       },
     });
     expect(res.isError).toBeFalsy();
@@ -817,13 +890,74 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("connectors_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "connectors_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConnectorsListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (connectors_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("connectors_get", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "connectors_get",
+      arguments: { connectorIdOrName: "github" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConnectorsGetOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (connectors_get): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("connectors_list_tools", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "connectors_list_tools",
+      arguments: { connectorIdOrName: "github" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConnectorsListToolsOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (connectors_list_tools): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("connectors_call_tool", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "connectors_call_tool",
+      arguments: { connectorIdOrName: "github", toolName: "list_issues" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConnectorsCallToolOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (connectors_call_tool): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(25); // 22 v0.5 tools + 3 workflow tools
+    expect(tools.length).toBe(29); // 22 v0.5 tools + 3 workflow tools + 4 connector tools
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();
