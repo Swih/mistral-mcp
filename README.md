@@ -103,18 +103,22 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 
 ## Tools
 
-### Core profile (8 tools — always available)
+### Core profile (12 tools — always available)
 
 | Tool | What it does |
 |---|---|
 | `mistral_chat` | Chat completion. Supports all Mistral models, `response_format`, `reasoning_effort` for Magistral. |
 | `mistral_vision` | Multimodal chat with images (URL or base64). |
-| `mistral_ocr` | Document AI — extract text, bbox, and JSON annotations from PDFs/images. |
+| `mistral_ocr` | Document AI — extract text, bbox, and JSON annotations from PDFs/images. Pass `includeBlocks: true` for OCR 4 paragraph-level blocks (text/title/table/image/equation/... with bounding boxes). |
 | `codestral_fim` | Fill-in-the-middle code completion (Codestral model). |
 | `voxtral_transcribe` | Audio → text. Pass `diarize: true` for speaker separation. |
 | `workflow_execute` | Start a Mistral Workflow (Temporal-backed durable execution). |
 | `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |
 | `workflow_interact` | Signal / query a running workflow. Used for human-in-the-loop checkpoints. |
+| `connectors_list` | Discover Mistral Connectors (MCP/HTTP integrations) visible to the caller. |
+| `connectors_get` | Fetch one connector's public metadata (never credentials). |
+| `connectors_list_tools` | List the MCP tools a connector exposes, with their input schema. |
+| `connectors_call_tool` | Invoke a connector's tool — real MCP `CallToolResult` passthrough. |
 
 ### Documents vertical (`MISTRAL_MCP_PROFILE=metier-docs`)
 
