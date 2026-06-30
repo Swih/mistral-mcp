@@ -137,6 +137,16 @@ function makeMock(): Mistral {
               },
             ],
             dimensions: { dpi: 150, height: 1000, width: 800 },
+            blocks: [
+              {
+                type: "text",
+                topLeftX: 0,
+                topLeftY: 0,
+                bottomRightX: 100,
+                bottomRightY: 10,
+                content: "Heading",
+              },
+            ],
             confidenceScores: {
               averagePageConfidenceScore: 0.95,
               minimumPageConfidenceScore: 0.9,
@@ -490,6 +500,7 @@ describe("contract: structuredContent matches outputSchema", () => {
           type: "document_url",
           documentUrl: "https://example.com/doc.pdf",
         },
+        includeBlocks: true,
       },
     });
     expect(res.isError).toBeFalsy();

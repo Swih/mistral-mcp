@@ -43,6 +43,46 @@ export const VisionOutputShape = {
 };
 export const VisionOutputSchema = z.object(VisionOutputShape);
 
+/**
+ * OCR 4 (mistral-ocr-4-0) block types. Older OCR models accept `includeBlocks`
+ * but return an empty array — the union covers all 13 block kinds Mistral
+ * defines, each carrying its own paragraph-level bounding box.
+ * Source: @mistralai/mistralai 2.3.0 — models/components/ocr*block.ts
+ */
+const OCR_BLOCK_TYPES = [
+  "text",
+  "title",
+  "list",
+  "table",
+  "image",
+  "equation",
+  "caption",
+  "code",
+  "references",
+  "aside_text",
+  "header",
+  "footer",
+  "signature",
+] as const;
+
+const OcrBlockSchema = z.object({
+  type: z.enum(OCR_BLOCK_TYPES),
+  top_left_x: z.number(),
+  top_left_y: z.number(),
+  bottom_right_x: z.number(),
+  bottom_right_y: z.number(),
+  content: z.string(),
+  image_id: z
+    .string()
+    .optional()
+    .describe("Set on type:image — references the matching entry in `images[]`."),
+  table_id: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Set on type:table — references the matching entry in `tables[]`."),
+});
+
 const OcrPageSchema = z.object({
   index: z.number().int(),
   markdown: z.string(),
@@ -59,6 +99,12 @@ const OcrPageSchema = z.object({
       })
     )
     .optional(),
+  blocks: z
+    .array(OcrBlockSchema)
+    .optional()
+    .describe(
+      "Paragraph-level blocks in reading order. Populated when `includeBlocks: true` and the model is OCR 4 or newer."
+    ),
   tables: z.array(z.unknown()).optional(),
   hyperlinks: z.array(z.string()).optional(),
   header: z.string().nullable().optional(),
@@ -242,9 +288,13 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         "  - `document_annotation_format`: JSON schema for whole-document structured extraction.",
         "  - `bbox_annotation_format`: JSON schema for extracted image / bbox annotations.",
         "  - `confidence_scores_granularity`: 'page' or 'word'.",
+        "  - `includeBlocks`: return paragraph-level blocks (bounding box + type) in reading",
+        "    order — titles, lists, tables, images, equations, captions, code, references,",
+        "    aside text, header, footer, signature. Requires OCR 4 (mistral-ocr-4-0) or newer;",
+        "    older models accept the flag but return an empty `blocks` array.",
         "",
         "Returns `pages[].markdown` plus optional `pages[].hyperlinks`, `header`, `footer`,",
-        "`images` bounding boxes, annotations, confidence scores, and `dimensions`.",
+        "`images` bounding boxes, `blocks`, annotations, confidence scores, and `dimensions`.",
       ].join("\n"),
       inputSchema: {
         document: OcrDocumentSchema,
@@ -264,6 +314,12 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         document_annotation_format: JsonSchemaResponseFormatSchema.optional(),
         document_annotation_prompt: z.string().optional(),
         confidence_scores_granularity: z.enum(["page", "word"]).optional(),
+        includeBlocks: z
+          .boolean()
+          .optional()
+          .describe(
+            "Return paragraph-level blocks (bounding box + type) per page. Requires OCR 4 (mistral-ocr-4-0) or newer."
+          ),
       },
       outputSchema: OcrOutputShape,
       annotations: {
@@ -295,6 +351,7 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
           ),
           documentAnnotationPrompt: input.document_annotation_prompt,
           confidenceScoresGranularity: input.confidence_scores_granularity,
+          includeBlocks: input.includeBlocks,
         });
 
         const pages = (res.pages ?? []).map((p) => ({
@@ -311,6 +368,23 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
               (im as { imageAnnotation?: string | null }).imageAnnotation ??
               undefined,
           })),
+          blocks: p.blocks
+            ? p.blocks
+                .filter(
+                  (b): b is Exclude<typeof b, { isUnknown: true }> =>
+                    !("isUnknown" in b)
+                )
+                .map((b) => ({
+                  type: b.type,
+                  top_left_x: b.topLeftX,
+                  top_left_y: b.topLeftY,
+                  bottom_right_x: b.bottomRightX,
+                  bottom_right_y: b.bottomRightY,
+                  content: b.content,
+                  image_id: (b as { imageId?: string }).imageId,
+                  table_id: (b as { tableId?: string | null }).tableId,
+                }))
+            : undefined,
           tables: p.tables,
           hyperlinks: p.hyperlinks,
           header: p.header ?? undefined,

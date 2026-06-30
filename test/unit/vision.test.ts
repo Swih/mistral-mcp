@@ -49,6 +49,25 @@ function makeMock(overrides: Partial<Record<string, unknown>> = {}): Mistral {
             header: "Page header",
             footer: null,
             dimensions: { dpi: 150, height: 1200, width: 800 },
+            blocks: [
+              {
+                type: "title",
+                topLeftX: 5,
+                topLeftY: 5,
+                bottomRightX: 200,
+                bottomRightY: 30,
+                content: "Title",
+              },
+              {
+                type: "table",
+                topLeftX: 5,
+                topLeftY: 40,
+                bottomRightX: 200,
+                bottomRightY: 120,
+                content: "| a | b |",
+                tableId: "tbl-0",
+              },
+            ],
             confidenceScores: {
               averagePageConfidenceScore: 0.98,
               minimumPageConfidenceScore: 0.91,
@@ -263,6 +282,43 @@ describe("mistral_ocr", () => {
       "logo"
     );
     expect(sc.usage?.pages_processed).toBe(2);
+  });
+
+  it("forwards includeBlocks and maps blocks[] in the response", async () => {
+    const { client, mock } = await boot();
+    const result = await client.callTool({
+      name: "mistral_ocr",
+      arguments: {
+        document: {
+          type: "document_url",
+          documentUrl: "https://example.com/contract.pdf",
+        },
+        includeBlocks: true,
+      },
+    });
+
+    const arg = (mock.ocr.process as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(arg?.includeBlocks).toBe(true);
+
+    expect(result.isError).toBeFalsy();
+    const sc = result.structuredContent as {
+      pages: Array<{
+        blocks?: Array<{
+          type: string;
+          top_left_x: number;
+          table_id?: string;
+        }>;
+      }>;
+    };
+    expect(sc.pages[0]?.blocks).toHaveLength(2);
+    expect(sc.pages[0]?.blocks?.[0]).toMatchObject({
+      type: "title",
+      top_left_x: 5,
+    });
+    expect(sc.pages[0]?.blocks?.[1]).toMatchObject({
+      type: "table",
+      table_id: "tbl-0",
+    });
   });
 
   it("accepts image_url input", async () => {
