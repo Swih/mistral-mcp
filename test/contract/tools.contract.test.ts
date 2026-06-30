@@ -71,6 +71,22 @@ import {
   ConnectorsListToolsOutputSchema,
   ConnectorsCallToolOutputSchema,
 } from "../../src/tools-connectors.js";
+import {
+  registerConversationTools,
+  ConversationResponseOutputSchema,
+  ConversationGetOutputSchema,
+  ConversationListOutputSchema,
+  ConversationHistoryOutputSchema,
+  ConversationDeleteOutputSchema,
+} from "../../src/tools-conversations.js";
+import {
+  registerLibraryTools,
+  LibrariesListOutputSchema,
+  LibrariesGetOutputSchema,
+  LibrariesDocumentsListOutputSchema,
+  LibrariesDocumentsUploadOutputSchema,
+  LibrariesDocumentsStatusOutputSchema,
+} from "../../src/tools-libraries.js";
 
 function makeMock(): Mistral {
   return {
@@ -404,6 +420,125 @@ function makeMock(): Mistral {
           metadata: { mcpMeta: { isError: false } },
         })),
       },
+      conversations: {
+        start: vi.fn(async () => ({
+          object: "conversation.response",
+          conversationId: "conv-ct-1",
+          outputs: [
+            {
+              object: "entry",
+              type: "message.output",
+              id: "e-ct-1",
+              role: "assistant",
+              content: "Bonjour.",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+            },
+          ],
+          usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+        })),
+        append: vi.fn(async () => ({
+          object: "conversation.response",
+          conversationId: "conv-ct-1",
+          outputs: [
+            {
+              object: "entry",
+              type: "message.output",
+              id: "e-ct-2",
+              role: "assistant",
+              content: "Re-bonjour.",
+              createdAt: new Date("2026-01-01T00:00:01Z"),
+            },
+          ],
+          usage: { promptTokens: 12, completionTokens: 6, totalTokens: 18 },
+        })),
+        get: vi.fn(async () => ({
+          object: "conversation",
+          id: "conv-ct-1",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+          updatedAt: new Date("2026-01-02T00:00:00Z"),
+          model: "mistral-medium-latest",
+          instructions: "Be concise.",
+          tools: [{ type: "web_search" }],
+        })),
+        list: vi.fn(async () => [
+          {
+            object: "conversation",
+            id: "conv-ct-1",
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+            updatedAt: new Date("2026-01-02T00:00:00Z"),
+            model: "mistral-medium-latest",
+          },
+        ]),
+        getHistory: vi.fn(async () => ({
+          object: "conversation.history",
+          conversationId: "conv-ct-1",
+          entries: [
+            {
+              type: "message.output",
+              id: "e-ct-1",
+              role: "assistant",
+              content: "Bonjour.",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+            },
+          ],
+        })),
+        delete: vi.fn(async () => undefined),
+      },
+      libraries: {
+        list: vi.fn(async () => ({
+          data: [
+            {
+              id: "lib-ct-1",
+              name: "Product docs",
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              updatedAt: new Date("2026-01-02T00:00:00Z"),
+              ownerId: "user-ct-1",
+              ownerType: "user",
+              totalSize: 1024,
+              nbDocuments: 1,
+            },
+          ],
+          pagination: { totalItems: 1, totalPages: 1, currentPage: 0, pageSize: 100, hasMore: false },
+        })),
+        get: vi.fn(async () => ({
+          id: "lib-ct-1",
+          name: "Product docs",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+          updatedAt: new Date("2026-01-02T00:00:00Z"),
+          ownerId: "user-ct-1",
+          ownerType: "user",
+          totalSize: 1024,
+          nbDocuments: 1,
+        })),
+        documents: {
+          list: vi.fn(async () => ({
+            data: [
+              {
+                id: "doc-ct-1",
+                libraryId: "lib-ct-1",
+                name: "handbook.pdf",
+                mimeType: "application/pdf",
+                extension: "pdf",
+                size: 2048,
+                createdAt: new Date("2026-01-01T00:00:00Z"),
+                processStatus: "done",
+              },
+            ],
+            pagination: { totalItems: 1, totalPages: 1, currentPage: 0, pageSize: 100, hasMore: false },
+          })),
+          upload: vi.fn(async () => ({
+            id: "doc-ct-1",
+            libraryId: "lib-ct-1",
+            name: "handbook.pdf",
+            mimeType: "application/pdf",
+            extension: "pdf",
+            size: 2048,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+            processStatus: "todo",
+          })),
+          status: vi.fn(async () => ({ documentId: "doc-ct-1", processStatus: "in_progress" })),
+        },
+      },
     },
   } as unknown as Mistral;
 }
@@ -420,6 +555,8 @@ async function boot(mock: Mistral = makeMock()) {
   registerSamplingTools(server);
   registerWorkflowTools(server, mock);
   registerConnectorTools(server, mock);
+  registerConversationTools(server, mock);
+  registerLibraryTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -951,13 +1088,187 @@ describe("contract: structuredContent matches outputSchema", () => {
     }
     expect(parsed.success).toBe(true);
   });
+
+  it("conversation_start", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "conversation_start",
+      arguments: { input: "Bonjour" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConversationResponseOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (conversation_start): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("conversation_append", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "conversation_append",
+      arguments: { conversationId: "conv-ct-1", input: "Et toi ?" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConversationResponseOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (conversation_append): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("conversation_get", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "conversation_get",
+      arguments: { conversationId: "conv-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConversationGetOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (conversation_get): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("conversation_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "conversation_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConversationListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (conversation_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("conversation_history", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "conversation_history",
+      arguments: { conversationId: "conv-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConversationHistoryOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (conversation_history): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("conversation_delete", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "conversation_delete",
+      arguments: { conversationId: "conv-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = ConversationDeleteOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (conversation_delete): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("libraries_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "libraries_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = LibrariesListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (libraries_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("libraries_get", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "libraries_get",
+      arguments: { libraryId: "lib-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = LibrariesGetOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (libraries_get): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("libraries_documents_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "libraries_documents_list",
+      arguments: { libraryId: "lib-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = LibrariesDocumentsListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (libraries_documents_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("libraries_documents_upload", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "libraries_documents_upload",
+      arguments: {
+        libraryId: "lib-ct-1",
+        filename: "handbook.pdf",
+        content_base64: Buffer.from("hi").toString("base64"),
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = LibrariesDocumentsUploadOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (libraries_documents_upload): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("libraries_documents_status", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "libraries_documents_status",
+      arguments: { libraryId: "lib-ct-1", documentId: "doc-ct-1" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = LibrariesDocumentsStatusOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (libraries_documents_status): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
 });
 
 describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(29); // 22 v0.5 tools + 3 workflow tools + 4 connector tools
+    expect(tools.length).toBe(40); // 22 v0.5 tools + 3 workflow tools + 4 connector tools + 6 conversation tools + 5 library tools
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();
