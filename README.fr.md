@@ -88,10 +88,10 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 
 | Profil | Tools | Quand l'utiliser |
 |---|---|---|
-| `core` (défaut) | 8 | Usage agentique quotidien — contexte minimal |
-| `admin` | 26 | Surface API complète — embeddings, streaming, batch, classify, files, agents, TTS, extraction documentaire. Pour debug, CI, scripts. |
-| `workflows` | 3 | Orchestration de pipeline uniquement |
-| `metier-docs` | 9 | Vertical documents — core + macro-tool `process_document` |
+| `core` (défaut) | 12 | Usage agentique quotidien — contexte minimal |
+| `admin` | 41 | Surface API complète — embeddings, streaming, batch, classify, files, agents, TTS, extraction documentaire, conversations stateful, libraries RAG. Pour debug, CI, scripts. |
+| `workflows` | 7 | Orchestration de pipeline + connecteurs uniquement |
+| `metier-docs` | 13 | Vertical documents — core + macro-tool `process_document` |
 
 > `full` est accepté comme alias déprécié de `admin` pour rétro-compatibilité.
 
@@ -126,7 +126,7 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 |---|---|
 | `process_document` | Macro-tool en un appel : OCR → classification (kind=auto) → extraction typée → validation → cache. Kinds : `contract` / `invoice` / `id_document` / `generic`. Retourne une union discriminée. Cache PII-safe (auto-bypass id_document). `minOcrConfidence` configurable. |
 
-### Profil admin uniquement (+18 tools, `MISTRAL_MCP_PROFILE=admin`)
+### Profil admin uniquement (+29 tools, `MISTRAL_MCP_PROFILE=admin`)
 
 | Groupe | Tools |
 |---|---|
@@ -136,6 +136,8 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | Fichiers | `files_upload`, `files_list`, `files_get`, `files_delete`, `files_signed_url` |
 | Batch | `batch_create`, `batch_get`, `batch_list`, `batch_cancel` |
 | Sampling | `mcp_sample` (délègue la génération au modèle du client MCP) |
+| Conversations | `conversation_start`, `conversation_append`, `conversation_get`, `conversation_list`, `conversation_history`, `conversation_delete` — boucles agentiques multi-tours avec les tools intégrés Mistral (web_search, code_interpreter, image_generation, document_library) |
+| Libraries (RAG) | `libraries_list`, `libraries_get`, `libraries_documents_list`, `libraries_documents_upload`, `libraries_documents_status` — découvre et alimente des Mistral Libraries déjà créées ; à combiner avec `documentLibraryIds` sur `conversation_start` pour les interroger |
 
 ---
 

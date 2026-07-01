@@ -23,6 +23,8 @@ import { registerBatchTools } from "./tools-batch.js";
 import { registerSamplingTools } from "./tools-sampling.js";
 import { registerWorkflowTools } from "./tools-workflows.js";
 import { registerConnectorTools } from "./tools-connectors.js";
+import { registerConversationTools } from "./tools-conversations.js";
+import { registerLibraryTools } from "./tools-libraries.js";
 import { registerDocsTools } from "./tools-docs.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
@@ -80,6 +82,8 @@ if (profile === "admin") {
   registerFileTools(server, mistral);
   registerBatchTools(server, mistral);
   registerSamplingTools(server);
+  registerConversationTools(server, mistral);
+  registerLibraryTools(server, mistral);
 }
 
 // workflow and connector tools are present in every profile

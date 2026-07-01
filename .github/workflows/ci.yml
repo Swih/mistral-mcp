@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test
-        env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      - run: npm run test:unit
+      - run: npm run test:contract
+      - run: npm run test:stdio
+      - run: npm audit --omit=dev --audit-level=high
