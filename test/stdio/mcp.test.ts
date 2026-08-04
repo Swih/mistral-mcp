@@ -96,6 +96,8 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       "mistral_tool_call",
       "mistral_vision",
       "process_document",
+      "prove_with_leanstral",
+      "review_lean_proof",
       "voxtral_speak",
       "voxtral_transcribe",
       "workflow_execute",

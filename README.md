@@ -1,6 +1,6 @@
 # mistral-mcp
 
-> **MCP server for Mistral AI — chat, OCR, audio (Voxtral), code (Codestral), vision, agents, batch, and durable workflows.**
+> **MCP server for Mistral AI — chat, Lean 4 proofs (Leanstral), OCR, audio (Voxtral), code (Codestral), vision, agents, batch, and durable workflows.**
 > Plug into Claude Code, Cursor, Zed, Windsurf, or Claude Desktop in one command.
 >
 > _Version française : [README.fr.md](./README.fr.md)_
@@ -21,6 +21,7 @@
 - `mistral_ocr` — Mistral Document AI: structured text + bbox annotations from any PDF or image
 - `voxtral_transcribe` — Voxtral: transcription with optional speaker diarization
 - `codestral_fim` — Codestral fill-in-the-middle (FIM) for inline code completion
+- `prove_with_leanstral / review_lean_proof` — Leanstral 1.5 for Lean 4 proof construction, repair, and review
 - `workflow_execute / status / interact` — Temporal-backed durable execution with human-in-the-loop signals
 - French-optimized models (`mistral-large-latest`, `mistral-medium-latest`) and curated French prompts
 
@@ -88,10 +89,10 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 
 | Profile | Tools | Use when |
 |---|---|---|
-| `core` (default) | 12 | Daily agentic use — lean context footprint |
-| `admin` | 41 | Full Mistral API surface — embeddings, streaming, batch, classify, files, agents, TTS, document extraction, stateful conversations, RAG libraries. Best for debug, CI, scripts. |
+| `core` (default) | 14 | Daily agentic use — lean context footprint |
+| `admin` | 43 | Full Mistral API surface — embeddings, streaming, batch, classify, files, agents, TTS, document extraction, stateful conversations, RAG libraries. Best for debug, CI, scripts. |
 | `workflows` | 7 | Pipeline orchestration + connectors only |
-| `metier-docs` | 13 | Documents vertical — core + `process_document` macro-tool |
+| `metier-docs` | 15 | Documents vertical — core + `process_document` macro-tool |
 
 > `full` is accepted as a deprecated alias of `admin` for backward compatibility.
 
@@ -103,7 +104,7 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 
 ## Tools
 
-### Core profile (12 tools — always available)
+### Core profile (14 tools — always available)
 
 | Tool | What it does |
 |---|---|
@@ -111,6 +112,8 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | `mistral_vision` | Multimodal chat with images (URL or base64). |
 | `mistral_ocr` | Document AI — extract text, bbox, and JSON annotations from PDFs/images. Pass `includeBlocks: true` for OCR 4 paragraph-level blocks (text/title/table/image/equation/... with bounding boxes). |
 | `codestral_fim` | Fill-in-the-middle code completion (Codestral model). |
+| `prove_with_leanstral` | Construct or repair a Lean 4 proof from a theorem, project context, prior attempt, and compiler diagnostics with `labs-leanstral-1-5`. Proposes code but does not run Lean locally. |
+| `review_lean_proof` | Diagnose, simplify, or improve Lean 4 source with concrete replacement code. Proposes code but does not run Lean locally. |
 | `voxtral_transcribe` | Audio → text. Pass `diarize: true` for speaker separation. |
 | `workflow_execute` | Start a Mistral Workflow (Temporal-backed durable execution). |
 | `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |

@@ -1,8 +1,8 @@
 /**
  * Profile system — controls which tools are registered at startup.
  *
- * core (default): lean agentic surface — chat, vision, OCR, FIM, transcribe,
- *   sampling. Keeps the LLM tool context small.
+ * core (default): lean agentic surface — chat, vision, OCR, FIM, Lean 4,
+ *   transcribe, workflows and connectors. Keeps the LLM tool context small.
  * admin: full API surface (formerly "full") — adds embeddings, streaming,
  *   classify/moderate, batch, files, agents. Opt-in for debug, CI, advanced
  *   scripting. "full" remains accepted as a deprecated alias.

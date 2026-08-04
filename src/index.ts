@@ -15,6 +15,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Mistral } from "@mistralai/mistralai";
 import { registerMistralTools } from "./tools.js";
 import { registerFunctionTools } from "./tools-fn.js";
+import { registerLeanTools } from "./tools-lean.js";
 import { registerVisionTools } from "./tools-vision.js";
 import { registerAudioTools } from "./tools-audio.js";
 import { registerAgentTools } from "./tools-agents.js";
@@ -69,6 +70,7 @@ const server = new McpServer({
 
 registerMistralTools(server, mistral, profile);
 registerFunctionTools(server, mistral, profile);
+registerLeanTools(server, mistral, profile);
 
 if (profile !== "workflows") {
   // core, admin and metier-docs all get vision/OCR tools

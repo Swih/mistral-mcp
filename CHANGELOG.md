@@ -4,6 +4,15 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Leanstral 1.5 support** — `prove_with_leanstral` constructs or repairs Lean 4 proofs from theorem context, prior attempts, and compiler diagnostics; `review_lean_proof` diagnoses and improves existing Lean 4 source. Both use the current `labs-leanstral-1-5` Chat Completions model with deterministic sampling and return MCP `content[]` plus strict `structuredContent`.
+- Leanstral model category in the live `mistral://models` resource, plus unit, contract, stdio catalog, and live API coverage for the two tools.
+
+### Changed
+- Non-workflow profiles expose both Leanstral tools: `core` now has 14 tools, `admin` 43, and `metier-docs` 15.
+
 ## [0.9.0] - 2026-06-30
 
 ### Added

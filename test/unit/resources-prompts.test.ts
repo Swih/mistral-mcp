@@ -92,6 +92,7 @@ describe("Resources primitive - mistral://models", () => {
     expect(parsed.accepted.chat).toContain("mistral-medium-latest");
     expect(parsed.accepted.embed).toContain("mistral-embed");
     expect(parsed.accepted.fim).toContain("codestral-latest");
+    expect(parsed.accepted.lean).toContain("labs-leanstral-1-5");
     expect(parsed.accepted.tool_capable).toContain("mistral-large-latest");
     expect(parsed.spec_version).toBe("2025-11-25");
     expect(parsed.fallback).toBe(false);

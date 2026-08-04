@@ -17,6 +17,7 @@ import {
   CHAT_MODELS,
   EMBED_MODELS,
   FIM_MODELS,
+  LEAN_MODELS,
   OCR_MODELS,
   STT_MODELS,
   TOOL_CAPABLE_MODELS,
@@ -28,6 +29,7 @@ const STATIC_CATALOG = {
   chat: CHAT_MODELS,
   embed: EMBED_MODELS,
   fim: FIM_MODELS,
+  lean: LEAN_MODELS,
   tool_capable: TOOL_CAPABLE_MODELS,
   vision: VISION_MODELS,
   ocr: OCR_MODELS,
@@ -75,8 +77,8 @@ export function registerMistralResources(
         spec_version: "2025-11-25",
         source_api: "GET /v1/models (live)",
         policy:
-          "Only -latest aliases are accepted. Dated variants (e.g. codestral-2501) all " +
-          "have retirement dates and are rejected up-front by input validation.",
+          "Stable -latest aliases are preferred. Current model IDs without a -latest alias, " +
+          "such as labs-leanstral-1-5, are accepted only by their dedicated tools.",
         accepted: STATIC_CATALOG,
         live,
         fallback,
