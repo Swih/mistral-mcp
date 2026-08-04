@@ -4,8 +4,9 @@
  * Source (2026-04): https://docs.mistral.ai/capabilities/function_calling/
  * ("Available Models" block) + https://docs.mistral.ai/getting-started/models/models_overview/
  *
- * We only accept `*-latest` aliases on purpose: dated variants (e.g. codestral-2501)
- * all have retirement dates. Using the latest-alias lets Mistral roll us forward.
+ * Stable capabilities use `*-latest` aliases so Mistral can roll them forward.
+ * Models without such an alias, currently Leanstral 1.5, are isolated in a
+ * dedicated allow-list and updated from their official model card.
  */
 
 import { z } from "zod";
@@ -26,6 +27,12 @@ export const CHAT_MODELS = [
 ] as const;
 
 export const EMBED_MODELS = ["mistral-embed"] as const;
+
+/**
+ * Lean 4 formal-proof engineering models.
+ * Source: https://docs.mistral.ai/models/model-cards/leanstral-1-5
+ */
+export const LEAN_MODELS = ["labs-leanstral-1-5"] as const;
 
 /**
  * Vision-capable models — accept multimodal content (text + image_url parts).
@@ -90,6 +97,7 @@ export const TOOL_CAPABLE_MODELS = [
 
 export const ChatModelSchema = z.enum(CHAT_MODELS);
 export const EmbedModelSchema = z.enum(EMBED_MODELS);
+export const LeanModelSchema = z.enum(LEAN_MODELS);
 export const FimModelSchema = z.enum(FIM_MODELS);
 export const ToolModelSchema = z.enum(TOOL_CAPABLE_MODELS);
 export const VisionModelSchema = z.enum(VISION_MODELS);
@@ -101,6 +109,8 @@ export const DEFAULT_CHAT_MODEL: (typeof CHAT_MODELS)[number] =
   "mistral-medium-latest";
 export const DEFAULT_EMBED_MODEL: (typeof EMBED_MODELS)[number] =
   "mistral-embed";
+export const DEFAULT_LEAN_MODEL: (typeof LEAN_MODELS)[number] =
+  "labs-leanstral-1-5";
 export const DEFAULT_FIM_MODEL: (typeof FIM_MODELS)[number] = "codestral-latest";
 export const DEFAULT_TOOL_MODEL: (typeof TOOL_CAPABLE_MODELS)[number] =
   "mistral-medium-latest";

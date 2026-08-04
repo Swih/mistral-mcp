@@ -31,6 +31,10 @@ import {
   OcrOutputSchema,
 } from "../../src/tools-vision.js";
 import {
+  registerLeanTools,
+  LeanOutputSchema,
+} from "../../src/tools-lean.js";
+import {
   registerAudioTools,
   TranscribeOutputSchema,
   SpeakOutputSchema,
@@ -547,6 +551,7 @@ async function boot(mock: Mistral = makeMock()) {
   const server = new McpServer({ name: "contract-test", version: "0.0.0" });
   registerMistralTools(server, mock, "admin");
   registerFunctionTools(server, mock, "admin");
+  registerLeanTools(server, mock, "admin");
   registerVisionTools(server, mock);
   registerAudioTools(server, mock, "admin");
   registerAgentTools(server, mock);
@@ -659,6 +664,38 @@ describe("contract: structuredContent matches outputSchema", () => {
     if (!parsed.success) {
       throw new Error(
         `Contract violation (codestral_fim): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("prove_with_leanstral", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "prove_with_leanstral",
+      arguments: { theorem: "theorem t : True := by" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = LeanOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (prove_with_leanstral): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
+  it("review_lean_proof", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "review_lean_proof",
+      arguments: { source: "theorem t : True := by trivial" },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = LeanOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (review_lean_proof): ${JSON.stringify(parsed.error.format(), null, 2)}`
       );
     }
     expect(parsed.success).toBe(true);
@@ -1268,7 +1305,7 @@ describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(40); // 22 v0.5 tools + 3 workflow tools + 4 connector tools + 6 conversation tools + 5 library tools
+    expect(tools.length).toBe(42); // existing admin surface + 2 Leanstral tools
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();
