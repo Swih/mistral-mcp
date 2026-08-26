@@ -31,6 +31,13 @@ import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
 import { resolveProfile } from "./profile.js";
 
+/**
+ * Keep in sync with package.json on release. Declared once so the advertised
+ * server identity and the boot log can never disagree — they already drifted
+ * twice (see "fix(release): align runtime log version to 0.7.0").
+ */
+const SERVER_VERSION = "0.9.1";
+
 const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
   console.error(
@@ -64,7 +71,7 @@ const profile = resolveProfile();
 
 const server = new McpServer({
   name: "mistral-mcp",
-  version: "0.9.0",
+  version: SERVER_VERSION,
 });
 
 registerMistralTools(server, mistral, profile);
@@ -100,7 +107,7 @@ registerMistralPrompts(server);
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
 console.error(
-  `[mistral-mcp] v0.9.0 (profile=${profile}) connected via ${connected.mode}${
+  `[mistral-mcp] v${SERVER_VERSION} (profile=${profile}) connected via ${connected.mode}${
     connected.address
       ? ` (${connected.address.host}:${connected.address.port})`
       : ""

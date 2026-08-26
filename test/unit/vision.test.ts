@@ -57,6 +57,11 @@ function makeMock(overrides: Partial<Record<string, unknown>> = {}): Mistral {
                 bottomRightX: 200,
                 bottomRightY: 30,
                 content: "Title",
+                confidenceScores: {
+                  averageContentConfidenceScore: 0.97,
+                  minimumContentConfidenceScore: 0.88,
+                  blockTypeConfidenceScore: 0.99,
+                },
               },
               {
                 type: "table",
@@ -319,6 +324,45 @@ describe("mistral_ocr", () => {
       type: "table",
       table_id: "tbl-0",
     });
+  });
+
+  it("forwards confidence_scores_granularity 'block' and maps per-block scores", async () => {
+    const { client, mock } = await boot();
+    const result = await client.callTool({
+      name: "mistral_ocr",
+      arguments: {
+        document: {
+          type: "document_url",
+          documentUrl: "https://example.com/contract.pdf",
+        },
+        includeBlocks: true,
+        confidence_scores_granularity: "block",
+      },
+    });
+
+    const arg = (mock.ocr.process as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(arg?.confidenceScoresGranularity).toBe("block");
+
+    expect(result.isError).toBeFalsy();
+    const sc = result.structuredContent as {
+      pages: Array<{
+        blocks?: Array<{
+          type: string;
+          confidence_scores?: {
+            average_content_confidence_score?: number | null;
+            minimum_content_confidence_score?: number | null;
+            block_type_confidence_score?: number | null;
+          };
+        }>;
+      }>;
+    };
+    expect(sc.pages[0]?.blocks?.[0]?.confidence_scores).toEqual({
+      average_content_confidence_score: 0.97,
+      minimum_content_confidence_score: 0.88,
+      block_type_confidence_score: 0.99,
+    });
+    // A block the API returned without scores must not gain an empty object.
+    expect(sc.pages[0]?.blocks?.[1]?.confidence_scores).toBeUndefined();
   });
 
   it("accepts image_url input", async () => {

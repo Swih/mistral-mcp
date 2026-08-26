@@ -16,6 +16,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Without this guard the suite skipIf's every test and the job still goes
+      # green — the cron reported success for weeks while running nothing.
+      - name: Require the MISTRAL_API_KEY secret
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        run: |
+          if [ -z "$MISTRAL_API_KEY" ]; then
+            echo "::error::MISTRAL_API_KEY repository secret is not set. The live suite would skip all tests and still pass."
+            exit 1
+          fi
       - run: npm run test:live
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}

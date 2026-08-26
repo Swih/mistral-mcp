@@ -4,6 +4,25 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-08-27
+
+### Fixed
+- **`npm run test:stdio` ran zero tests in CI.** The whole stdio e2e suite was gated on `MISTRAL_API_KEY`, on the premise that "the server refuses to boot without it" — no longer true since 0.8.2, which made boot-without-key deliberate. CI has no `MISTRAL_API_KEY`, so every push saw 5 skipped tests and a green check. The suite is now split: **protocol surface** (handshake, 29-tool catalog, complete `annotations` on every tool, prompt resolution, argument completion) runs with no key and is what CI now actually exercises; **live calls** (voices resource, `mistral_chat`, `mistral_moderate`) stay gated on the key.
+- **The daily "Live API tests" cron reported success while running nothing.** The `MISTRAL_API_KEY` repository secret is unset, so all 33 live tests `skipIf`-ed out and the job went green — every day, for weeks. `live.yml` now fails with an explicit `::error::` when the secret is missing, so an unconfigured live suite is visible instead of silently reassuring.
+- Version strings had drifted across four files (`package.json` 0.9.0, `server.json` 0.8.2, `marketplace.json` 0.8.2, plugin `.mcp.json` pinned `^0.8.0`) and twice inside `src/index.ts`. All aligned, and the runtime version is now a single `SERVER_VERSION` constant so the advertised identity and the boot log cannot disagree again.
+
+### Added
+- **Block-level OCR confidence** — `mistral_ocr` accepts `confidence_scores_granularity: "block"` (added to the Mistral OCR API on 2026-07-16) alongside `"page"` and `"word"`, and maps the result to `pages[].blocks[].confidence_scores`: `average_content_confidence_score`, `minimum_content_confidence_score`, `block_type_confidence_score`. Every field is nullable — Mistral returns `null` for a signal it could not compute (an image-only block has no content tokens to score) rather than omitting it, and a block returned without scores does not gain an empty object. Requires OCR 4.1 (`mistral-ocr-4-1`, which `mistral-ocr-latest` has pointed at since 2026-07-16). 1 new unit test.
+
+### Changed
+- `@mistralai/mistralai` `2.3.0 → 2.6.4`. Required, not cosmetic: `ConfidenceScoresGranularity` is a closed enum in the generated SDK, so `"block"` was rejected client-side before reaching the API. The Connectors activation surface changed upstream in this range (`activateFor{Organization,Workspace,User}` replaced by `share`/`unshare` + `activateForConsumer`/`deactivateForConsumer`) but this server never wrapped those endpoints, and `connectors.{list,get,listTools,callTool}` are unchanged — full suite green across the bump.
+- `@modelcontextprotocol/sdk` `1.29.0 → 1.30.0` (last release of the v1 line).
+- `npm audit --omit=dev --audit-level=high` is a blocking CI step and had started failing on two high-severity transitive advisories (`fast-uri`, `ip-address` via `express-rate-limit`). Lockfile refreshed — 0 production vulnerabilities.
+
+### Notes
+- CI has not run since 2026-07-01 (no push to `main`), so none of the above was visible on the badge.
+- v0.9.0 was never tagged or published; its changes ship here for the first time. npm and the MCP registry both go 0.8.2 → 0.9.1.
+
 ## [0.9.0] - 2026-06-30
 
 ### Added

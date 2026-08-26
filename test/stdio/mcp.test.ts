@@ -7,7 +7,13 @@
  *   - env var propagation
  *   - transport wire format
  *
- * Skipped if MISTRAL_API_KEY is not set (the server refuses to boot without it).
+ * Split in two suites on purpose:
+ *   - "protocol surface" needs no API key. Since 0.8.2 the server boots without
+ *     one, so CI can and must exercise the built binary on every push.
+ *   - "live calls" needs MISTRAL_API_KEY and is skipped without it.
+ *
+ * Before that split the whole file was gated on the key, so `npm run test:stdio`
+ * silently ran zero tests in CI while still reporting success.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -34,26 +40,43 @@ function firstTextContent(result: {
   return first.text;
 }
 
-describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
+/**
+ * Spawns the built server over stdio and returns a connected client plus its
+ * teardown. Shared by both suites so the connection setup lives in one place.
+ */
+async function connectToBuiltServer(): Promise<{
+  client: Client;
+  close: () => Promise<void>;
+}> {
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    MISTRAL_MCP_PROFILE: "admin",
+  };
+  // Only forward the key when there is one — an undefined value would be
+  // stringified into the child env as "undefined" and look like a real key.
+  if (process.env.MISTRAL_API_KEY) {
+    env.MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
+  }
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: [DIST_PATH],
+    env,
+  });
+  const client = new Client({ name: "e2e-client", version: "0.0.0" });
+  await client.connect(transport);
+  return { client, close: async () => await client.close() };
+}
+
+describe.skipIf(!DIST_EXISTS)("stdio e2e (built server) — protocol surface", () => {
   let client: Client;
-  let transport: StdioClientTransport;
+  let close: () => Promise<void>;
 
   beforeAll(async () => {
-    transport = new StdioClientTransport({
-      command: "node",
-      args: [DIST_PATH],
-      env: {
-        ...(process.env as Record<string, string>),
-        MISTRAL_API_KEY: process.env.MISTRAL_API_KEY!,
-        MISTRAL_MCP_PROFILE: "admin",
-      },
-    });
-    client = new Client({ name: "e2e-client", version: "0.0.0" });
-    await client.connect(transport);
+    ({ client, close } = await connectToBuiltServer());
   });
 
   afterAll(async () => {
-    await client?.close();
+    await close?.();
   });
 
   it("handshakes and lists the expected tools, resources, prompts", async () => {
@@ -166,6 +189,19 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server)", () => {
       argument: { name: "focus", value: "sec" },
     });
     expect(completion.completion.values).toContain("security");
+  });
+});
+
+describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server) — live calls", () => {
+  let client: Client;
+  let close: () => Promise<void>;
+
+  beforeAll(async () => {
+    ({ client, close } = await connectToBuiltServer());
+  });
+
+  afterAll(async () => {
+    await close?.();
   });
 
   it("reads the voices resource through stdio", async () => {

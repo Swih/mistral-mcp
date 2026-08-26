@@ -11,8 +11,8 @@
 - **Rôle** : serveur MCP stdio + Streamable HTTP wrappant l'API Mistral pour clients MCP (Claude Code, Cursor, Zed, Windsurf, Claude Desktop, ChatGPT Apps).
 - **Versions en vigueur** :
   - MCP spec : **2025-11-25** (inclut structuredContent/outputSchema 2025-06-18, Streamable HTTP 2025-03-26, tool annotations).
-  - SDK MCP : `@modelcontextprotocol/sdk@^1.29.0` — **toujours** via la high-level API `McpServer` + `registerTool/Resource/Prompt`. Ne jamais descendre au low-level `Server` sauf si explicitement requis par une feature spec (ex : sampling côté serveur).
-  - SDK Mistral : `@mistralai/mistralai@^2.2.0` (Speakeasy-generated). Retry config obligatoire.
+  - SDK MCP : `@modelcontextprotocol/sdk@^1.30.0` — **toujours** via la high-level API `McpServer` + `registerTool/Resource/Prompt`. Ne jamais descendre au low-level `Server` sauf si explicitement requis par une feature spec (ex : sampling côté serveur).
+  - SDK Mistral : `@mistralai/mistralai@^2.6.4` (Speakeasy-generated). Retry config obligatoire.
   - Node : `>=18`, TypeScript strict.
 
 ## 2. Règles dures (ne pas transgresser)
@@ -120,6 +120,11 @@ npm run inspector    # MCP Inspector UI sur dist/index.js
 | 4. Live API | `test/live/` | real Mistral | Une requête par endpoint wrappé, payload vérifié | Manuel + CI cron |
 | 5. Smoke | `examples/` | end-user scripts | `try-it.mjs`, `rate-it.mjs` passent | Pre-release |
 
+Règle : **un test qui `skipIf` en CI ne compte pas comme un test**. Un niveau de la
+pyramide qui ne peut pas tourner sans secret doit soit avoir un sous-ensemble qui
+tourne sans secret (cas de `test/stdio/`), soit échouer bruyamment quand le secret
+manque (cas de `live.yml`). Un job vert qui n'exécute rien est pire que pas de job.
+
 Règle : **un tool non testé ne ship pas**. Si on ajoute `mistral_ocr`, on ajoute au minimum : 1 unit + 1 contract + 1 live (skipIf no key).
 
 ## 7. Process de release
@@ -176,4 +181,4 @@ Règle : **un tool non testé ne ship pas**. Si on ajoute `mistral_ocr`, on ajou
 
 ---
 
-*Mis à jour : v0.4-dev. Lire en entier avant de toucher au code.*
+*Mis à jour : v0.9.1. Lire en entier avant de toucher au code.*

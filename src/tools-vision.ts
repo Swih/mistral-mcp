@@ -47,7 +47,7 @@ export const VisionOutputSchema = z.object(VisionOutputShape);
  * OCR 4 (mistral-ocr-4-0) block types. Older OCR models accept `includeBlocks`
  * but return an empty array — the union covers all 13 block kinds Mistral
  * defines, each carrying its own paragraph-level bounding box.
- * Source: @mistralai/mistralai 2.3.0 — models/components/ocr*block.ts
+ * Source: @mistralai/mistralai 2.6.4 — models/components/ocr*block.ts
  */
 const OCR_BLOCK_TYPES = [
   "text",
@@ -65,6 +65,17 @@ const OCR_BLOCK_TYPES = [
   "signature",
 ] as const;
 
+/**
+ * Per-block confidence, computed per-word from model logprobs. Every field is
+ * nullable: Mistral returns null for a signal it could not compute rather than
+ * omitting it (e.g. an image-only block has no content tokens to score).
+ */
+const OcrBlockConfidenceSchema = z.object({
+  average_content_confidence_score: z.number().nullable().optional(),
+  minimum_content_confidence_score: z.number().nullable().optional(),
+  block_type_confidence_score: z.number().nullable().optional(),
+});
+
 const OcrBlockSchema = z.object({
   type: z.enum(OCR_BLOCK_TYPES),
   top_left_x: z.number(),
@@ -81,6 +92,9 @@ const OcrBlockSchema = z.object({
     .nullable()
     .optional()
     .describe("Set on type:table — references the matching entry in `tables[]`."),
+  confidence_scores: OcrBlockConfidenceSchema.optional().describe(
+    "Populated only when `confidence_scores_granularity: 'block'`. Fields are null when the signal is absent (an image-only block has no content to score)."
+  ),
 });
 
 const OcrPageSchema = z.object({
@@ -287,7 +301,9 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         "  - `includeImageBase64`: embed extracted image bytes as base64 in the response.",
         "  - `document_annotation_format`: JSON schema for whole-document structured extraction.",
         "  - `bbox_annotation_format`: JSON schema for extracted image / bbox annotations.",
-        "  - `confidence_scores_granularity`: 'page' or 'word'.",
+        "  - `confidence_scores_granularity`: 'page', 'word', or 'block'. 'block' adds",
+        "    per-block content/type confidence under `pages[].blocks[].confidence_scores`",
+        "    and requires OCR 4.1 or newer.",
         "  - `includeBlocks`: return paragraph-level blocks (bounding box + type) in reading",
         "    order — titles, lists, tables, images, equations, captions, code, references,",
         "    aside text, header, footer, signature. Requires OCR 4 (mistral-ocr-4-0) or newer;",
@@ -313,7 +329,12 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
         bbox_annotation_format: JsonSchemaResponseFormatSchema.optional(),
         document_annotation_format: JsonSchemaResponseFormatSchema.optional(),
         document_annotation_prompt: z.string().optional(),
-        confidence_scores_granularity: z.enum(["page", "word"]).optional(),
+        confidence_scores_granularity: z
+          .enum(["page", "word", "block"])
+          .optional()
+          .describe(
+            "Confidence granularity. 'block' also fills pages[].blocks[].confidence_scores and requires OCR 4.1 (mistral-ocr-4-1) or newer."
+          ),
         includeBlocks: z
           .boolean()
           .optional()
@@ -383,6 +404,16 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
                   content: b.content,
                   image_id: (b as { imageId?: string }).imageId,
                   table_id: (b as { tableId?: string | null }).tableId,
+                  confidence_scores: b.confidenceScores
+                    ? {
+                        average_content_confidence_score:
+                          b.confidenceScores.averageContentConfidenceScore,
+                        minimum_content_confidence_score:
+                          b.confidenceScores.minimumContentConfidenceScore,
+                        block_type_confidence_score:
+                          b.confidenceScores.blockTypeConfidenceScore,
+                      }
+                    : undefined,
                 }))
             : undefined,
           tables: p.tables,
