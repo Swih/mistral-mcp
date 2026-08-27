@@ -377,7 +377,7 @@ curl -X POST https://api.mistral.ai/v1/connectors \
   -d '{"name":"mistral_self","server":"https://votre-deploy/mcp","visibility":"private"}'
 ```
 
-> Mistral Connectors exposent **uniquement les tools** aujourd'hui. Resources, prompts, sampling et elicitation restent disponibles via les clients locaux.
+> Mistral Connectors exposent **uniquement les tools** aujourd'hui. Resources et prompts restent disponibles via les clients locaux.
 
 ---
 
