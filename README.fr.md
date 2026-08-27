@@ -221,6 +221,41 @@ node dist/index.js
 
 ---
 
+## Ingestion documentaire, évaluée
+
+`process_document` est livré avec un corpus et un harnais, parce que « gère les
+PDF hétérogènes » est une affirmation, et qu'une affirmation sans mesure est du
+marketing.
+
+```bash
+npm run fixtures:generate   # régénère le corpus depuis les sources (sans clé)
+npm run eval:docs           # le confronte à l'OCR réel (requiert MISTRAL_API_KEY)
+```
+
+Le corpus compte huit documents synthétiques choisis pour les cas qui cassent
+réellement les pipelines d'ingestion, pas pour ceux qui les flattent : un scan
+paysage pivoté (`/Rotate 90`), des tables de lignes réglées, des blocs
+d'adresses en colonnes, une page blanche au milieu d'un document, du FR/EN
+mélangé, des accents et le signe euro, et une page quasi vide. La vérité
+terrain de chaque document — type attendu, nombre de pages, chaînes qui doivent
+survivre à l'OCR — est dans `test/fixtures/corpus.json`.
+
+Tout y est inventé : sociétés, personnes et identifiants fictifs. **Aucune
+donnée personnelle réelle dans ce dépôt, et il ne faut pas en ajouter** — le
+corpus n'a d'intérêt que s'il est publiable.
+
+`npm run eval:docs` indique, par document, si `kind: "auto"` a bien classé, si
+les champs requis ont survécu, et la confiance OCR. Il en dérive ensuite un
+`minOcrConfidence` : le milieu entre le pire document extrait proprement et le
+meilleur document marqué à faible signal. Quand les deux se recouvrent, il dit
+qu'aucun seuil n'est défendable plutôt que d'en inventer un.
+
+La valeur par défaut de `0.3` est un point de départ conservateur, **pas** une
+valeur mesurée. Lancez le harnais sur vos propres documents et retenez le
+nombre que ce run justifie.
+
+---
+
 ## Observabilité
 
 Chaque appel de tool émet une ligne JSON sur stderr, et le contexte de trace

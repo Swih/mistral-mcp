@@ -18,15 +18,17 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
     "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "start": "node dist/index.js",
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:unit": "vitest run test/unit",
     "test:contract": "vitest run test/contract",
     "test:stdio": "vitest run test/stdio",
     "test:live": "vitest run test/live",
+    "eval:docs": "tsx scripts/eval-docs.ts",
+    "fixtures:generate": "node test/fixtures/generate-corpus.mjs",
     "inspector": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

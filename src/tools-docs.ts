@@ -73,7 +73,12 @@ export const ProcessDocumentInputShape = {
         .max(1)
         .optional()
         .default(0.3)
-        .describe("Empirical floor; tune via real eval. Below this, the tool returns isError."),
+        .describe(
+          "Conservative floor: below it the tool returns isError rather than risk " +
+            "extracting from text OCR is not confident about. 0.3 is a starting " +
+            "point, not a measured value — run `npm run eval:docs` against your " +
+            "own documents and set the number that run justifies."
+        ),
       cache: z
         .enum(["read_write", "read_only", "bypass"])
         .optional()
@@ -566,8 +571,10 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "Default cache mode is 'read_write' EXCEPT for kind=id_document (auto-bypass to avoid",
         "persisting PII). Set options.cache='read_write' explicitly to opt in for id documents.",
         "",
-        "OCR confidence floor is options.minOcrConfidence (default 0.3, empirical — tune via eval).",
-        "Below the floor the tool returns isError rather than risking hallucinated extraction.",
+        "OCR confidence floor is options.minOcrConfidence (default 0.3). Below the floor the",
+        "tool returns isError rather than risking extraction from text OCR is unsure about.",
+        "0.3 is a conservative starting point, not a measured one: calibrate it for your",
+        "corpus with `npm run eval:docs`.",
       ].join("\n"),
       inputSchema: ProcessDocumentInputShape,
       outputSchema: z.object(ProcessDocumentOutputShape),

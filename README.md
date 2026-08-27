@@ -220,6 +220,41 @@ node dist/index.js
 
 ---
 
+## Document ingestion, evaluated
+
+`process_document` ships with a corpus and a harness, because "handles
+heterogeneous PDFs" is a claim, and a claim without a measurement is marketing.
+
+```bash
+npm run fixtures:generate   # rebuild the corpus from source (no key needed)
+npm run eval:docs           # score it against real OCR (needs MISTRAL_API_KEY)
+```
+
+The corpus is eight synthetic documents chosen for the cases that actually
+break ingestion pipelines, not for the ones that flatter them: a rotated
+landscape scan (`/Rotate 90`), ruled line-item tables, side-by-side address
+columns, a blank page in the middle of a document, mixed FR/EN, French accents
+and the euro sign, and one near-empty page. Ground truth for each document —
+expected kind, page count, and the strings that must survive OCR — lives in
+`test/fixtures/corpus.json`.
+
+Everything in it is invented: fictional companies, fictional people, fictional
+identifiers. **No real PII is in this repo, and none should be added** — the
+corpus is only useful if it can be published.
+
+`npm run eval:docs` reports, per document, whether `kind: "auto"` classified it
+correctly, whether the required fields survived, and the OCR confidence. It
+then derives a `minOcrConfidence` from the run: the midpoint between the worst
+document that extracted cleanly and the best document marked low-signal. When
+those two overlap, it says no threshold is defensible rather than inventing
+one.
+
+The shipped default of `0.3` is a conservative starting point, **not** a
+measured value. Run the harness on your own documents and set the number that
+run justifies.
+
+---
+
 ## Observability
 
 Every tool call emits one JSON line on stderr, and the caller's W3C trace

@@ -1,0 +1,112 @@
+{
+  "generated_by": "test/fixtures/generate-corpus.mjs",
+  "synthetic": true,
+  "note": "Every company, person, identifier and amount here is invented. No real PII. Regenerate with `npm run fixtures:generate`.",
+  "documents": [
+    {
+      "file": "contract-fr.pdf",
+      "bytes": 4298,
+      "expected_kind": "contract",
+      "page_count": 2,
+      "text_extractable": true,
+      "must_contain": [
+        "ACME SAS",
+        "BetaCorp",
+        "845 327 109",
+        "96 000"
+      ],
+      "notes": "Two-page French services contract. Baseline for the contract kind."
+    },
+    {
+      "file": "invoice-fr-table.pdf",
+      "bytes": 3004,
+      "expected_kind": "invoice",
+      "page_count": 1,
+      "text_extractable": true,
+      "must_contain": [
+        "2026-0842",
+        "12 960,00",
+        "BetaCorp",
+        "TVA"
+      ],
+      "notes": "Ruled line-item table. OCR either reconstructs the columns or smears them."
+    },
+    {
+      "file": "invoice-en-twocol.pdf",
+      "bytes": 2874,
+      "expected_kind": "invoice",
+      "page_count": 1,
+      "text_extractable": true,
+      "must_contain": [
+        "NW-2026-1177",
+        "Northwind",
+        "2,897.00"
+      ],
+      "notes": "English invoice, side-by-side address blocks. Tests reading order and non-EUR currency."
+    },
+    {
+      "file": "id-card-synthetic.pdf",
+      "bytes": 1444,
+      "expected_kind": "id_document",
+      "page_count": 1,
+      "text_extractable": true,
+      "must_contain": [
+        "MARTIN",
+        "SPEC-000-000-000"
+      ],
+      "asserts_cache_bypass": true,
+      "notes": "Non-A4 card format. Fictional country and identifiers; not a real document."
+    },
+    {
+      "file": "meeting-notes-mixed.pdf",
+      "bytes": 2050,
+      "expected_kind": "generic",
+      "page_count": 1,
+      "text_extractable": true,
+      "must_contain": [
+        "ORION",
+        "INF-4412",
+        "15 septembre"
+      ],
+      "notes": "FR/EN in one document. Baseline for the generic kind."
+    },
+    {
+      "file": "report-landscape-rotated.pdf",
+      "bytes": 3499,
+      "expected_kind": "generic",
+      "page_count": 2,
+      "text_extractable": true,
+      "must_contain": [
+        "Le Havre",
+        "CMA-3391"
+      ],
+      "notes": "/Rotate 90 on both pages. If a pipeline ignores /Rotate the text is there but the layout is wrong."
+    },
+    {
+      "file": "scan-sparse.pdf",
+      "bytes": 859,
+      "expected_kind": "generic",
+      "page_count": 1,
+      "text_extractable": true,
+      "low_signal": true,
+      "must_contain": [
+        "ANNEXE B"
+      ],
+      "notes": "Near-empty page. Used to calibrate minOcrConfidence: a threshold that rejects this and accepts the dense documents is defensible; one that rejects both is not."
+    },
+    {
+      "file": "multipage-blank-inside.pdf",
+      "bytes": 3468,
+      "expected_kind": "generic",
+      "page_count": 4,
+      "text_extractable": true,
+      "blank_page_index": 2,
+      "must_contain": [
+        "DT-2026-0091",
+        "NX-214",
+        "RG-2026"
+      ],
+      "notes": "Cover, table, blank page, dense text. The blank page must not shift page indexing."
+    }
+  ]
+}

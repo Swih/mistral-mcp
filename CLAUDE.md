@@ -56,6 +56,7 @@ test/
 ├── unit/               # vitest + InMemoryTransport + mocked SDK
 ├── stdio/              # spawn dist/index.js : protocole, deux ères, HTTP, endpoint self-hosted
 ├── live/               # MISTRAL_API_KEY requis, skipIf sinon
+├── fixtures/           # corpus d'ingestion synthétique + corpus.json (vérité terrain)
 └── contract/           # Vérifie structuredContent === outputSchema pour chaque tool
 ```
 
@@ -114,6 +115,9 @@ npm run test:unit    # unit/ seulement
 npm run test:stdio   # stdio/ seulement
 npm run test:live    # live/ — requiert MISTRAL_API_KEY
 npm run inspector    # MCP Inspector UI sur dist/index.js
+
+npm run fixtures:generate  # régénère test/fixtures/corpus/ (pas de clé requise)
+npm run eval:docs          # score le corpus contre l'OCR réel + calibre minOcrConfidence
 ```
 
 ## 6. Pyramide de tests
@@ -159,6 +163,8 @@ Règle : **un tool non testé ne ship pas**. Si on ajoute `mistral_ocr`, on ajou
 | Dépendance runtime ajoutée | Inline / reconstruit / on s'en passe |
 | Commentaire expliquant QUOI fait le code | Le nom de variable suffit |
 | Mock dans test live | Les tests live frappent l'API réelle, sinon ils sont `unit` |
+| Seuil/constante « empirique » non mesurée | Soit tu la mesures (`npm run eval:docs`), soit tu la dis non mesurée |
+| PII réelle dans `test/fixtures/` | Tout le corpus est inventé et doit rester publiable |
 
 ## 9. Signal de qualité (à viser pour v0.4)
 
