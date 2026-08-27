@@ -152,8 +152,8 @@ which are off, and why — no need to diff this table against your deployment.
 |---|---|
 | `mistral://capabilities` | Which tool families are registered, which are not, and why — plus the active profile and endpoint |
 | `mistral://models` | Live model catalog, read from the endpoint actually in use |
-| `mistral://voices` | Live Voxtral TTS voice catalog |
-| `mistral://workflows` | Live list of deployed workflows (use `name` as `workflowIdentifier`) |
+| `mistral://voices` | Live Voxtral TTS voice catalog — registered only when the `tts` family is on (`admin`) |
+| `mistral://workflows` | Live list of deployed workflows (use `name` as `workflowIdentifier`) — not registered under `self-hosted` |
 
 ---
 

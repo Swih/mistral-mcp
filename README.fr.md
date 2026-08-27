@@ -153,8 +153,8 @@ besoin de comparer ce tableau à votre déploiement.
 |---|---|
 | `mistral://capabilities` | Quelles familles de tools sont enregistrées, lesquelles ne le sont pas et pourquoi — plus le profil et l'endpoint actifs |
 | `mistral://models` | Catalogue de modèles live, lu depuis l'endpoint réellement utilisé |
-| `mistral://voices` | Catalogue de voix Voxtral TTS live |
-| `mistral://workflows` | Liste live des workflows déployés (utiliser `name` comme `workflowIdentifier`) |
+| `mistral://voices` | Catalogue de voix Voxtral TTS live — enregistrée seulement si la famille `tts` est active (`admin`) |
+| `mistral://workflows` | Liste live des workflows déployés (utiliser `name` comme `workflowIdentifier`) — non enregistrée sous `self-hosted` |
 
 ---
 
