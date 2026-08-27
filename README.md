@@ -38,6 +38,7 @@ This can be useful for European organisations evaluating AI stacks under GDPR, D
 
 - self-hosted MCP server, no mandatory SaaS proxy
 - bring-your-own Mistral API key (BYOK) — Mistral states API data is not used to train its models
+- `MISTRAL_BASE_URL` routes every call to your own OpenAI-compatible endpoint (vLLM, TGI, LiteLLM, an internal gateway) — no traffic to `api.mistral.ai`
 - lean `core` profile and focused `metier-docs` profile to limit tool exposure
 - `process_document` cache configurable per-call and via `MISTRAL_MCP_CACHE_DIR`
 - ID document cache bypass enabled by default, even when `kind:"auto"` resolves to `id_document`
@@ -88,10 +89,11 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 
 | Profile | Tools | Use when |
 |---|---|---|
-| `core` (default) | 12 | Daily agentic use — lean context footprint |
+| `core` (default) | 13 | Daily agentic use — lean context footprint |
 | `admin` | 41 | Full Mistral API surface — embeddings, streaming, batch, classify, files, agents, TTS, document extraction, stateful conversations, RAG libraries. Best for debug, CI, scripts. |
-| `workflows` | 7 | Pipeline orchestration + connectors only |
-| `metier-docs` | 13 | Documents vertical — core + `process_document` macro-tool |
+| `workflows` | 8 | Pipeline orchestration + connectors only |
+| `metier-docs` | 14 | Documents vertical — core + `process_document` macro-tool |
+| `self-hosted` | 5 | Inference on your own OpenAI-compatible endpoint — inferred from `MISTRAL_BASE_URL` |
 
 > `full` is accepted as a deprecated alias of `admin` for backward compatibility.
 
@@ -99,11 +101,14 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 ```
 
+Read `mistral://capabilities` from any client to see which tool families are on,
+which are off, and why — no need to diff this table against your deployment.
+
 ---
 
 ## Tools
 
-### Core profile (12 tools — always available)
+### Core profile (13 tools — always available)
 
 | Tool | What it does |
 |---|---|
@@ -119,6 +124,7 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | `connectors_get` | Fetch one connector's public metadata (never credentials). |
 | `connectors_list_tools` | List the MCP tools a connector exposes, with their input schema. |
 | `connectors_call_tool` | Invoke a connector's tool — real MCP `CallToolResult` passthrough. |
+| `rag_indexes_list` | List the search-index deployments on your account, with backend and document counts. |
 
 ### Documents vertical (`MISTRAL_MCP_PROFILE=metier-docs`)
 
@@ -126,7 +132,7 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 |---|---|
 | `process_document` | Single-call macro-tool: OCR → classify (kind=auto) → typed extraction → validation → cache. Kinds: `contract` / `invoice` / `id_document` / `generic`. Returns a discriminated union. PII-safe cache (id_document auto-bypass). Configurable `minOcrConfidence`. |
 
-### Admin profile only (+29 tools, set `MISTRAL_MCP_PROFILE=admin`)
+### Admin profile only (+28 tools, set `MISTRAL_MCP_PROFILE=admin`)
 
 | Group | Tools |
 |---|---|
@@ -135,7 +141,6 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | Audio | `voxtral_speak` (TTS) |
 | Files | `files_upload`, `files_list`, `files_get`, `files_delete`, `files_signed_url` |
 | Batch | `batch_create`, `batch_get`, `batch_list`, `batch_cancel` |
-| Sampling | `mcp_sample` (delegates generation to the MCP client's own model) |
 | Conversations | `conversation_start`, `conversation_append`, `conversation_get`, `conversation_list`, `conversation_history`, `conversation_delete` — stateful multi-turn agent loops with Mistral's built-in tools (web_search, code_interpreter, image_generation, document_library) |
 | Libraries (RAG) | `libraries_list`, `libraries_get`, `libraries_documents_list`, `libraries_documents_upload`, `libraries_documents_status` — discover and feed already-created Mistral Libraries; pair with `conversation_start`'s `documentLibraryIds` to search them |
 
@@ -145,7 +150,8 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 
 | URI | What it returns |
 |---|---|
-| `mistral://models` | Live model catalog + accepted aliases |
+| `mistral://capabilities` | Which tool families are registered, which are not, and why — plus the active profile and endpoint |
+| `mistral://models` | Live model catalog, read from the endpoint actually in use |
 | `mistral://voices` | Live Voxtral TTS voice catalog |
 | `mistral://workflows` | Live list of deployed workflows (use `name` as `workflowIdentifier`) |
 
@@ -214,6 +220,35 @@ node dist/index.js
 
 ---
 
+## Self-hosted inference
+
+Point `MISTRAL_BASE_URL` at any OpenAI-compatible endpoint — vLLM, TGI, LiteLLM,
+an internal token factory — and every request goes there instead of
+`api.mistral.ai`:
+
+```bash
+MISTRAL_BASE_URL=http://vllm.internal:8000/v1 MISTRAL_DEFAULT_MODEL=my-org/mistral-small-3.2 npx mistral-mcp
+```
+
+Two things change when the endpoint is not Mistral's:
+
+1. **The profile becomes `self-hosted`.** Only the five tools such an endpoint
+   can actually serve stay registered — `mistral_chat`, `mistral_chat_stream`,
+   `mistral_embed`, `mistral_tool_call`, `mistral_vision`. OCR, Voxtral, Files,
+   Batch and Workflows are Mistral-platform endpoints; advertising them against
+   vLLM would only produce 404s the calling model has to guess its way out of.
+   Set `MISTRAL_MCP_PROFILE` explicitly if your gateway does proxy the full API.
+2. **Model ids are no longer checked against a list.** Any non-empty string is
+   forwarded as-is, because your endpoint's identifiers are yours.
+
+`mistral://capabilities` reports the active endpoint, the profile, whether it was
+inferred, and the reason each unavailable family is off.
+
+Compose and Kubernetes manifests, plus the full environment reference, are in
+[`deploy/README.md`](./deploy/README.md).
+
+---
+
 ## Transport
 
 | Mode | How to enable | Default |
@@ -229,7 +264,7 @@ HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKE
 
 ## Use as a Mistral Connector (beta)
 
-`mistral-mcp` ships the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-11-25/) and bearer auth that [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) require. Deployment guides for Cloudflare Tunnel, Fly.io, and Render are in [`examples/deploy/README.md`](./examples/deploy/).
+`mistral-mcp` ships the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-11-25/) and bearer auth that [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) require. Deployment guides for Cloudflare Tunnel, Fly.io, and Cloud Run are in [`deploy/connector-public.md`](./deploy/connector-public.md).
 
 | Surface | Status |
 |---|---|

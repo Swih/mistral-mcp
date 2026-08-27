@@ -22,7 +22,7 @@ import {
   STT_MODELS,
   SttModelSchema,
 } from "./models.js";
-import type { MistralProfile } from "./profile.js";
+import { isEnabled, type MistralProfile } from "./profile.js";
 import { UsageSchema, errorResult, mapUsage, toTextBlock } from "./shared.js";
 
 // ---------- output schemas (exported for contract tests) ----------
@@ -90,8 +90,7 @@ export function registerAudioTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
-  if (profile === "workflows") return;
-
+  if (isEnabled("transcribe", profile)) {
   // ========== voxtral_transcribe ==========
   server.registerTool(
     "voxtral_transcribe",
@@ -193,8 +192,9 @@ export function registerAudioTools(
       }
     }
   );
+  } // end transcribe
 
-  if (profile === "admin") {
+  if (isEnabled("tts", profile)) {
   // ========== voxtral_speak ==========
   server.registerTool(
     "voxtral_speak",
@@ -289,5 +289,5 @@ export function registerAudioTools(
       }
     }
   );
-  } // end profile === "admin"
+  } // end tts
 }

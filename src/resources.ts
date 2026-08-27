@@ -22,7 +22,12 @@ import {
   TOOL_CAPABLE_MODELS,
   VISION_MODELS,
 } from "./models.js";
-import type { MistralProfile } from "./profile.js";
+import {
+  isEnabled,
+  TOOL_FAMILIES,
+  toolsForProfile,
+  type RuntimeConfig,
+} from "./profile.js";
 
 const STATIC_CATALOG = {
   chat: CHAT_MODELS,
@@ -37,8 +42,72 @@ const STATIC_CATALOG = {
 export function registerMistralResources(
   server: McpServer,
   mistral: Mistral,
-  profile: MistralProfile = "core"
+  runtime: RuntimeConfig = {
+    profile: "core",
+    customEndpoint: false,
+    profileInferred: true,
+  }
 ) {
+  const { profile } = runtime;
+
+  // ========== mistral://capabilities ==========
+  server.registerResource(
+    "mistral-capabilities",
+    "mistral://capabilities",
+    {
+      title: "Server capabilities",
+      description:
+        "What this server instance can actually do: the endpoint it talks to, the " +
+        "active profile, and every tool family with whether it is exposed and why " +
+        "not when it isn't. Read this before concluding a tool is missing — a " +
+        "self-hosted endpoint hides the Mistral-only surface by design.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const families = Object.fromEntries(
+        Object.entries(TOOL_FAMILIES).map(([name, f]) => {
+          const available = f.profiles.includes(profile);
+          let unavailable_reason: string | undefined;
+          if (!available) {
+            unavailable_reason =
+              runtime.customEndpoint && !f.openaiCompatible
+                ? "Mistral Cloud endpoint, not part of the OpenAI-compatible surface a custom MISTRAL_BASE_URL serves. Set MISTRAL_MCP_PROFILE=admin to expose it anyway."
+                : `Not exposed by the "${profile}" profile. Available in: ${f.profiles.join(", ")}.`;
+          }
+          return [
+            name,
+            {
+              available,
+              tools: [...f.tools],
+              openai_compatible: f.openaiCompatible,
+              summary: f.summary,
+              ...(unavailable_reason ? { unavailable_reason } : {}),
+            },
+          ];
+        })
+      );
+
+      const payload = {
+        endpoint: runtime.baseUrl ?? "https://api.mistral.ai",
+        endpoint_kind: runtime.customEndpoint ? "custom" : "mistral-cloud",
+        profile,
+        profile_inferred: runtime.profileInferred,
+        registered_tools: toolsForProfile(profile),
+        tool_families: families,
+      };
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text: JSON.stringify(payload, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
   server.registerResource(
     "mistral-models",
     "mistral://models",
@@ -75,8 +144,9 @@ export function registerMistralResources(
         spec_version: "2025-11-25",
         source_api: "GET /v1/models (live)",
         policy:
-          "Only -latest aliases are accepted. Dated variants (e.g. codestral-2501) all " +
-          "have retirement dates and are rejected up-front by input validation.",
+          "Any identifier the endpoint serves is accepted; `accepted` below is curated " +
+          "guidance, not an allow-list. Prefer -latest aliases on Mistral Cloud — dated " +
+          "variants carry retirement dates, the aliases roll forward on their own.",
         accepted: STATIC_CATALOG,
         live,
         fallback,
@@ -95,6 +165,7 @@ export function registerMistralResources(
     }
   );
 
+  if (isEnabled("tts", profile)) {
   server.registerResource(
     "mistral-voices",
     "mistral://voices",
@@ -159,6 +230,9 @@ export function registerMistralResources(
     }
   );
 
+  } // end voices
+
+  if (isEnabled("workflows", profile)) {
   server.registerResource(
     "mistral-workflows",
     "mistral://workflows",
@@ -215,4 +289,5 @@ export function registerMistralResources(
       };
     }
   );
+  } // end workflows
 }

@@ -6,12 +6,12 @@
     "url": "https://github.com/Swih/mistral-mcp",
     "source": "github"
   },
-  "version": "0.9.1",
+  "version": "0.10.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "mistral-mcp",
-      "version": "0.9.1",
+      "version": "0.10.0",
       "transport": {
         "type": "stdio"
       },
@@ -22,6 +22,20 @@
           "format": "string",
           "isRequired": true,
           "isSecret": true
+        },
+        {
+          "name": "MISTRAL_BASE_URL",
+          "description": "Optional OpenAI-compatible endpoint (vLLM, TGI, LiteLLM, internal gateway). Setting it routes every call there instead of api.mistral.ai and switches the server to the self-hosted profile.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "MISTRAL_MCP_PROFILE",
+          "description": "Tool surface to expose: core (default), admin, workflows, metier-docs, self-hosted. Overrides what MISTRAL_BASE_URL would infer.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
         }
       ]
     }

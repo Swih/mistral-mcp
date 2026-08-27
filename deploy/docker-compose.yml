@@ -1,0 +1,93 @@
+# mistral-mcp — on-prem deployment.
+#
+#   cp .env.example .env      # then fill it in
+#   docker compose -f deploy/docker-compose.yml up -d
+#   curl localhost:3333/healthz
+#
+# The `vllm` profile additionally starts a local OpenAI-compatible model server
+# and points mistral-mcp at it, so nothing leaves the host:
+#
+#   docker compose -f deploy/docker-compose.yml --profile vllm up -d
+#
+# TLS is deliberately out of scope here. Terminate it at your ingress; the
+# container binds plain HTTP and must not be published to a public interface.
+
+services:
+  mistral-mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: mistral-mcp:local
+    restart: unless-stopped
+    environment:
+      MCP_TRANSPORT: http
+      # 0.0.0.0 is required inside a container — the port publishing below is
+      # what actually limits exposure.
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: "3333"
+      # Shared secret for MCP clients. Generate: openssl rand -hex 32
+      MCP_HTTP_TOKEN: ${MCP_HTTP_TOKEN:?set MCP_HTTP_TOKEN in .env}
+      # Mistral Cloud key. Leave empty when MISTRAL_BASE_URL points at an
+      # endpoint that does not authenticate.
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      # Point at your own OpenAI-compatible endpoint to keep inference on-prem.
+      # Setting this switches the server to the `self-hosted` profile.
+      MISTRAL_BASE_URL: ${MISTRAL_BASE_URL:-}
+      MISTRAL_MCP_PROFILE: ${MISTRAL_MCP_PROFILE:-}
+      MISTRAL_DEFAULT_MODEL: ${MISTRAL_DEFAULT_MODEL:-}
+      MISTRAL_MCP_CACHE_DIR: /var/cache/mistral-mcp
+    ports:
+      # Loopback only. Change to "3333:3333" only behind a TLS-terminating proxy.
+      - "127.0.0.1:3333:3333"
+    volumes:
+      - mistral-mcp-cache:/var/cache/mistral-mcp
+    healthcheck:
+      # /healthz needs no auth and never touches the MCP server.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3333/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # Optional local inference. Start with `--profile vllm`.
+  vllm:
+    profiles: ["vllm"]
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    command:
+      - --model
+      - ${VLLM_MODEL:-mistralai/Mistral-Small-3.2-24B-Instruct-2506}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  mistral-mcp-cache:
+  hf-cache:

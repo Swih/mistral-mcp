@@ -179,15 +179,24 @@ describe("codestral_fim", () => {
     expect(sc.usage?.totalTokens).toBe(14);
   });
 
-  it("rejects an unsupported FIM model", async () => {
+  it("forwards an off-family model identifier to the endpoint", async () => {
+    // Which models expose /v1/fim/completions is the endpoint's call, not a
+    // list frozen into this build.
+    const { client, mock } = await bootPair();
+    const result = await client.callTool({
+      name: "codestral_fim",
+      arguments: { prompt: "x", suffix: "", model: "my-org/codegen-7b" },
+    });
+    expect(result.isError).toBeFalsy();
+    const arg = (mock.fim.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(arg?.model).toBe("my-org/codegen-7b");
+  });
+
+  it("still rejects an empty model string", async () => {
     const { client } = await bootPair();
     const result = await client.callTool({
       name: "codestral_fim",
-      arguments: {
-        prompt: "x",
-        suffix: "",
-        model: "mistral-large-latest", // not a FIM model
-      },
+      arguments: { prompt: "x", suffix: "", model: "" },
     });
     expect(result.isError).toBe(true);
   });

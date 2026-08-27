@@ -55,9 +55,9 @@ import {
   BatchListOutputSchema,
 } from "../../src/tools-batch.js";
 import {
-  registerSamplingTools,
-  SampleOutputSchema,
-} from "../../src/tools-sampling.js";
+  registerRagTools,
+  RagIndexesListOutputSchema,
+} from "../../src/tools-rag.js";
 import {
   registerWorkflowTools,
   WorkflowExecuteOutputSchema,
@@ -368,6 +368,27 @@ function makeMock(): Mistral {
       },
     },
     beta: {
+      rag: {
+        searchIndexes: {
+          getDeploymentSummaries: vi.fn(async () => ({
+            deployments: [
+              {
+                id: "dep-ct-1",
+                name: "Contract corpus",
+                creatorId: "user-ct-1",
+                documentCount: 7,
+                status: "ready",
+                createdAt: new Date("2026-08-01T00:00:00Z"),
+                modifiedAt: new Date("2026-08-02T00:00:00Z"),
+                deployment: {
+                  type: "vespa",
+                  indexes: [{ id: "idx-ct-1", name: "primary", documentCount: 7 }],
+                },
+              },
+            ],
+          })),
+        },
+      },
       connectors: {
         list: vi.fn(async () => ({
           items: [
@@ -547,16 +568,16 @@ async function boot(mock: Mistral = makeMock()) {
   const server = new McpServer({ name: "contract-test", version: "0.0.0" });
   registerMistralTools(server, mock, "admin");
   registerFunctionTools(server, mock, "admin");
-  registerVisionTools(server, mock);
+  registerVisionTools(server, mock, "admin");
   registerAudioTools(server, mock, "admin");
   registerAgentTools(server, mock);
   registerFileTools(server, mock);
   registerBatchTools(server, mock);
-  registerSamplingTools(server);
   registerWorkflowTools(server, mock);
   registerConnectorTools(server, mock);
   registerConversationTools(server, mock);
   registerLibraryTools(server, mock);
+  registerRagTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -938,13 +959,6 @@ describe("contract: structuredContent matches outputSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("mcp_sample has an outputSchema (runtime shape validated in unit tests)", () => {
-    const shape = SampleOutputSchema.shape;
-    expect(shape.role).toBeTruthy();
-    expect(shape.text).toBeTruthy();
-    expect(shape.model).toBeTruthy();
-  });
-
   it("workflow_execute", async () => {
     const { client } = await boot();
     const res = await client.callTool({
@@ -1182,6 +1196,22 @@ describe("contract: structuredContent matches outputSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("rag_indexes_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "rag_indexes_list",
+      arguments: {},
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = RagIndexesListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (rag_indexes_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
   it("libraries_list", async () => {
     const { client } = await boot();
     const res = await client.callTool({ name: "libraries_list", arguments: {} });
@@ -1268,7 +1298,9 @@ describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(40); // 22 v0.5 tools + 3 workflow tools + 4 connector tools + 6 conversation tools + 5 library tools
+    // Canary against accidental additions/removals. Bump deliberately, with a
+    // CHANGELOG entry — never to make a red build green.
+    expect(tools.length).toBe(40);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

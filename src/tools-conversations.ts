@@ -28,7 +28,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Mistral } from "@mistralai/mistralai";
 import type { ConversationRequestTool } from "@mistralai/mistralai/models/components/conversationrequest.js";
 import { z } from "zod";
-import { ChatModelSchema, DEFAULT_CHAT_MODEL } from "./models.js";
+import { ChatModelSchema, defaultChatModel } from "./models.js";
 import { ChatSamplingParams, errorResult, toTextBlock } from "./shared.js";
 
 // ---------- shared sub-schemas ----------
@@ -261,7 +261,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
           .optional()
           .describe("Pre-configured Mistral Agent ID. Mutually exclusive with model."),
         model: ChatModelSchema.optional().describe(
-          `Base chat model. Mutually exclusive with agentId. Default: ${DEFAULT_CHAT_MODEL}.`
+          `Base chat model. Mutually exclusive with agentId. Default: ${defaultChatModel()}.`
         ),
         instructions: z.string().optional().describe("System-level instructions."),
         tools: z
@@ -292,7 +292,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         const res = await mistral.beta.conversations.start({
           inputs: input.input,
           agentId: input.agentId,
-          model: input.agentId ? undefined : (input.model ?? DEFAULT_CHAT_MODEL),
+          model: input.agentId ? undefined : (input.model ?? defaultChatModel()),
           instructions: input.instructions,
           tools: buildToolsParam(input.tools, input.documentLibraryIds),
           store: input.store,

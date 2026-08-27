@@ -1,0 +1,175 @@
+# mistral-mcp — Kubernetes manifests for an on-prem install.
+#
+#   kubectl create namespace mistral-mcp
+#   kubectl -n mistral-mcp create secret generic mistral-mcp \
+#     --from-literal=MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
+#     --from-literal=MISTRAL_API_KEY="sk-..."
+#   kubectl -n mistral-mcp apply -f deploy/k8s/mistral-mcp.yaml
+#
+# Ships as plain manifests on purpose: the delivery model is "hand the customer
+# files they can read, diff and apply", and a chart would put a templating
+# engine between them and what actually runs on their cluster.
+#
+# No Ingress here either — TLS, hostnames and WAF rules belong to whoever owns
+# the cluster. Expose the Service through your own ingress and keep the bearer
+# token in front of it.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mistral-mcp
+  labels:
+    app.kubernetes.io/name: mistral-mcp
+data:
+  MCP_TRANSPORT: "http"
+  MCP_HTTP_HOST: "0.0.0.0"
+  MCP_HTTP_PORT: "3333"
+  MISTRAL_MCP_CACHE_DIR: "/var/cache/mistral-mcp"
+  # Point at an in-cluster OpenAI-compatible endpoint to keep inference local.
+  # Setting this switches the server to the `self-hosted` profile, which exposes
+  # only the tools such an endpoint can serve. Read mistral://capabilities to
+  # see exactly what is on. Leave empty to use Mistral Cloud.
+  MISTRAL_BASE_URL: ""
+  # Override only if your endpoint's model id differs from Mistral's aliases.
+  MISTRAL_DEFAULT_MODEL: ""
+  # core | admin | workflows | metier-docs | self-hosted.
+  # Leave empty to let the server infer it from MISTRAL_BASE_URL.
+  MISTRAL_MCP_PROFILE: ""
+  # Comma-separated exact origins. Empty disables the check; set it when
+  # browser-based clients reach the server.
+  MCP_HTTP_ALLOWED_ORIGINS: ""
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mistral-mcp
+  labels:
+    app.kubernetes.io/name: mistral-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mistral-mcp
+  ports:
+    - name: http
+      port: 3333
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mistral-mcp
+  labels:
+    app.kubernetes.io/name: mistral-mcp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mistral-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mistral-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mistral-mcp
+          # Pin a digest in production; :latest is here so the file is runnable.
+          image: ghcr.io/swih/mistral-mcp:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3333
+          envFrom:
+            - configMapRef:
+                name: mistral-mcp
+            - secretRef:
+                name: mistral-mcp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            # /healthz is unauthenticated and never touches the MCP server.
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              # The server proxies to an API; it is I/O-bound, not CPU-bound.
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: cache
+              mountPath: /var/cache/mistral-mcp
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # emptyDir, not a PVC: the process_document cache is keyed by content
+        # hash, so losing it costs a re-OCR and nothing else. With replicas > 1
+        # each pod keeps its own — swap in a RWX PVC if that re-OCR matters.
+        - name: cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+# Default-deny egress, then allow only what the server actually needs: DNS, and
+# the inference endpoint. Narrow the second rule to your endpoint's selector or
+# CIDR — as written it permits any in-cluster destination on the usual ports.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mistral-mcp
+  labels:
+    app.kubernetes.io/name: mistral-mcp
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mistral-mcp
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mistral-mcp
+  labels:
+    app.kubernetes.io/name: mistral-mcp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mistral-mcp

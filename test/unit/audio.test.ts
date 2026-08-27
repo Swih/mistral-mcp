@@ -167,13 +167,28 @@ describe("voxtral_transcribe", () => {
     }
   });
 
-  it("rejects a non-STT model", async () => {
+  it("forwards an off-family model identifier to the endpoint", async () => {
+    const { client, mock } = await boot();
+    const result = await client.callTool({
+      name: "voxtral_transcribe",
+      arguments: {
+        audio: { type: "file_url", fileUrl: "https://example.com/a.mp3" },
+        model: "my-org/whisper-large-v3",
+      },
+    });
+    expect(result.isError).toBeFalsy();
+    const arg = (mock.audio.transcriptions.complete as ReturnType<typeof vi.fn>)
+      .mock.calls[0]?.[0];
+    expect(arg?.model).toBe("my-org/whisper-large-v3");
+  });
+
+  it("still rejects an empty model string", async () => {
     const { client } = await boot();
     const result = await client.callTool({
       name: "voxtral_transcribe",
       arguments: {
         audio: { type: "file_url", fileUrl: "https://example.com/a.mp3" },
-        model: "mistral-large-latest",
+        model: "",
       },
     });
     expect(result.isError).toBe(true);

@@ -15,6 +15,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
+import { isEnabled, type MistralProfile } from "./profile.js";
 import {
   DEFAULT_OCR_MODEL,
   DEFAULT_VISION_MODEL,
@@ -208,7 +209,12 @@ const OcrDocumentSchema = z.union([
 
 // ---------- registration ----------
 
-export function registerVisionTools(server: McpServer, mistral: Mistral) {
+export function registerVisionTools(
+  server: McpServer,
+  mistral: Mistral,
+  profile: MistralProfile = "core"
+) {
+  if (isEnabled("vision", profile)) {
   // ========== mistral_vision ==========
   server.registerTool(
     "mistral_vision",
@@ -280,7 +286,9 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
       }
     }
   );
+  } // end vision
 
+  if (isEnabled("ocr", profile)) {
   // ========== mistral_ocr ==========
   server.registerTool(
     "mistral_ocr",
@@ -505,4 +513,5 @@ export function registerVisionTools(server: McpServer, mistral: Mistral) {
       }
     }
   );
+  } // end ocr
 }

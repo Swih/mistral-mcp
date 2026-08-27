@@ -159,18 +159,27 @@ describe("mistral_vision", () => {
     expect(result.isError).toBeFalsy();
   });
 
-  it("rejects a non-vision model", async () => {
+  it("forwards an off-family model identifier to the endpoint", async () => {
+    const { client, mock } = await boot();
+    const result = await client.callTool({
+      name: "mistral_vision",
+      arguments: {
+        messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+        model: "my-org/vlm-13b",
+      },
+    });
+    expect(result.isError).toBeFalsy();
+    const arg = (mock.chat.complete as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(arg?.model).toBe("my-org/vlm-13b");
+  });
+
+  it("still rejects an empty model string", async () => {
     const { client } = await boot();
     const result = await client.callTool({
       name: "mistral_vision",
       arguments: {
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: "hi" }],
-          },
-        ],
-        model: "codestral-latest",
+        messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+        model: "",
       },
     });
     expect(result.isError).toBe(true);

@@ -8,6 +8,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Mistral } from "@mistralai/mistralai";
 import { registerMistralResources } from "../../src/resources.js";
+import type { RuntimeConfig } from "../../src/profile.js";
 import { registerMistralPrompts } from "../../src/prompts.js";
 
 function firstTextContent(result: {
@@ -61,9 +62,20 @@ function makeMockMistral(overrides: Record<string, unknown> = {}): Mistral {
   } as unknown as Mistral;
 }
 
-async function boot(mock: Mistral = makeMockMistral()) {
+// "admin" so every resource is registered — voices and workflows are now
+// gated on the profiles that actually expose their tools.
+const ADMIN_RUNTIME: RuntimeConfig = {
+  profile: "admin",
+  customEndpoint: false,
+  profileInferred: false,
+};
+
+async function boot(
+  mock: Mistral = makeMockMistral(),
+  runtime: RuntimeConfig = ADMIN_RUNTIME
+) {
   const server = new McpServer({ name: "rp-test", version: "0.0.0" });
-  registerMistralResources(server, mock);
+  registerMistralResources(server, mock, runtime);
   registerMistralPrompts(server);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();

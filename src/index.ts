@@ -7,8 +7,12 @@
  *   - Streamable HTTP (--http flag or  — remote deployments; bind 127.0.0.1
  *     MCP_TRANSPORT=http env)            by default, optional bearer auth.
  *
- * SDK: @modelcontextprotocol/sdk 1.29.0 (high-level McpServer API).
- * Mistral: @mistralai/mistralai 2.3.0 (speakeasy-generated, built-in retry).
+ * Endpoint: Mistral Cloud by default, or any OpenAI-compatible endpoint via
+ * MISTRAL_BASE_URL (vLLM serving open weights, a token factory, a gateway).
+ * See src/profile.ts for what that implies about the exposed tool surface.
+ *
+ * SDK: @modelcontextprotocol/sdk 1.30.0 (high-level McpServer API).
+ * Mistral: @mistralai/mistralai 2.6.4 (speakeasy-generated, built-in retry).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -20,40 +24,57 @@ import { registerAudioTools } from "./tools-audio.js";
 import { registerAgentTools } from "./tools-agents.js";
 import { registerFileTools } from "./tools-files.js";
 import { registerBatchTools } from "./tools-batch.js";
-import { registerSamplingTools } from "./tools-sampling.js";
 import { registerWorkflowTools } from "./tools-workflows.js";
 import { registerConnectorTools } from "./tools-connectors.js";
 import { registerConversationTools } from "./tools-conversations.js";
 import { registerLibraryTools } from "./tools-libraries.js";
 import { registerDocsTools } from "./tools-docs.js";
+import { registerRagTools } from "./tools-rag.js";
 import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
-import { resolveProfile } from "./profile.js";
+import { isEnabled, resolveRuntime, type RuntimeConfig } from "./profile.js";
 
 /**
  * Keep in sync with package.json on release. Declared once so the advertised
  * server identity and the boot log can never disagree — they already drifted
  * twice (see "fix(release): align runtime log version to 0.7.0").
  */
-const SERVER_VERSION = "0.9.1";
+const SERVER_VERSION = "0.10.0";
+
+let runtime: RuntimeConfig;
+try {
+  runtime = resolveRuntime();
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
 
 const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
-  console.error(
-    "[mistral-mcp] MISTRAL_API_KEY is not set.\n" +
-      "  → Get a free key (1B tokens/month on the Experiment tier):\n" +
-      "    https://console.mistral.ai/api-keys\n" +
-      "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
-      "  → Or pass it in your MCP client config (env block).\n" +
-      "  Server will start without auth so tools/list works for sandboxed\n" +
-      "  introspection (Glama, Smithery, etc.). Tool calls will fail with\n" +
-      "  a 401 from Mistral until a valid key is provided."
-  );
+  if (runtime.customEndpoint) {
+    // A local vLLM usually has no auth at all, so this is routine, not a fault.
+    console.error(
+      `[mistral-mcp] no MISTRAL_API_KEY set; sending an empty bearer to ${runtime.baseUrl}.\n` +
+        "  Set MISTRAL_API_KEY if your endpoint expects a token."
+    );
+  } else {
+    console.error(
+      "[mistral-mcp] MISTRAL_API_KEY is not set.\n" +
+        "  → Get a free key (1B tokens/month on the Experiment tier):\n" +
+        "    https://console.mistral.ai/api-keys\n" +
+        "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
+        "  → Or point the server at your own endpoint: MISTRAL_BASE_URL=http://...\n" +
+        "  Server will start without auth so tools/list works for sandboxed\n" +
+        "  introspection (Glama, Smithery, etc.). Tool calls will fail with\n" +
+        "  a 401 from Mistral until a valid key is provided."
+    );
+  }
 }
 
 const mistral = new Mistral({
   apiKey: API_KEY ?? "missing",
+  ...(runtime.baseUrl ? { serverURL: runtime.baseUrl } : {}),
   retryConfig: {
     strategy: "backoff",
     backoff: {
@@ -67,52 +88,54 @@ const mistral = new Mistral({
   timeoutMs: 60_000,
 });
 
-const profile = resolveProfile();
+const { profile } = runtime;
 
 const server = new McpServer({
   name: "mistral-mcp",
   version: SERVER_VERSION,
 });
 
+// Registration is driven by the family table in profile.ts — never by an
+// ad-hoc profile comparison here. Adding a tool means adding it there.
 registerMistralTools(server, mistral, profile);
 registerFunctionTools(server, mistral, profile);
-
-if (profile !== "workflows") {
-  // core, admin and metier-docs all get vision/OCR tools
-  registerVisionTools(server, mistral);
-}
-
+registerVisionTools(server, mistral, profile);
 registerAudioTools(server, mistral, profile);
 
-if (profile === "admin") {
-  registerAgentTools(server, mistral);
-  registerFileTools(server, mistral);
-  registerBatchTools(server, mistral);
-  registerSamplingTools(server);
-  registerConversationTools(server, mistral);
-  registerLibraryTools(server, mistral);
-}
+if (isEnabled("agents", profile)) registerAgentTools(server, mistral);
+if (isEnabled("files", profile)) registerFileTools(server, mistral);
+if (isEnabled("batch", profile)) registerBatchTools(server, mistral);
+if (isEnabled("conversations", profile)) registerConversationTools(server, mistral);
+if (isEnabled("libraries", profile)) registerLibraryTools(server, mistral);
+if (isEnabled("workflows", profile)) registerWorkflowTools(server, mistral);
+if (isEnabled("connectors", profile)) registerConnectorTools(server, mistral);
+if (isEnabled("documents", profile)) registerDocsTools(server, mistral);
+if (isEnabled("rag", profile)) registerRagTools(server, mistral);
 
-// workflow and connector tools are present in every profile
-registerWorkflowTools(server, mistral);
-registerConnectorTools(server, mistral);
-
-if (profile === "metier-docs" || profile === "admin") {
-  registerDocsTools(server, mistral);
-}
-
-registerMistralResources(server, mistral, profile);
+registerMistralResources(server, mistral, runtime);
 registerMistralPrompts(server);
 
 const transportOpts = resolveTransportOptions();
 const connected = await connectTransport(server, transportOpts);
+
+const endpoint = runtime.baseUrl ?? "https://api.mistral.ai (default)";
+const address = connected.address
+  ? ` (${connected.address.host}:${connected.address.port})`
+  : "";
 console.error(
-  `[mistral-mcp] v${SERVER_VERSION} (profile=${profile}) connected via ${connected.mode}${
-    connected.address
-      ? ` (${connected.address.host}:${connected.address.port})`
-      : ""
-  }`
+  `[mistral-mcp] v${SERVER_VERSION} profile=${profile}${
+    runtime.profileInferred ? " (inferred)" : ""
+  } endpoint=${endpoint} transport=${connected.mode}${address}`
 );
+if (runtime.customEndpoint && runtime.profileInferred) {
+  console.error(
+    "[mistral-mcp] MISTRAL_BASE_URL is set, so only the OpenAI-compatible tool\n" +
+      "  surface is exposed (chat, streaming, embeddings, function calling, vision).\n" +
+      "  OCR, Voxtral, Workflows, Connectors, Conversations and Libraries are Mistral\n" +
+      "  Cloud endpoints and are hidden. Read mistral://capabilities for the details,\n" +
+      "  or set MISTRAL_MCP_PROFILE=admin if your endpoint serves the full API."
+  );
+}
 
 const shutdown = async (signal: NodeJS.Signals) => {
   console.error(`[mistral-mcp] received ${signal}, shutting down`);

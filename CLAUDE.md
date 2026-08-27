@@ -118,7 +118,7 @@ npm run inspector    # MCP Inspector UI sur dist/index.js
 | 2. Contract | `test/contract/` | InMemoryTransport | `structuredContent` valide contre `outputSchema` pour **chaque** tool | Chaque PR |
 | 3. Stdio e2e | `test/stdio/` | spawn `dist/index.js` | Handshake, list_tools, un call réel par catégorie | Pre-release |
 | 4. Live API | `test/live/` | real Mistral | Une requête par endpoint wrappé, payload vérifié | Manuel + CI cron |
-| 5. Smoke | `examples/` | end-user scripts | `try-it.mjs`, `rate-it.mjs` passent | Pre-release |
+| 5. Smoke | `examples/` | end-user scripts | `try-it.mjs` passe | Pre-release |
 
 Règle : **un test qui `skipIf` en CI ne compte pas comme un test**. Un niveau de la
 pyramide qui ne peut pas tourner sans secret doit soit avoir un sous-ensemble qui
@@ -181,4 +181,4 @@ Règle : **un tool non testé ne ship pas**. Si on ajoute `mistral_ocr`, on ajou
 
 ---
 
-*Mis à jour : v0.9.1. Lire en entier avant de toucher au code.*
+*Mis à jour : v0.10.0. Lire en entier avant de toucher au code.*

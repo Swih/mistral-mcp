@@ -4,6 +4,34 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-28
+
+Execution sovereignty: run the whole server against your own OpenAI-compatible
+endpoint, and let the tool surface tell the truth about what that endpoint can do.
+
+### Added
+- **`MISTRAL_BASE_URL`** — point the server at any OpenAI-compatible endpoint (vLLM, TGI, LiteLLM, an internal token factory) and every request goes there instead of `api.mistral.ai`. Wired to the Mistral SDK's `serverURL`. Validated at boot: absolute http(s) only, trailing slashes stripped, and `https://api.mistral.ai` recognised as *not* custom so the default path is unchanged.
+- **`self-hosted` profile** — inferred automatically from a custom `MISTRAL_BASE_URL`, and registering only the five families such an endpoint actually serves: `mistral_chat`, `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call`, `mistral_vision`. OCR, Voxtral, Files, Batch, Agents, Conversations, Libraries and Workflows are Mistral-platform endpoints — advertising them in front of vLLM only produces 404s the calling model has to guess its way out of. An explicit `MISTRAL_MCP_PROFILE` always wins over the inference, for gateways that do proxy the full API.
+- **`mistral://capabilities` resource** — the active profile, whether it was inferred, the endpoint and its kind (`mistral` / `custom`), the list of registered tools, and for every tool family whether it is available plus a one-line reason when it is not. An agent can now discover *why* a tool is missing instead of calling it to find out.
+- **`rag_indexes_list`** — lists the search-index deployments on the account (backend, status, per-index document counts, ISO timestamps). Read-only, `core` profile. Deliberately not a retrieval tool: Mistral's Agentic Search ships its own MCP server, and reimplementing hybrid retrieval here would duplicate it badly. Register/unregister stay out for the same reason `connectors_*` and `libraries_*` writes do — they are deploy-pipeline operations, not agent-loop operations.
+- **On-prem deployment deliverables** — `deploy/docker-compose.yml` (bearer token required, loopback-only publish, read-only rootfs, all capabilities dropped, healthcheck; optional `vllm` profile for local inference) and `deploy/k8s/mistral-mcp.yaml` (ConfigMap, Service, Deployment with `runAsNonRoot`/`readOnlyRootFilesystem`/`seccompProfile: RuntimeDefault`, default-deny NetworkPolicy, PodDisruptionBudget). Plain manifests, no Helm chart: the delivery model is files the customer can read, diff and apply. `deploy/README.md` documents both plus the full environment reference.
+- **`test/stdio/self-hosted.test.ts`** — spins up a real OpenAI-compatible HTTP server, spawns the built binary against it, and asserts the profile inference, the 5-tool catalogue, the absent Mistral-only resources, and a real `mistral_chat` call landing on the fake endpoint with a non-Mistral model id. No key, no egress, runs on every push.
+
+### Changed
+- **Model identifiers are no longer validated against a closed `z.enum`.** They are now non-empty strings whose `.describe()` carries the known Mistral aliases and points at `mistral://models`. This is the same failure class as the `ConfidenceScoresGranularity` enum fixed in 0.9.1: a client-side allow-list rejects valid identifiers before the API can answer, goes stale on every Mistral release, and made `MISTRAL_BASE_URL` unusable (`my-org/mistral-small-3.2` is a normal answer, not an error). Empty strings are still rejected; the endpoint remains the authority on what it serves.
+- **Profile gating is table-driven** (`TOOL_FAMILIES` in `src/profile.ts`). The rules had been duplicated across `index.ts`, four `tools-*.ts` modules and `resources.ts`, which is how 0.8.0 leaked `codestral_fim` and `voxtral_transcribe` into the `workflows` profile. A third instance of the same class is fixed here: `resources.ts` accepted a `profile` argument it never read, so `mistral://voices` and `mistral://workflows` were advertised under every profile. Unit tests now assert the table's invariants directly.
+- Docker image `node:20-alpine → node:22-alpine`, runs as `USER node`, npm cache cleaned, cache directory created and owned so a read-only root filesystem works.
+- `engines.node` `>=18 → >=20`. Node 18 reached end-of-life on 2025-04-30 and CI has only tested 20 and 22 for several releases.
+- `OCR_MODELS` gains `mistral-ocr-4-1` and `mistral-ocr-4-0` as documented aliases.
+
+### Removed
+- **`mcp_sample` (breaking).** It asked the *client* to run a completion via MCP sampling — a capability almost no client implements, so the tool's honest answer to nearly every caller was an error. Sampling is deprecated in MCP 2026-07-28 besides. Use `mistral_chat`, which does the same job against an endpoint that exists.
+- `examples/rate-it.mjs` and the `clawhub/` directory — neither was reachable from the documented surface.
+- `DEFAULT_TOOL_MODEL` — callers use `defaultChatModel()`, which honours `MISTRAL_DEFAULT_MODEL`.
+
+### Moved
+- `examples/deploy/README.md` → `deploy/connector-public.md`, next to the manifests it belongs with. Both READMEs' links updated.
+
 ## [0.9.1] - 2026-08-27
 
 ### Fixed

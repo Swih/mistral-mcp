@@ -18,13 +18,12 @@ import { Mistral } from "@mistralai/mistralai";
 import type { CompletionEvent } from "@mistralai/mistralai/models/components/completionevent.js";
 import { z } from "zod";
 import {
-  CHAT_MODELS,
   ChatModelSchema,
-  DEFAULT_CHAT_MODEL,
+  defaultChatModel,
   DEFAULT_EMBED_MODEL,
   EmbedModelSchema,
 } from "./models.js";
-import type { MistralProfile } from "./profile.js";
+import { isEnabled, type MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
@@ -78,8 +77,7 @@ export function registerMistralTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
-  if (profile === "workflows") return;
-
+  if (isEnabled("chat", profile)) {
   // ========== mistral_chat (non-streaming) ==========
   server.registerTool(
     "mistral_chat",
@@ -102,7 +100,7 @@ export function registerMistralTools(
           .min(1)
           .describe("Chat messages in role/content form."),
         model: ChatModelSchema.optional().describe(
-          `Mistral chat model alias. Allowed: ${CHAT_MODELS.join(", ")}. Default: ${DEFAULT_CHAT_MODEL}.`
+          `Chat model. Default: ${defaultChatModel()} (override with MISTRAL_DEFAULT_MODEL).`
         ),
         response_format: ResponseFormatSchema.optional().describe(
           'Force a structured output: `{type:"json_object"}` for JSON mode, `{type:"json_schema", json_schema:{...}}` for strict schema mode.'
@@ -126,7 +124,7 @@ export function registerMistralTools(
     },
     async (input) => {
       try {
-        const model = input.model ?? DEFAULT_CHAT_MODEL;
+        const model = input.model ?? defaultChatModel();
         const res = await mistral.chat.complete({
           model,
           messages: input.messages,
@@ -160,8 +158,9 @@ export function registerMistralTools(
       }
     }
   );
+  } // end chat
 
-  if (profile === "admin") {
+  if (isEnabled("chat_stream", profile)) {
   // ========== mistral_chat_stream (streaming with progress) ==========
   server.registerTool(
     "mistral_chat_stream",
@@ -193,7 +192,7 @@ export function registerMistralTools(
     },
     async (input, extra) => {
       try {
-        const model = input.model ?? DEFAULT_CHAT_MODEL;
+        const model = input.model ?? defaultChatModel();
         const stream = await mistral.chat.stream({
           model,
           messages: input.messages,
@@ -268,6 +267,9 @@ export function registerMistralTools(
     }
   );
 
+  } // end chat_stream
+
+  if (isEnabled("embed", profile)) {
   // ========== mistral_embed ==========
   server.registerTool(
     "mistral_embed",
@@ -333,5 +335,5 @@ export function registerMistralTools(
       }
     }
   );
-  } // end profile === "admin"
+  } // end embed
 }

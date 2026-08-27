@@ -38,6 +38,7 @@ Cela peut être utile pour les organisations européennes qui évaluent une stac
 
 - serveur MCP auto-hébergeable, pas de proxy SaaS obligatoire
 - bring-your-own Mistral API key (BYOK) — Mistral déclare ne pas utiliser les données API pour entraîner ses modèles
+- `MISTRAL_BASE_URL` route tous les appels vers votre propre endpoint OpenAI-compatible (vLLM, TGI, LiteLLM, une gateway interne) — aucun trafic vers `api.mistral.ai`
 - profil `core` léger et profil `metier-docs` ciblé pour limiter l'exposition de tools
 - cache `process_document` configurable par appel et via `MISTRAL_MCP_CACHE_DIR`
 - bypass du cache pour les documents d'identité activé par défaut, même quand `kind:"auto"` résout en `id_document`
@@ -88,10 +89,11 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 
 | Profil | Tools | Quand l'utiliser |
 |---|---|---|
-| `core` (défaut) | 12 | Usage agentique quotidien — contexte minimal |
+| `core` (défaut) | 13 | Usage agentique quotidien — contexte minimal |
 | `admin` | 41 | Surface API complète — embeddings, streaming, batch, classify, files, agents, TTS, extraction documentaire, conversations stateful, libraries RAG. Pour debug, CI, scripts. |
-| `workflows` | 7 | Orchestration de pipeline + connecteurs uniquement |
-| `metier-docs` | 13 | Vertical documents — core + macro-tool `process_document` |
+| `workflows` | 8 | Orchestration de pipeline + connecteurs uniquement |
+| `metier-docs` | 14 | Vertical documents — core + macro-tool `process_document` |
+| `self-hosted` | 5 | Inférence sur votre propre endpoint OpenAI-compatible — déduit de `MISTRAL_BASE_URL` |
 
 > `full` est accepté comme alias déprécié de `admin` pour rétro-compatibilité.
 
@@ -99,11 +101,15 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 ```
 
+Lisez `mistral://capabilities` depuis n'importe quel client pour savoir quelles
+familles de tools sont actives, lesquelles ne le sont pas, et pourquoi — pas
+besoin de comparer ce tableau à votre déploiement.
+
 ---
 
 ## Tools
 
-### Profil core (12 tools — toujours disponibles)
+### Profil core (13 tools — toujours disponibles)
 
 | Tool | Ce qu'il fait |
 |---|---|
@@ -119,6 +125,7 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | `connectors_get` | Récupère les métadonnées publiques d'un connecteur (jamais les credentials). |
 | `connectors_list_tools` | Liste les tools MCP exposés par un connecteur, avec leur schéma d'entrée. |
 | `connectors_call_tool` | Invoque un tool d'un connecteur — passthrough du `CallToolResult` MCP réel. |
+| `rag_indexes_list` | Liste les déploiements d'index de recherche du compte, avec backend et nombre de documents. |
 
 ### Vertical documents (`MISTRAL_MCP_PROFILE=metier-docs`)
 
@@ -126,7 +133,7 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 |---|---|
 | `process_document` | Macro-tool en un appel : OCR → classification (kind=auto) → extraction typée → validation → cache. Kinds : `contract` / `invoice` / `id_document` / `generic`. Retourne une union discriminée. Cache PII-safe (auto-bypass id_document). `minOcrConfidence` configurable. |
 
-### Profil admin uniquement (+29 tools, `MISTRAL_MCP_PROFILE=admin`)
+### Profil admin uniquement (+28 tools, `MISTRAL_MCP_PROFILE=admin`)
 
 | Groupe | Tools |
 |---|---|
@@ -135,7 +142,6 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 | Audio | `voxtral_speak` (TTS) |
 | Fichiers | `files_upload`, `files_list`, `files_get`, `files_delete`, `files_signed_url` |
 | Batch | `batch_create`, `batch_get`, `batch_list`, `batch_cancel` |
-| Sampling | `mcp_sample` (délègue la génération au modèle du client MCP) |
 | Conversations | `conversation_start`, `conversation_append`, `conversation_get`, `conversation_list`, `conversation_history`, `conversation_delete` — boucles agentiques multi-tours avec les tools intégrés Mistral (web_search, code_interpreter, image_generation, document_library) |
 | Libraries (RAG) | `libraries_list`, `libraries_get`, `libraries_documents_list`, `libraries_documents_upload`, `libraries_documents_status` — découvre et alimente des Mistral Libraries déjà créées ; à combiner avec `documentLibraryIds` sur `conversation_start` pour les interroger |
 
@@ -145,7 +151,8 @@ MISTRAL_MCP_PROFILE=admin npx mistral-mcp
 
 | URI | Ce qu'elle retourne |
 |---|---|
-| `mistral://models` | Catalogue de modèles live + alias acceptés |
+| `mistral://capabilities` | Quelles familles de tools sont enregistrées, lesquelles ne le sont pas et pourquoi — plus le profil et l'endpoint actifs |
+| `mistral://models` | Catalogue de modèles live, lu depuis l'endpoint réellement utilisé |
 | `mistral://voices` | Catalogue de voix Voxtral TTS live |
 | `mistral://workflows` | Liste live des workflows déployés (utiliser `name` comme `workflowIdentifier`) |
 
@@ -214,6 +221,37 @@ node dist/index.js
 
 ---
 
+## Inférence auto-hébergée
+
+Pointez `MISTRAL_BASE_URL` vers n'importe quel endpoint OpenAI-compatible — vLLM,
+TGI, LiteLLM, une token factory interne — et toutes les requêtes y vont au lieu
+d'`api.mistral.ai` :
+
+```bash
+MISTRAL_BASE_URL=http://vllm.internal:8000/v1 MISTRAL_DEFAULT_MODEL=my-org/mistral-small-3.2 npx mistral-mcp
+```
+
+Deux choses changent quand l'endpoint n'est pas celui de Mistral :
+
+1. **Le profil devient `self-hosted`.** Seuls les cinq tools qu'un tel endpoint
+   sait réellement servir restent enregistrés — `mistral_chat`,
+   `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call`, `mistral_vision`.
+   OCR, Voxtral, Files, Batch et Workflows sont des endpoints de la plateforme
+   Mistral ; les annoncer devant vLLM ne produirait que des 404 dont le modèle
+   appelant doit se dépatouiller. Fixez `MISTRAL_MCP_PROFILE` explicitement si
+   votre gateway proxifie bien l'API complète.
+2. **Les identifiants de modèles ne sont plus validés contre une liste.** Toute
+   chaîne non vide est transmise telle quelle : les identifiants de votre
+   endpoint vous appartiennent.
+
+`mistral://capabilities` indique l'endpoint actif, le profil, s'il a été déduit,
+et la raison pour laquelle chaque famille indisponible est désactivée.
+
+Manifests Compose et Kubernetes, plus la référence complète des variables
+d'environnement, dans [`deploy/README.md`](./deploy/README.md).
+
+---
+
 ## Transport
 
 | Mode | Comment activer | Défaut |
@@ -229,7 +267,7 @@ Variables HTTP : `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TO
 
 ## Utilisation comme Mistral Connector (beta)
 
-`mistral-mcp` embarque le transport [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/) et l'auth bearer que [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) requièrent. Guides de déploiement Cloudflare Tunnel, Fly.io et Render dans [`examples/deploy/README.md`](./examples/deploy/).
+`mistral-mcp` embarque le transport [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/) et l'auth bearer que [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) requièrent. Guides de déploiement Cloudflare Tunnel, Fly.io et Cloud Run dans [`deploy/connector-public.md`](./deploy/connector-public.md).
 
 | Surface | Statut |
 |---|---|

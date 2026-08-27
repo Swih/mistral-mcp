@@ -15,11 +15,11 @@ import type { ChatCompletionRequest } from "@mistralai/mistralai/models/componen
 import { z } from "zod";
 import {
   DEFAULT_FIM_MODEL,
-  DEFAULT_TOOL_MODEL,
+  defaultChatModel,
   FimModelSchema,
   ToolModelSchema,
 } from "./models.js";
-import type { MistralProfile } from "./profile.js";
+import { isEnabled, type MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
@@ -79,9 +79,7 @@ export function registerFunctionTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
-  if (profile === "workflows") return;
-
-  if (profile === "admin") {
+  if (isEnabled("tool_call", profile)) {
   // ========== mistral_tool_call ==========
   server.registerTool(
     "mistral_tool_call",
@@ -120,7 +118,7 @@ export function registerFunctionTools(
     },
     async (input) => {
       try {
-        const model = input.model ?? DEFAULT_TOOL_MODEL;
+        const model = input.model ?? defaultChatModel();
         const request: ChatCompletionRequest = {
           model,
           messages: input.messages,
@@ -169,8 +167,9 @@ export function registerFunctionTools(
       }
     }
   );
-  } // end profile === "admin"
+  } // end tool_call
 
+  if (isEnabled("fim", profile)) {
   // ========== codestral_fim ==========
   server.registerTool(
     "codestral_fim",
@@ -236,4 +235,5 @@ export function registerFunctionTools(
       }
     }
   );
+  } // end fim
 }
