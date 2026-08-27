@@ -38,6 +38,11 @@ import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
 import { isEnabled, resolveRuntime, type RuntimeConfig } from "./profile.js";
+import {
+  configureAudit,
+  instrumentTools,
+  tracingHttpClient,
+} from "./observability.js";
 
 /**
  * Keep in sync with package.json on release. Declared once so the advertised
@@ -76,10 +81,15 @@ if (!API_KEY) {
   }
 }
 
+configureAudit();
+
 // One client for the process: it is stateless, holds the retry policy, and
 // pooling its connections across per-request server instances is the point.
 const mistral = new Mistral({
   apiKey: API_KEY ?? "missing",
+  // Stamps the caller's W3C trace context onto every outgoing request, so the
+  // customer's collector can join an MCP span to the Mistral span it caused.
+  httpClient: tracingHttpClient(),
   ...(runtime.baseUrl ? { serverURL: runtime.baseUrl } : {}),
   retryConfig: {
     strategy: "backoff",
@@ -124,6 +134,10 @@ function createServer(): McpServer {
       },
     }
   );
+
+  // Every tool registered below is timed, audited and trace-bound. Wrapping
+  // the seam rather than each handler is what makes that unconditional.
+  instrumentTools(server);
 
   // Registration is driven by the family table in profile.ts — never by an
   // ad-hoc profile comparison here. Adding a tool means adding it there.

@@ -115,6 +115,7 @@ if that re-OCR is expensive for you.
 | `MISTRAL_MCP_PROFILE` | No | `core` (default) / `admin` / `workflows` / `metier-docs` / `self-hosted`. Overrides inference. |
 | `MISTRAL_DEFAULT_MODEL` | No | Default chat model id when a call omits `model`. |
 | `MISTRAL_MCP_CACHE_DIR` | No | Where `process_document` caches results. |
+| `MISTRAL_MCP_AUDIT` | No | `off` silences the per-call JSON audit line on stderr. On by default. |
 | `MCP_TRANSPORT` | For HTTP | `http` to serve Streamable HTTP instead of stdio. |
 | `MCP_HTTP_HOST` / `MCP_HTTP_PORT` / `MCP_HTTP_PATH` | No | Bind address, port, path. Defaults `127.0.0.1:3333/mcp`. |
 | `MCP_HTTP_TOKEN` | For HTTP | Bearer token clients must present. Without it the endpoint is unauthenticated. |

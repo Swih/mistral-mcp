@@ -221,6 +221,37 @@ node dist/index.js
 
 ---
 
+## Observabilité
+
+Chaque appel de tool émet une ligne JSON sur stderr, et le contexte de trace
+W3C de l'appelant suit la requête jusqu'à l'endpoint d'inférence.
+
+```json
+{"ts":"2026-08-28T09:14:02.117Z","kind":"tool_call","tool":"mistral_ocr","outcome":"ok","duration_ms":1840,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
+```
+
+- **Continuité de trace.** `traceparent`, `tracestate` et `baggage` arrivent
+  dans le `_meta` de la requête MCP et sont apposés sur l'appel HTTP sortant :
+  votre collecteur relie le span MCP au span Mistral (ou vLLM) qu'il a causé,
+  au lieu d'afficher deux traces sans lien. Un en-tête malformé est ignoré,
+  jamais fatal.
+- **Jamais de payload.** Une ligne dit ce qui a tourné, combien de temps, et si
+  ça a échoué. Prompts, documents, transcriptions, arguments et sorties de
+  modèle n'y figurent pas : ce sont vos données, et ce process n'a pas à les
+  recopier dans un log qui ne lui appartient pas.
+  `test/stdio/observability.test.ts` vérifie ce négatif directement sur le
+  binaire compilé.
+- **Rien à activer, une seule chose à désactiver.** C'est actif par défaut :
+  une piste d'audit qu'il faut découvrir est une piste qu'on n'aura pas le jour
+  où elle sert. `MISTRAL_MCP_AUDIT=off` la coupe. On écrit sur stderr parce que
+  stdout porte le JSON-RPC, et parce que la capacité `logging` de MCP est
+  dépréciée en 2026-07-28 au profit de stderr et d'OpenTelemetry.
+
+L'instrumentation enveloppe `registerTool` plutôt que chaque handler : un tool
+ne peut pas manquer à la piste d'audit sans manquer au serveur lui-même.
+
+---
+
 ## Inférence auto-hébergée
 
 Pointez `MISTRAL_BASE_URL` vers n'importe quel endpoint OpenAI-compatible — vLLM,

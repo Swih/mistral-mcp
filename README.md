@@ -220,6 +220,35 @@ node dist/index.js
 
 ---
 
+## Observability
+
+Every tool call emits one JSON line on stderr, and the caller's W3C trace
+context follows the request all the way to the inference endpoint.
+
+```json
+{"ts":"2026-08-28T09:14:02.117Z","kind":"tool_call","tool":"mistral_ocr","outcome":"ok","duration_ms":1840,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
+```
+
+- **Trace continuity.** `traceparent`, `tracestate` and `baggage` arrive in the
+  MCP request's `_meta` and are stamped onto the outgoing HTTP call, so your
+  collector joins the MCP span to the Mistral (or vLLM) span it caused instead
+  of showing two unrelated traces. A malformed header is ignored, never fatal.
+- **No payloads, ever.** A line says what ran, how long it took and whether it
+  failed. Prompts, documents, transcripts, arguments and model output never
+  appear — those are your records, and this process has no business copying
+  them into a log it does not own. `test/stdio/observability.test.ts` asserts
+  that negative directly against the built binary.
+- **Nothing to enable, and one thing to disable.** It is on by default because
+  an audit trail you have to discover is one you will not have when you need
+  it. `MISTRAL_MCP_AUDIT=off` silences it. stderr is used because stdout
+  carries JSON-RPC, and because MCP's own `logging` capability is deprecated
+  in 2026-07-28 in favour of stderr and OpenTelemetry.
+
+The instrumentation wraps `registerTool` rather than each handler, so a tool
+cannot be left out of the trail without being left out of the server.
+
+---
+
 ## Self-hosted inference
 
 Point `MISTRAL_BASE_URL` at any OpenAI-compatible endpoint — vLLM, TGI, LiteLLM,
