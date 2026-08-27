@@ -8,10 +8,9 @@
  * Both endpoints degrade gracefully: if the API call fails (network, auth,
  * rate-limit), we flag `fallback: true` and include a short `fallback_reason`.
  *
- * MCP spec 2025-11-25: Resources provide context/data for the user or model.
+ * MCP spec 2026-07-28: Resources provide context/data for the user or model.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import {
   CHAT_MODELS,
@@ -62,6 +61,9 @@ export function registerMistralResources(
         "not when it isn't. Read this before concluding a tool is missing — a " +
         "self-hosted endpoint hides the Mistral-only surface by design.",
       mimeType: "application/json",
+      // Fixed at boot: a projection of the profile table and the resolved
+      // runtime, so it cannot change while the process lives.
+      cacheHint: { ttlMs: 300_000, cacheScope: "public" },
     },
     async (uri) => {
       const families = Object.fromEntries(
@@ -118,6 +120,9 @@ export function registerMistralResources(
         "this server accepts plus the raw list from GET /v1/models. Falls back to the " +
         "static allow-list if the API call fails.",
       mimeType: "application/json",
+      // Every read is a live GET /v1/models and the catalog moves on the order
+      // of weeks. Private: what a key is entitled to is not shareable.
+      cacheHint: { ttlMs: 300_000, cacheScope: "private" },
     },
     async (uri) => {
       const now = new Date().toISOString();
@@ -141,7 +146,7 @@ export function registerMistralResources(
       }
 
       const payload = {
-        spec_version: "2025-11-25",
+        spec_version: "2026-07-28",
         source_api: "GET /v1/models (live)",
         policy:
           "Any identifier the endpoint serves is accepted; `accepted` below is curated " +
@@ -176,6 +181,7 @@ export function registerMistralResources(
         "Use a returned `id` or `slug` as `voiceId` on `voxtral_speak`. " +
         "Falls back to an empty list if the API call fails.",
       mimeType: "application/json",
+      cacheHint: { ttlMs: 300_000, cacheScope: "private" },
     },
     async (uri) => {
       const now = new Date().toISOString();
@@ -243,6 +249,9 @@ export function registerMistralResources(
         "Use the `name` field as `workflowIdentifier` in workflow_execute. " +
         "Falls back to an empty list if the API call fails.",
       mimeType: "application/json",
+      // Workflows are deployed and retired by the account holder, so a stale
+      // answer costs more here than one extra call.
+      cacheHint: { ttlMs: 30_000, cacheScope: "private" },
     },
     async (uri) => {
       const now = new Date().toISOString();

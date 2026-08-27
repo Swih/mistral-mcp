@@ -1,7 +1,7 @@
 /**
  * Prompts primitive — curated FR/EN templates for common Mistral workflows.
  *
- * MCP spec 2025-11-25: Prompts are templated messages/workflows surfaced to
+ * MCP spec 2026-07-28: Prompts are templated messages/workflows surfaced to
  * the user (e.g. in Claude Desktop's prompt picker). Enum arguments are
  * wrapped with `completable()` so clients can offer argument autocomplete
  * (completion/complete request, spec 2025-03-26+).
@@ -12,9 +12,8 @@
  * (Anthropic guideline: ~30 % quality gain). XML tags wrap document content
  * for unambiguous separation from instructions.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { completable } from "@modelcontextprotocol/sdk/server/completable.js";
+import { completable } from "@modelcontextprotocol/server";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 const TONE_INVOICE = ["polite", "firm", "final"] as const;
@@ -61,19 +60,19 @@ export function registerMistralPrompts(server: McpServer) {
       description:
         "Rédige une relance de facture B2B en français avec un ton contrôlé. " +
         "Retourne une paire de messages (assistant + user) prête à passer dans mistral_chat.",
-      argsSchema: {
-        debtor_name: z.string().describe("Raison sociale du débiteur."),
-        amount_eur: z
-          .string()
-          .describe("Montant dû, formaté en chaîne, ex. '1200'."),
-        days_overdue: z
-          .string()
-          .describe("Nombre de jours de retard, en chaîne."),
-        tone: completable(
-          z.enum(TONE_INVOICE).describe("Ton : polite | firm | final."),
-          (value) => startsWithFilter(TONE_INVOICE, value)
-        ),
-      },
+      argsSchema: z.object({
+              debtor_name: z.string().describe("Raison sociale du débiteur."),
+              amount_eur: z
+                .string()
+                .describe("Montant dû, formaté en chaîne, ex. '1200'."),
+              days_overdue: z
+                .string()
+                .describe("Nombre de jours de retard, en chaîne."),
+              tone: completable(
+                z.enum(TONE_INVOICE).describe("Ton : polite | firm | final."),
+                (value) => startsWithFilter(TONE_INVOICE, value)
+              ),
+            }),
     },
     ({ debtor_name, amount_eur, days_overdue, tone }) => ({
       description: `Relance — ton ${tone}, ${debtor_name}, ${amount_eur}€, ${days_overdue}j de retard`,
@@ -123,17 +122,17 @@ export function registerMistralPrompts(server: McpServer) {
       description:
         "Transforme une transcription brute en compte-rendu structuré en français. " +
         "Retourne un message utilisateur prêt à passer dans mistral_chat ou voxtral_transcribe→mistral_chat.",
-      argsSchema: {
-        transcript: z
-          .string()
-          .describe("Transcription brute de la réunion (texte libre)."),
-        length: completable(
-          z
-            .enum(LENGTH_MINUTES)
-            .describe("Longueur : courte | moyenne | detaillee."),
-          (value) => startsWithFilter(LENGTH_MINUTES, value)
-        ),
-      },
+      argsSchema: z.object({
+              transcript: z
+                .string()
+                .describe("Transcription brute de la réunion (texte libre)."),
+              length: completable(
+                z
+                  .enum(LENGTH_MINUTES)
+                  .describe("Longueur : courte | moyenne | detaillee."),
+                (value) => startsWithFilter(LENGTH_MINUTES, value)
+              ),
+            }),
     },
     ({ transcript, length }) => ({
       description: `Compte-rendu de réunion — longueur ${length}`,
@@ -176,25 +175,25 @@ export function registerMistralPrompts(server: McpServer) {
       description:
         "Rédige une réponse à un e-mail professionnel en français, avec intention et ton contrôlés. " +
         "Retourne un message utilisateur prêt à passer dans mistral_chat.",
-      argsSchema: {
-        original_email: z
-          .string()
-          .describe("E-mail reçu auquel il faut répondre (texte brut)."),
-        intent: completable(
-          z
-            .enum(INTENT_EMAIL)
-            .describe(
-              "Intention : accepter | refuser | repousser | demander_info | proposer."
-            ),
-          (value) => startsWithFilter(INTENT_EMAIL, value)
-        ),
-        tone: completable(
-          z
-            .enum(TONE_EMAIL)
-            .describe("Ton : cordial | formel | chaleureux | direct."),
-          (value) => startsWithFilter(TONE_EMAIL, value)
-        ),
-      },
+      argsSchema: z.object({
+              original_email: z
+                .string()
+                .describe("E-mail reçu auquel il faut répondre (texte brut)."),
+              intent: completable(
+                z
+                  .enum(INTENT_EMAIL)
+                  .describe(
+                    "Intention : accepter | refuser | repousser | demander_info | proposer."
+                  ),
+                (value) => startsWithFilter(INTENT_EMAIL, value)
+              ),
+              tone: completable(
+                z
+                  .enum(TONE_EMAIL)
+                  .describe("Ton : cordial | formel | chaleureux | direct."),
+                (value) => startsWithFilter(TONE_EMAIL, value)
+              ),
+            }),
     },
     ({ original_email, intent, tone }) => ({
       description: `Réponse e-mail — intent ${intent}, ton ${tone}`,
@@ -235,17 +234,17 @@ export function registerMistralPrompts(server: McpServer) {
       description:
         "Rédige un message de commit git en français au format Conventional Commits à partir d'un diff. " +
         "Retourne un message utilisateur prêt à passer dans mistral_chat ou codestral_fim.",
-      argsSchema: {
-        diff: z.string().describe("Diff unifié à résumer en commit."),
-        scope: completable(
-          z
-            .enum(SCOPE_COMMIT)
-            .describe(
-              "Type Conventional Commits : feat | fix | refactor | docs | test | chore | perf."
-            ),
-          (value) => startsWithFilter(SCOPE_COMMIT, value)
-        ),
-      },
+      argsSchema: z.object({
+              diff: z.string().describe("Diff unifié à résumer en commit."),
+              scope: completable(
+                z
+                  .enum(SCOPE_COMMIT)
+                  .describe(
+                    "Type Conventional Commits : feat | fix | refactor | docs | test | chore | perf."
+                  ),
+                (value) => startsWithFilter(SCOPE_COMMIT, value)
+              ),
+            }),
     },
     ({ diff, scope }) => ({
       description: `Commit message — type ${scope}`,
@@ -289,15 +288,15 @@ export function registerMistralPrompts(server: McpServer) {
       description:
         "Résume un texte juridique (CGU, contrat, arrêté, décision) en français, ciblé sur une audience. " +
         "Retourne un message utilisateur prêt à passer dans mistral_chat. Ne constitue pas un conseil juridique.",
-      argsSchema: {
-        legal_text: z.string().describe("Texte juridique brut à résumer."),
-        audience: completable(
-          z
-            .enum(AUDIENCE_LEGAL)
-            .describe("Audience cible : juriste | dirigeant | grand_public."),
-          (value) => startsWithFilter(AUDIENCE_LEGAL, value)
-        ),
-      },
+      argsSchema: z.object({
+              legal_text: z.string().describe("Texte juridique brut à résumer."),
+              audience: completable(
+                z
+                  .enum(AUDIENCE_LEGAL)
+                  .describe("Audience cible : juriste | dirigeant | grand_public."),
+                (value) => startsWithFilter(AUDIENCE_LEGAL, value)
+              ),
+            }),
     },
     ({ legal_text, audience }) => ({
       description: `Synthèse juridique — audience ${audience}`,
@@ -340,17 +339,17 @@ export function registerMistralPrompts(server: McpServer) {
       description:
         "Review a diff through Codestral with a focused lens " +
         "(correctness, perf, security, or API-design). Returns messages for mistral_chat.",
-      argsSchema: {
-        diff: z.string().describe("Unified diff text to review."),
-        focus: completable(
-          z
-            .enum(FOCUS_REVIEW)
-            .describe(
-              "Review lens: correctness | performance | security | api_design."
-            ),
-          (value) => startsWithFilter(FOCUS_REVIEW, value)
-        ),
-      },
+      argsSchema: z.object({
+              diff: z.string().describe("Unified diff text to review."),
+              focus: completable(
+                z
+                  .enum(FOCUS_REVIEW)
+                  .describe(
+                    "Review lens: correctness | performance | security | api_design."
+                  ),
+                (value) => startsWithFilter(FOCUS_REVIEW, value)
+              ),
+            }),
     },
     ({ diff, focus }) => ({
       description: `Codestral review — focus: ${focus}`,

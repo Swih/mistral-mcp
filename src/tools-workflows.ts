@@ -11,8 +11,7 @@
  *   workflow_status    — get execution state + result
  *   workflow_interact  — send a signal or run a query against a running execution
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { errorResult, toTextBlock } from "./shared.js";
@@ -76,32 +75,32 @@ export function registerWorkflowTools(server: McpServer, mistral: Mistral) {
         "",
         "Use deploymentName to target a specific deployment slot when multiple are configured.",
       ].join("\n"),
-      inputSchema: {
-        workflowIdentifier: z.string().min(1).describe("Workflow name or ID."),
-        input: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe("Input payload matching the workflow input schema."),
-        executionId: z
-          .string()
-          .optional()
-          .describe("Optional custom execution ID. Auto-generated if omitted."),
-        waitForResult: z
-          .boolean()
-          .optional()
-          .describe("Block until completion and return result inline. Default: false."),
-        timeoutSeconds: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe("Max wait time when waitForResult=true. Default: 30."),
-        deploymentName: z
-          .string()
-          .optional()
-          .describe("Target a specific deployment slot."),
-      },
-      outputSchema: WorkflowExecuteOutputShape,
+      inputSchema: z.object({
+              workflowIdentifier: z.string().min(1).describe("Workflow name or ID."),
+              input: z
+                .record(z.string(), z.unknown())
+                .optional()
+                .describe("Input payload matching the workflow input schema."),
+              executionId: z
+                .string()
+                .optional()
+                .describe("Optional custom execution ID. Auto-generated if omitted."),
+              waitForResult: z
+                .boolean()
+                .optional()
+                .describe("Block until completion and return result inline. Default: false."),
+              timeoutSeconds: z
+                .number()
+                .int()
+                .positive()
+                .optional()
+                .describe("Max wait time when waitForResult=true. Default: 30."),
+              deploymentName: z
+                .string()
+                .optional()
+                .describe("Target a specific deployment slot."),
+            }),
+      outputSchema: WorkflowExecuteOutputSchema,
       annotations: {
         title: "Execute Mistral workflow",
         readOnlyHint: false,
@@ -194,10 +193,10 @@ export function registerWorkflowTools(server: McpServer, mistral: Mistral) {
         "Poll until status is COMPLETED (or terminal) when waitForResult was false.",
         "`result` is populated once the workflow reaches a terminal state.",
       ].join("\n"),
-      inputSchema: {
-        executionId: z.string().min(1).describe("Execution ID from workflow_execute."),
-      },
-      outputSchema: WorkflowStatusOutputShape,
+      inputSchema: z.object({
+              executionId: z.string().min(1).describe("Execution ID from workflow_execute."),
+            }),
+      outputSchema: WorkflowStatusOutputSchema,
       annotations: {
         title: "Workflow execution status",
         readOnlyHint: true,
@@ -261,19 +260,19 @@ export function registerWorkflowTools(server: McpServer, mistral: Mistral) {
         "  - `input`: optional payload for the update.",
         "  - Returns `update_name` + `result` inline.",
       ].join("\n"),
-      inputSchema: {
-        action: z.enum(["signal", "query", "update"]).describe("Interaction type."),
-        executionId: z.string().min(1).describe("Target execution ID."),
-        name: z
-          .string()
-          .min(1)
-          .describe("Signal or query handler name."),
-        input: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe("Optional payload for the signal or query."),
-      },
-      outputSchema: WorkflowInteractOutputShape,
+      inputSchema: z.object({
+              action: z.enum(["signal", "query", "update"]).describe("Interaction type."),
+              executionId: z.string().min(1).describe("Target execution ID."),
+              name: z
+                .string()
+                .min(1)
+                .describe("Signal or query handler name."),
+              input: z
+                .record(z.string(), z.unknown())
+                .optional()
+                .describe("Optional payload for the signal or query."),
+            }),
+      outputSchema: WorkflowInteractOutputSchema,
       annotations: {
         title: "Interact with running workflow (signal/query/update)",
         readOnlyHint: false,

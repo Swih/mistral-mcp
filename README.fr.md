@@ -9,7 +9,7 @@
 [![CI](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml)
 [![Glama MCP score](https://glama.ai/mcp/servers/Swih/mistral-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Swih/mistral-mcp)
 [![license](https://img.shields.io/badge/license-MIT-black)](./LICENSE)
-![MCP spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
+![MCP spec](https://img.shields.io/badge/MCP%20spec-2026--07--28-purple)
 
 ---
 
@@ -252,6 +252,32 @@ d'environnement, dans [`deploy/README.md`](./deploy/README.md).
 
 ---
 
+## Protocole
+
+Le serveur parle **MCP 2026-07-28** et le handshake 2025, depuis les mêmes
+enregistrements de tools, sur le même endpoint. C'est important parce que
+quasiment tous les clients diffusés aujourd'hui ouvrent encore avec le
+handshake 2025 : mettre le serveur à jour n'oblige personne à mettre son client
+à jour.
+
+| | Client 2025 | Client 2026-07-28 |
+|---|---|---|
+| Handshake | `initialize` | `server/discover` |
+| Tools, resources, prompts | jeu identique | jeu identique |
+| `structuredContent` + `outputSchema` | oui | oui |
+| Cache hints (`ttlMs`/`cacheScope`) | absent de la révision | oui |
+
+`test/stdio/protocol-eras.test.ts` pilote le binaire compilé avec un vrai client
+1.30.x et un vrai client 2026-07-28, et vérifie que les deux voient les mêmes
+tools — l'affirmation ci-dessus est un test, pas une promesse.
+
+Basé sur `@modelcontextprotocol/server` 2.x. Aucun tool de sampling ni
+d'elicitation n'est exposé : le sampling est déprécié en 2026-07-28, et son
+remplaçant multi-aller-retour est une capacité client dont ce serveur n'a pas
+l'usage.
+
+---
+
 ## Transport
 
 | Mode | Comment activer | Défaut |
@@ -259,7 +285,9 @@ d'environnement, dans [`deploy/README.md`](./deploy/README.md).
 | **stdio** | Par défaut | `node dist/index.js` |
 | **Streamable HTTP** | `MCP_TRANSPORT=http` ou flag `--http` | `127.0.0.1:3333/mcp` |
 
-Variables HTTP : `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`, `MCP_HTTP_STATELESS=1`.
+Variables HTTP : `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`.
+
+Le service HTTP est stateless par requête dans les deux ères du protocole : `MCP_HTTP_STATELESS` ne fait donc plus rien et a été retiré en 0.10.0. Le définir reste sans effet.
 
 `/healthz` est public et ne touche pas au serveur MCP.
 
@@ -267,7 +295,7 @@ Variables HTTP : `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TO
 
 ## Utilisation comme Mistral Connector (beta)
 
-`mistral-mcp` embarque le transport [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/) et l'auth bearer que [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) requièrent. Guides de déploiement Cloudflare Tunnel, Fly.io et Cloud Run dans [`deploy/connector-public.md`](./deploy/connector-public.md).
+`mistral-mcp` embarque le transport [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/) et l'auth bearer que [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) requièrent. Guides de déploiement Cloudflare Tunnel, Fly.io et Cloud Run dans [`deploy/connector-public.md`](./deploy/connector-public.md).
 
 | Surface | Statut |
 |---|---|

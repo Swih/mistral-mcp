@@ -11,8 +11,7 @@
  *     - { type: "file", fileId }                               (Files API)
  *     - { type: "image_url", imageUrl }                        (direct image)
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { isEnabled, type MistralProfile } from "./profile.js";
@@ -232,19 +231,19 @@ export function registerVisionTools(
         "",
         "Returns the assistant text + token usage. For non-visual requests, prefer `mistral_chat`.",
       ].join("\n"),
-      inputSchema: {
-        messages: z
-          .array(MultimodalMessageSchema)
-          .min(1)
-          .describe(
-            "Chat messages. Pure-text requests are accepted, but this tool is intended primarily for multimodal prompts containing image parts."
-          ),
-        model: VisionModelSchema.optional().describe(
-          `Vision-capable Mistral model. Default: ${DEFAULT_VISION_MODEL}.`
-        ),
-        ...ChatSamplingParams,
-      },
-      outputSchema: VisionOutputShape,
+      inputSchema: z.object({
+              messages: z
+                .array(MultimodalMessageSchema)
+                .min(1)
+                .describe(
+                  "Chat messages. Pure-text requests are accepted, but this tool is intended primarily for multimodal prompts containing image parts."
+                ),
+              model: VisionModelSchema.optional().describe(
+                `Vision-capable Mistral model. Default: ${DEFAULT_VISION_MODEL}.`
+              ),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: VisionOutputSchema,
       annotations: {
         title: "Mistral multimodal chat (vision)",
         readOnlyHint: true,
@@ -320,37 +319,37 @@ export function registerVisionTools(
         "Returns `pages[].markdown` plus optional `pages[].hyperlinks`, `header`, `footer`,",
         "`images` bounding boxes, `blocks`, annotations, confidence scores, and `dimensions`.",
       ].join("\n"),
-      inputSchema: {
-        document: OcrDocumentSchema,
-        model: OcrModelSchema.optional().describe(
-          `OCR model. Default: ${DEFAULT_OCR_MODEL}.`
-        ),
-        pages: z
-          .union([z.string(), z.array(z.number().int().nonnegative())])
-          .optional(),
-        tableFormat: z.enum(["markdown", "html"]).optional(),
-        extractHeader: z.boolean().optional(),
-        extractFooter: z.boolean().optional(),
-        includeImageBase64: z.boolean().optional(),
-        imageLimit: z.number().int().positive().optional(),
-        imageMinSize: z.number().int().positive().optional(),
-        bbox_annotation_format: JsonSchemaResponseFormatSchema.optional(),
-        document_annotation_format: JsonSchemaResponseFormatSchema.optional(),
-        document_annotation_prompt: z.string().optional(),
-        confidence_scores_granularity: z
-          .enum(["page", "word", "block"])
-          .optional()
-          .describe(
-            "Confidence granularity. 'block' also fills pages[].blocks[].confidence_scores and requires OCR 4.1 (mistral-ocr-4-1) or newer."
-          ),
-        includeBlocks: z
-          .boolean()
-          .optional()
-          .describe(
-            "Return paragraph-level blocks (bounding box + type) per page. Requires OCR 4 (mistral-ocr-4-0) or newer."
-          ),
-      },
-      outputSchema: OcrOutputShape,
+      inputSchema: z.object({
+              document: OcrDocumentSchema,
+              model: OcrModelSchema.optional().describe(
+                `OCR model. Default: ${DEFAULT_OCR_MODEL}.`
+              ),
+              pages: z
+                .union([z.string(), z.array(z.number().int().nonnegative())])
+                .optional(),
+              tableFormat: z.enum(["markdown", "html"]).optional(),
+              extractHeader: z.boolean().optional(),
+              extractFooter: z.boolean().optional(),
+              includeImageBase64: z.boolean().optional(),
+              imageLimit: z.number().int().positive().optional(),
+              imageMinSize: z.number().int().positive().optional(),
+              bbox_annotation_format: JsonSchemaResponseFormatSchema.optional(),
+              document_annotation_format: JsonSchemaResponseFormatSchema.optional(),
+              document_annotation_prompt: z.string().optional(),
+              confidence_scores_granularity: z
+                .enum(["page", "word", "block"])
+                .optional()
+                .describe(
+                  "Confidence granularity. 'block' also fills pages[].blocks[].confidence_scores and requires OCR 4.1 (mistral-ocr-4-1) or newer."
+                ),
+              includeBlocks: z
+                .boolean()
+                .optional()
+                .describe(
+                  "Return paragraph-level blocks (bounding box + type) per page. Requires OCR 4 (mistral-ocr-4-0) or newer."
+                ),
+            }),
+      outputSchema: OcrOutputSchema,
       annotations: {
         title: "Mistral OCR",
         readOnlyHint: true,

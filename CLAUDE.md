@@ -10,10 +10,16 @@
 - **Nom** : `mistral-mcp` (npm + github.com/Swih/mistral-mcp)
 - **Rôle** : serveur MCP stdio + Streamable HTTP wrappant l'API Mistral pour clients MCP (Claude Code, Cursor, Zed, Windsurf, Claude Desktop, ChatGPT Apps).
 - **Versions en vigueur** :
-  - MCP spec : **2025-11-25** (inclut structuredContent/outputSchema 2025-06-18, Streamable HTTP 2025-03-26, tool annotations).
-  - SDK MCP : `@modelcontextprotocol/sdk@^1.30.0` — **toujours** via la high-level API `McpServer` + `registerTool/Resource/Prompt`. Ne jamais descendre au low-level `Server` sauf si explicitement requis par une feature spec (ex : sampling côté serveur).
+  - MCP spec : **2026-07-28**, **plus** le handshake 2025 servi depuis les mêmes
+    enregistrements. Le second n'est pas de la dette : c'est ce que parlent
+    quasiment tous les clients diffusés. Toute évolution doit rester servable
+    aux deux ères — `test/stdio/protocol-eras.test.ts` le vérifie.
+  - SDK MCP : `@modelcontextprotocol/server@^2.0.0` — **toujours** via la high-level API `McpServer` + `registerTool/Resource/Prompt`. Ne jamais descendre au low-level `Server`.
+    - stdio et HTTP prennent une **factory**, jamais une instance : `serveStdio(factory, { legacy: "serve" })` et `createMcpHandler(factory, { legacy: "stateless" })`. C'est le SDK qui décide de l'ère.
+    - `@modelcontextprotocol/sdk@^1.30.0` reste en devDependency : c'est le client de l'ère 2025 utilisé pour tester la compat, rien d'autre ne doit l'importer.
   - SDK Mistral : `@mistralai/mistralai@^2.6.4` (Speakeasy-generated). Retry config obligatoire.
-  - Node : `>=18`, TypeScript strict.
+  - zod : `^4.2.0` (plancher imposé par le SDK v2). Attention : `.default()` porte sur le type de **sortie** en zod 4 — pour un objet dont les champs ont leurs propres defaults, c'est `.prefault({})`.
+  - Node : `>=20`, TypeScript strict.
 
 ## 2. Règles dures (ne pas transgresser)
 
@@ -26,7 +32,7 @@
 7. **Les inputs zod sont la source de vérité.** Jamais de cast `as any`, jamais de `z.any()`. Si un type Mistral n'est pas exporté, on le reconstruit avec zod, on ne "fait confiance".
 8. **Le retry config est non-négociable** : `backoff` strategy, `initialInterval: 500`, `maxInterval: 5000`, `exponent: 2`, `maxElapsedTime: 30000`, `retryConnectionErrors: true`, `timeoutMs: 60000`.
 9. **Pas d'env var autre que `MISTRAL_API_KEY`** sans justification. L'API key est lue UNE fois dans `src/index.ts`.
-10. **Pas de dépendance runtime ajoutée** sans approbation explicite. Les seules deps runtime acceptées : `@modelcontextprotocol/sdk`, `@mistralai/mistralai`, `zod`. Point final.
+10. **Pas de dépendance runtime ajoutée** sans approbation explicite. Les seules deps runtime acceptées : `@modelcontextprotocol/server`, `@mistralai/mistralai`, `zod`. Point final. C'est pourquoi l'adaptateur `node:http` ↔ web-standard est écrit à la main dans `transport.ts` plutôt que pris chez `@modelcontextprotocol/node`, qui traîne `@hono/node-server` pour quarante lignes.
 
 ## 3. Layout & responsabilités
 
@@ -41,14 +47,14 @@ src/
 ├── tools-agents.ts     # (v0.4) Agents + moderation : mistral_agent, mistral_moderate, mistral_classify
 ├── tools-files.ts      # (v0.4) Files API : files_upload/list/get/delete/signed_url
 ├── tools-batch.ts      # (v0.4) Batch API : batch_create/get/cancel/download
-├── resources.ts        # mistral://models (LIVE call vers GET /v1/models, plus de liste figée)
+├── resources.ts        # mistral://capabilities, mistral://models (LIVE GET /v1/models), voices, workflows
 ├── prompts.ts          # Prompts curés FR (5+) + EN (optionnel)
-├── transport.ts        # (v0.4) Streamable HTTP en plus de stdio. Sélection via CLI flag ou env.
+├── transport.ts        # serveStdio + createMcpHandler (double ère) + adaptateur node:http maison.
 └── shared.ts           # toTextBlock, errorResult, schemas communs (MessageSchema, UsageSchema, ImageContentSchema, ...)
 
 test/
 ├── unit/               # vitest + InMemoryTransport + mocked SDK
-├── stdio/              # spawn dist/index.js, StdioClientTransport e2e
+├── stdio/              # spawn dist/index.js : protocole, deux ères, HTTP, endpoint self-hosted
 ├── live/               # MISTRAL_API_KEY requis, skipIf sinon
 └── contract/           # Vérifie structuredContent === outputSchema pour chaque tool
 ```
@@ -174,11 +180,11 @@ Règle : **un tool non testé ne ship pas**. Si on ajoute `mistral_ocr`, on ajou
 
 ## 11. Quand en douter
 
-- **Spec flou ?** Source racine : <https://modelcontextprotocol.io/specification/2025-11-25/>. Version du changelog : <https://modelcontextprotocol.io/specification/2025-06-18/changelog>.
+- **Spec flou ?** Source racine : <https://modelcontextprotocol.io/specification/2026-07-28/>. Le changelog de révision dit ce qui a bougé depuis 2025-11-25.
 - **API Mistral flou ?** Source racine : <https://docs.mistral.ai/api/>. Endpoints actifs uniquement (skip deprecated fine-tuning v1, legacy agents).
 - **SDK Mistral flou ?** Source : <https://github.com/mistralai/client-ts>.
 - **Pattern MCP flou ?** Référence : <https://github.com/modelcontextprotocol/servers/tree/main/src/everything> (serveur officiel démo qui exerce toutes les primitives).
 
 ---
 
-*Mis à jour : v0.10.0. Lire en entier avant de toucher au code.*
+*Mis à jour : v0.10.0 (MCP 2026-07-28 + SDK v2). Lire en entier avant de toucher au code.*

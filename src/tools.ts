@@ -1,7 +1,7 @@
 /**
  * Tool registration for mistral-mcp.
  *
- * Implements the MCP 2025-11-25 server spec:
+ * Implements the MCP 2026-07-28 server spec:
  * - registerTool with inputSchema + outputSchema
  * - content[] + structuredContent on every return (spec requires both for backwards compat)
  * - annotations (readOnlyHint / openWorldHint / destructiveHint)
@@ -9,11 +9,10 @@
  * - progress notifications on streaming
  *
  * Sources:
- * - https://modelcontextprotocol.io/specification/2025-11-25/server/tools
- * - https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress
+ * - https://modelcontextprotocol.io/specification/2026-07-28/server/tools
+ * - https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/progress
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { Mistral } from "@mistralai/mistralai";
 import type { CompletionEvent } from "@mistralai/mistralai/models/components/completionevent.js";
 import { z } from "zod";
@@ -94,26 +93,26 @@ export function registerMistralTools(
         "Returns structured content with the assistant text and token usage.",
         "Does NOT stream — use mistral_chat_stream for long outputs with progress updates.",
       ].join("\n"),
-      inputSchema: {
-        messages: z
-          .array(TextMessageSchema)
-          .min(1)
-          .describe("Chat messages in role/content form."),
-        model: ChatModelSchema.optional().describe(
-          `Chat model. Default: ${defaultChatModel()} (override with MISTRAL_DEFAULT_MODEL).`
-        ),
-        response_format: ResponseFormatSchema.optional().describe(
-          'Force a structured output: `{type:"json_object"}` for JSON mode, `{type:"json_schema", json_schema:{...}}` for strict schema mode.'
-        ),
-        reasoning_effort: z
-          .enum(["none", "high"])
-          .optional()
-          .describe(
-            "Controls reasoning depth for Magistral models. 'high' enables full chain-of-thought; 'none' disables it. Ignored on non-reasoning models."
-          ),
-        ...ChatSamplingParams,
-      },
-      outputSchema: ChatOutputShape,
+      inputSchema: z.object({
+              messages: z
+                .array(TextMessageSchema)
+                .min(1)
+                .describe("Chat messages in role/content form."),
+              model: ChatModelSchema.optional().describe(
+                `Chat model. Default: ${defaultChatModel()} (override with MISTRAL_DEFAULT_MODEL).`
+              ),
+              response_format: ResponseFormatSchema.optional().describe(
+                'Force a structured output: `{type:"json_object"}` for JSON mode, `{type:"json_schema", json_schema:{...}}` for strict schema mode.'
+              ),
+              reasoning_effort: z
+                .enum(["none", "high"])
+                .optional()
+                .describe(
+                  "Controls reasoning depth for Magistral models. 'high' enables full chain-of-thought; 'none' disables it. Ignored on non-reasoning models."
+                ),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: ChatOutputSchema,
       annotations: {
         title: "Mistral chat completion",
         readOnlyHint: true,
@@ -175,13 +174,13 @@ export function registerMistralTools(
         "Use when: the expected completion is long (> ~500 tokens) or the calling UI",
         "wants live output. Otherwise use mistral_chat.",
       ].join("\n"),
-      inputSchema: {
-        messages: z.array(TextMessageSchema).min(1),
-        model: ChatModelSchema.optional(),
-        response_format: ResponseFormatSchema.optional(),
-        ...ChatSamplingParams,
-      },
-      outputSchema: ChatStreamOutputShape,
+      inputSchema: z.object({
+              messages: z.array(TextMessageSchema).min(1),
+              model: ChatModelSchema.optional(),
+              response_format: ResponseFormatSchema.optional(),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: ChatStreamOutputSchema,
       annotations: {
         title: "Mistral chat (streaming)",
         readOnlyHint: true,
@@ -190,7 +189,7 @@ export function registerMistralTools(
         openWorldHint: true,
       },
     },
-    async (input, extra) => {
+    async (input, ctx) => {
       try {
         const model = input.model ?? defaultChatModel();
         const stream = await mistral.chat.stream({
@@ -203,7 +202,7 @@ export function registerMistralTools(
           responseFormat: toSdkResponseFormat(input.response_format),
         });
 
-        const progressToken = extra._meta?.progressToken;
+        const progressToken = ctx.mcpReq._meta?.progressToken;
         const parts: string[] = [];
         const reasoningParts: string[] = [];
         let chunks = 0;
@@ -226,8 +225,8 @@ export function registerMistralTools(
             parts.push(deltaText);
             chunks++;
             if (progressToken !== undefined) {
-              // Per MCP spec 2025-11-25 basic/utilities/progress.
-              await extra.sendNotification({
+              // Per MCP spec 2026-07-28 basic/utilities/progress.
+              await ctx.mcpReq.notify({
                 method: "notifications/progress",
                 params: {
                   progressToken,
@@ -284,15 +283,15 @@ export function registerMistralTools(
         "client-side and storing vectors yourself instead of routing through the MCP",
         "tool channel.",
       ].join("\n"),
-      inputSchema: {
-        inputs: z
-          .array(z.string().min(1))
-          .min(1)
-          .max(100)
-          .describe("Strings to embed. Capped at 100 per call."),
-        model: EmbedModelSchema.optional(),
-      },
-      outputSchema: EmbedOutputShape,
+      inputSchema: z.object({
+              inputs: z
+                .array(z.string().min(1))
+                .min(1)
+                .max(100)
+                .describe("Strings to embed. Capped at 100 per call."),
+              model: EmbedModelSchema.optional(),
+            }),
+      outputSchema: EmbedOutputSchema,
       annotations: {
         title: "Mistral embeddings",
         readOnlyHint: true,

@@ -9,7 +9,7 @@
 [![CI](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml)
 [![Glama MCP score](https://glama.ai/mcp/servers/Swih/mistral-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Swih/mistral-mcp)
 [![license](https://img.shields.io/badge/license-MIT-black)](./LICENSE)
-![MCP spec](https://img.shields.io/badge/MCP%20spec-2025--11--25-purple)
+![MCP spec](https://img.shields.io/badge/MCP%20spec-2026--07--28-purple)
 
 ---
 
@@ -249,6 +249,30 @@ Compose and Kubernetes manifests, plus the full environment reference, are in
 
 ---
 
+## Protocol
+
+The server speaks **MCP 2026-07-28** and the 2025-era handshake, from the same
+tool registrations, on the same endpoint. That matters because practically
+every client shipping today still opens with the 2025 handshake: upgrading the
+server does not ask anyone to upgrade their client.
+
+| | 2025-era client | 2026-07-28 client |
+|---|---|---|
+| Handshake | `initialize` | `server/discover` |
+| Tools, resources, prompts | identical set | identical set |
+| `structuredContent` + `outputSchema` | yes | yes |
+| Cache hints (`ttlMs`/`cacheScope`) | not in the revision | yes |
+
+`test/stdio/protocol-eras.test.ts` drives the built binary with a real 1.30.x
+client and a real 2026-07-28 client and asserts both see the same tools — the
+compatibility claim above is a test, not a promise.
+
+Built on `@modelcontextprotocol/server` 2.x. Sampling and elicitation tools are
+not exposed: sampling is deprecated in 2026-07-28, and the multi-round-trip
+replacement is a client capability this server has no use for.
+
+---
+
 ## Transport
 
 | Mode | How to enable | Default |
@@ -256,7 +280,9 @@ Compose and Kubernetes manifests, plus the full environment reference, are in
 | **stdio** | Default | `node dist/index.js` |
 | **Streamable HTTP** | `MCP_TRANSPORT=http` or `--http` flag | `127.0.0.1:3333/mcp` |
 
-HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`, `MCP_HTTP_STATELESS=1`.
+HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`.
+
+HTTP serving is stateless per request in both protocol eras, so `MCP_HTTP_STATELESS` no longer does anything and was removed in 0.10.0. Setting it is harmless.
 
 `/healthz` is public and does not touch the MCP server.
 
@@ -264,7 +290,7 @@ HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKE
 
 ## Use as a Mistral Connector (beta)
 
-`mistral-mcp` ships the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-11-25/) and bearer auth that [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) require. Deployment guides for Cloudflare Tunnel, Fly.io, and Cloud Run are in [`deploy/connector-public.md`](./deploy/connector-public.md).
+`mistral-mcp` ships the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/) and bearer auth that [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) require. Deployment guides for Cloudflare Tunnel, Fly.io, and Cloud Run are in [`deploy/connector-public.md`](./deploy/connector-public.md).
 
 | Surface | Status |
 |---|---|

@@ -21,8 +21,7 @@
  * shared infrastructure and belong to a deploy pipeline, not to a tool an LLM
  * drives unattended.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { errorResult, toTextBlock } from "./shared.js";
@@ -96,8 +95,8 @@ export function registerRagTools(server: McpServer, mistral: Mistral) {
         "nested indexes. An account with no registered deployment returns an empty list,",
         "which is a valid answer and not an error.",
       ].join("\n"),
-      inputSchema: {},
-      outputSchema: RagIndexesListOutputShape,
+      inputSchema: z.object({}),
+      outputSchema: RagIndexesListOutputSchema,
       annotations: {
         title: "List search-index deployments",
         readOnlyHint: true,

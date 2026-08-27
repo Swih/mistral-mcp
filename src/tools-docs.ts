@@ -18,8 +18,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 
@@ -83,7 +82,9 @@ export const ProcessDocumentInputShape = {
         ),
     })
     .optional()
-    .default({}),
+    // prefault, not default: zod 4 applies default() to the *output* type, so
+    // `{}` would no longer flow through the inner field defaults.
+    .prefault({}),
 };
 
 type ProcessDocumentInput = {
@@ -569,7 +570,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "Below the floor the tool returns isError rather than risking hallucinated extraction.",
       ].join("\n"),
       inputSchema: ProcessDocumentInputShape,
-      outputSchema: ProcessDocumentOutputShape,
+      outputSchema: z.object(ProcessDocumentOutputShape),
       annotations: {
         title: "Process document (OCR + typed extraction)",
         readOnlyHint: true,

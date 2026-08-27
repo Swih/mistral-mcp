@@ -1,7 +1,7 @@
 /**
  * Shared schemas and helpers used across tool modules.
  *
- * MCP spec 2025-11-25:
+ * MCP spec 2026-07-28:
  * - `content[]` is the human-facing fallback; `structuredContent` is the strict JSON payload.
  * - Errors must surface as `{ content, isError: true }` so the calling LLM can self-correct.
  *

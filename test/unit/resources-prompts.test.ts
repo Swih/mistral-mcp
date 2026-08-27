@@ -3,9 +3,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
+import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { registerMistralResources } from "../../src/resources.js";
 import type { RuntimeConfig } from "../../src/profile.js";
@@ -105,7 +104,7 @@ describe("Resources primitive - mistral://models", () => {
     expect(parsed.accepted.embed).toContain("mistral-embed");
     expect(parsed.accepted.fim).toContain("codestral-latest");
     expect(parsed.accepted.tool_capable).toContain("mistral-large-latest");
-    expect(parsed.spec_version).toBe("2025-11-25");
+    expect(parsed.spec_version).toBe("2026-07-28");
     expect(parsed.fallback).toBe(false);
     expect(parsed.live).toBeTruthy();
     expect(parsed.live.ids).toContain("mistral-medium-latest");

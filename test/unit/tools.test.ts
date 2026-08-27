@@ -4,9 +4,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
+import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import { registerMistralTools } from "../../src/tools.js";
 import { CHAT_MODELS } from "../../src/models.js";
 import type { MistralProfile } from "../../src/profile.js";
@@ -439,7 +438,8 @@ describe("mistral_embed", () => {
     });
     expect(result.isError).toBe(true);
     const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
-    expect(text).toMatch(/at least 1 element/i);
+    expect(text).toMatch(/validation error/i);
+    expect(text).toMatch(/inputs/);
   });
 
   it("rejects more than 100 inputs", async () => {
@@ -451,6 +451,7 @@ describe("mistral_embed", () => {
     });
     expect(result.isError).toBe(true);
     const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
-    expect(text).toMatch(/at most 100 element/i);
+    expect(text).toMatch(/validation error/i);
+    expect(text).toMatch(/inputs/);
   });
 });

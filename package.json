@@ -73,10 +73,12 @@
   "homepage": "https://github.com/Swih/mistral-mcp#readme",
   "dependencies": {
     "@mistralai/mistralai": "^2.6.4",
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^3.23.8"
+    "@modelcontextprotocol/server": "^2.0.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^20.11.0",
     "dotenv": "^17.4.2",
     "tsx": "^4.7.0",

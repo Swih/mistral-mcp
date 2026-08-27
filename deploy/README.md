@@ -119,7 +119,6 @@ if that re-OCR is expensive for you.
 | `MCP_HTTP_HOST` / `MCP_HTTP_PORT` / `MCP_HTTP_PATH` | No | Bind address, port, path. Defaults `127.0.0.1:3333/mcp`. |
 | `MCP_HTTP_TOKEN` | For HTTP | Bearer token clients must present. Without it the endpoint is unauthenticated. |
 | `MCP_HTTP_ALLOWED_ORIGINS` | No | Comma-separated exact origins. Set it when browsers reach the server. |
-| `MCP_HTTP_STATELESS` | No | `1` for serverless platforms — no session state between requests. |
 
 `/healthz` is unauthenticated and never touches the MCP server, so it is safe as
 a liveness and readiness probe.

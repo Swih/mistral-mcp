@@ -16,7 +16,6 @@ describe("resolveTransportOptions", () => {
     expect(opts.httpHost).toBe("127.0.0.1");
     expect(opts.httpPort).toBe(3333);
     expect(opts.httpPath).toBe("/mcp");
-    expect(opts.statelessHttp).toBe(false);
     expect(opts.httpAuthToken).toBeUndefined();
     expect(opts.httpAllowedOrigins).toBeUndefined();
   });
@@ -53,9 +52,11 @@ describe("resolveTransportOptions", () => {
     ]);
   });
 
-  it("honors MCP_HTTP_STATELESS=1", () => {
+  it("no longer exposes a stateless toggle", () => {
+    // Both eras are served per-request in v2, so there is nothing to switch:
+    // MCP_HTTP_STATELESS is accepted by the shell and ignored by the server.
     const opts = resolveTransportOptions([], { MCP_HTTP_STATELESS: "1" });
-    expect(opts.statelessHttp).toBe(true);
+    expect(opts).not.toHaveProperty("statelessHttp");
   });
 
   it("captures MCP_HTTP_TOKEN", () => {
