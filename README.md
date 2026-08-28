@@ -21,7 +21,7 @@
 - `mistral_ocr` — Mistral Document AI: structured text + bbox annotations from any PDF or image
 - `voxtral_transcribe` — Voxtral: transcription with optional speaker diarization
 - `codestral_fim` — Codestral fill-in-the-middle (FIM) for inline code completion
-- `workflow_execute / status / interact` — Temporal-backed durable execution with human-in-the-loop signals
+- `workflow_*` (6 tools) — Temporal-backed durable execution: what is deployed and runnable, what is running, human-in-the-loop signals, and graceful or forced stop
 - French-optimized models (`mistral-large-latest`, `mistral-medium-latest`) and curated French prompts
 
 **What this server does not expose:** fine-tuning, user management, non-FR/EN prompts.
