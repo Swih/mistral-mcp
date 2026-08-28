@@ -170,10 +170,18 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolFamily>> = {
       "Discovery of registered search-index deployments (GET /v1/rag/deployments).",
   },
   workflows: {
-    tools: ["workflow_execute", "workflow_status", "workflow_interact"],
+    tools: [
+      "workflow_execute",
+      "workflow_status",
+      "workflow_interact",
+      "workflow_deployments_list",
+      "workflow_runs_list",
+      "workflow_stop",
+    ],
     profiles: ["core", "admin", "workflows", "metier-docs"],
     openaiCompatible: false,
-    summary: "Durable workflow execution with human-in-the-loop signals.",
+    summary:
+      "Durable workflow execution: what is runnable, what is running, signals, and stopping.",
   },
   connectors: {
     tools: [

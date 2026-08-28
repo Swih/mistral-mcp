@@ -62,6 +62,9 @@ import {
   WorkflowExecuteOutputSchema,
   WorkflowStatusOutputSchema,
   WorkflowInteractOutputSchema,
+  WorkflowDeploymentsListOutputSchema,
+  WorkflowRunsListOutputSchema,
+  WorkflowStopOutputSchema,
 } from "../../src/tools-workflows.js";
 import {
   registerConnectorTools,
@@ -332,6 +335,54 @@ function makeMock(): Mistral {
       },
     },
     workflows: {
+      deployments: {
+        listDeployments: vi.fn(async () => ({
+          deployments: [
+            {
+              id: "dep-ct-1",
+              name: "prod",
+              isActive: true,
+              isHardened: true,
+              workerCount: 2,
+              activeWorkerCount: 2,
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              updatedAt: new Date("2026-01-02T00:00:00Z"),
+              managed: { state: "running" },
+            },
+            {
+              id: "dep-ct-2",
+              name: "staging",
+              isActive: false,
+              isHardened: false,
+              workerCount: 1,
+              activeWorkerCount: 0,
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              updatedAt: new Date("2026-01-02T00:00:00Z"),
+              managed: null,
+            },
+          ],
+          nextCursor: null,
+          workspaceId: "ws-ct",
+        })),
+      },
+      runs: {
+        listRuns: vi.fn(async () => ({
+          result: {
+            executions: [
+              {
+                workflowName: "my-workflow",
+                executionId: "exec-ct-1",
+                rootExecutionId: "exec-ct-1",
+                status: "RUNNING",
+                deploymentName: "prod",
+                startTime: new Date("2026-01-01T00:00:00Z"),
+                endTime: null,
+              },
+            ],
+            nextPageToken: null,
+          },
+        })),
+      },
       executeWorkflow: vi.fn(async () => ({
         workflowName: "my-workflow",
         executionId: "exec-ct-1",
@@ -353,6 +404,8 @@ function makeMock(): Mistral {
           result: { answer: 42 },
           totalDurationMs: 1000,
         })),
+        cancelWorkflowExecution: vi.fn(async () => undefined),
+        terminateWorkflowExecution: vi.fn(async () => undefined),
         signalWorkflowExecution: vi.fn(async () => ({
           message: "Signal accepted",
         })),
@@ -977,6 +1030,56 @@ describe("contract: structuredContent matches outputSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("workflow_deployments_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "workflow_deployments_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowDeploymentsListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_deployments_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    // runnable_count is the field the agent acts on, so pin its meaning:
+    // two deployments, only one with a live worker.
+    expect(parsed.data.count).toBe(2);
+    expect(parsed.data.runnable_count).toBe(1);
+    expect(parsed.data.deployments[0]!.managed).toBe(true);
+    expect(parsed.data.deployments[1]!.managed).toBe(false);
+  });
+
+  it("workflow_runs_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "workflow_runs_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowRunsListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_runs_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.data.executions[0]!.execution_id).toBe("exec-ct-1");
+    expect(parsed.data.executions[0]!.start_time).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("workflow_stop (cancel and terminate)", async () => {
+    const { client } = await boot();
+    for (const mode of ["cancel", "terminate"] as const) {
+      const res = await client.callTool({
+        name: "workflow_stop",
+        arguments: { executionId: "exec-ct-1", mode },
+      });
+      expect(res.isError).toBeFalsy();
+      const parsed = WorkflowStopOutputSchema.safeParse(res.structuredContent);
+      if (!parsed.success) {
+        throw new Error(
+          `Contract violation (workflow_stop/${mode}): ${JSON.stringify(parsed.error.format(), null, 2)}`
+        );
+      }
+      expect(parsed.data.mode).toBe(mode);
+    }
+  });
+
   it("workflow_status", async () => {
     const { client } = await boot();
     const res = await client.callTool({
@@ -1299,7 +1402,7 @@ describe("contract: every tool declares required spec-compliance hooks", () => {
     const { tools } = await client.listTools();
     // Canary against accidental additions/removals. Bump deliberately, with a
     // CHANGELOG entry — never to make a red build green.
-    expect(tools.length).toBe(40);
+    expect(tools.length).toBe(43);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

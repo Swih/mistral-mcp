@@ -196,9 +196,12 @@ describe("registered surface matches the table", () => {
     await Promise.all([server.connect(st), client.connect(ct)]);
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
+      "workflow_deployments_list",
       "workflow_execute",
       "workflow_interact",
+      "workflow_runs_list",
       "workflow_status",
+      "workflow_stop",
     ]);
   });
 

@@ -109,7 +109,7 @@ besoin de comparer ce tableau à votre déploiement.
 
 ## Tools
 
-### Profil core (13 tools — toujours disponibles)
+### Profil core (16 tools — toujours disponibles)
 
 | Tool | Ce qu'il fait |
 |---|---|
@@ -121,6 +121,9 @@ besoin de comparer ce tableau à votre déploiement.
 | `workflow_execute` | Démarre un Mistral Workflow (exécution durable Temporal). |
 | `workflow_status` | Interroge un workflow en cours — retourne `RUNNING \| COMPLETED \| FAILED \| ...`. |
 | `workflow_interact` | Signale / interroge un workflow en cours. Utilisé pour les checkpoints humains-dans-la-boucle. |
+| `workflow_deployments_list` | Liste les déploiements de workflow et indique lesquels ont un worker vivant. À appeler avant `workflow_execute` — un workflow listé sans déploiement actif répond 404. |
+| `workflow_runs_list` | Liste les exécutions de workflow, filtrables par workflow, statut ou déploiement. |
+| `workflow_stop` | Arrête une exécution — `cancel` (gracieux, exécute les handlers de nettoyage) ou `terminate` (immédiat). |
 | `connectors_list` | Découvre les Connecteurs Mistral (intégrations MCP/HTTP) visibles par l'appelant. |
 | `connectors_get` | Récupère les métadonnées publiques d'un connecteur (jamais les credentials). |
 | `connectors_list_tools` | Liste les tools MCP exposés par un connecteur, avec leur schéma d'entrée. |

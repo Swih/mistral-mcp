@@ -121,9 +121,12 @@ describe.skipIf(!DIST_EXISTS)("stdio e2e (built server) — protocol surface", (
       "rag_indexes_list",
       "voxtral_speak",
       "voxtral_transcribe",
+      "workflow_deployments_list",
       "workflow_execute",
       "workflow_interact",
+      "workflow_runs_list",
       "workflow_status",
+      "workflow_stop",
     ]);
     for (const t of tools) {
       expect(t.outputSchema).toBeTruthy();
@@ -254,7 +257,10 @@ describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server) — live cal
       }>;
     };
     expect(sc.id.length).toBeGreaterThan(0);
-    expect(sc.model).toBe("mistral-moderation-latest");
+    // The API resolves the "-latest" alias to the dated build that actually
+    // served the request (observed: mistral-moderation-2603). Asserting the
+    // alias came back verbatim pinned a behaviour the API does not promise.
+    expect(sc.model).toMatch(/^mistral-moderation/);
     expect(Array.isArray(sc.results)).toBe(true);
     expect(sc.results.length).toBeGreaterThan(0);
   }, 30_000);

@@ -19,13 +19,19 @@
  * (`test/unit/eval-docs.test.ts`); only `main` needs the network.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { config as loadEnv } from "dotenv";
 import { Mistral } from "@mistralai/mistralai";
 import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import { Client } from "@modelcontextprotocol/client";
 import { registerDocsTools } from "../src/tools-docs.js";
+
+// The live tests load .env the same way; without this the harness reports a
+// missing key on a machine where every other live target works.
+const envPath = resolve(process.cwd(), ".env");
+if (existsSync(envPath)) loadEnv({ path: envPath });
 
 export interface CorpusDocument {
   file: string;
@@ -148,7 +154,8 @@ export function suggestThreshold(scores: DocumentScore[]): ThresholdSuggestion {
   if (clean.length === 0) {
     return { reason: "No document extracted cleanly; fix extraction before calibrating." };
   }
-  const floorClean = Math.min(...clean.map((s) => s.confidence!));
+  const cleanValues = clean.map((s) => s.confidence!);
+  const floorClean = Math.min(...cleanValues);
 
   if (lowSignal.length === 0) {
     return {
@@ -169,6 +176,29 @@ export function suggestThreshold(scores: DocumentScore[]): ThresholdSuggestion {
         `Confidence does not separate the populations (low-signal reaches ${ceilingLow.toFixed(3)}, ` +
         `clean floor is ${floorClean.toFixed(3)}). No threshold is defensible on this corpus; ` +
         "reject on missing fields instead of on confidence.",
+    };
+  }
+
+  // A gap narrower than the ordinary spread among clean documents is noise,
+  // not separation. The first real run made the case: every document scored
+  // between 0.950 and 0.985, the deliberately low-signal one included, so the
+  // midpoint rule produced 0.95 — a value that would reject essentially every
+  // real scan. The overlap check above missed it by 0.009. Comparing the gap
+  // to the clean population's own spread needs no invented constant: it asks
+  // whether confidence separates these documents better than it separates
+  // documents of the same quality from each other.
+  const cleanSpread = Math.max(...cleanValues) - floorClean;
+  const gap = floorClean - ceilingLow;
+  if (clean.length >= 2 && gap <= cleanSpread) {
+    return {
+      floor_clean: floorClean,
+      ceiling_low_signal: ceilingLow,
+      reason:
+        `The gap between the populations (${gap.toFixed(3)}) is no wider than the ordinary ` +
+        `spread among clean documents (${cleanSpread.toFixed(3)}). Confidence is not ` +
+        "separating signal from noise on this corpus — the documents are too uniformly " +
+        "readable. Add genuinely degraded documents (real scans, photographs, " +
+        "photocopies) before trusting any threshold.",
     };
   }
 
@@ -244,7 +274,7 @@ async function runCorpus(manifest: CorpusManifest, dir: string): Promise<Documen
       const called = await client.callTool({
         name: "process_document",
         arguments: {
-          source: { type: "file", fileId: uploaded.id },
+          source: { type: "file_id", fileId: uploaded.id },
           kind: "auto",
           // Floor of 0 so the harness observes the confidence instead of being
           // rejected by the very default it is here to calibrate.

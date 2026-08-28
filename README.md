@@ -108,7 +108,7 @@ which are off, and why — no need to diff this table against your deployment.
 
 ## Tools
 
-### Core profile (13 tools — always available)
+### Core profile (16 tools — always available)
 
 | Tool | What it does |
 |---|---|
@@ -120,6 +120,9 @@ which are off, and why — no need to diff this table against your deployment.
 | `workflow_execute` | Start a Mistral Workflow (Temporal-backed durable execution). |
 | `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |
 | `workflow_interact` | Signal / query a running workflow. Used for human-in-the-loop checkpoints. |
+| `workflow_deployments_list` | List workflow deployments and whether each has a live worker. Call it before `workflow_execute` — a listed workflow with no active deployment answers 404. |
+| `workflow_runs_list` | List workflow executions, filtered by workflow, status or deployment. |
+| `workflow_stop` | Stop an execution — `cancel` (graceful, runs cleanup handlers) or `terminate` (immediate). |
 | `connectors_list` | Discover Mistral Connectors (MCP/HTTP integrations) visible to the caller. |
 | `connectors_get` | Fetch one connector's public metadata (never credentials). |
 | `connectors_list_tools` | List the MCP tools a connector exposes, with their input schema. |

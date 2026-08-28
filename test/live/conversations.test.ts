@@ -16,6 +16,7 @@ import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/client";
 import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import { Mistral } from "@mistralai/mistralai";
+import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "../../src/shared.js";
 import { registerConversationTools } from "../../src/tools-conversations.js";
 
 const envPath = resolve(process.cwd(), ".env");
@@ -26,8 +27,8 @@ const HAS_KEY = Boolean(process.env.MISTRAL_API_KEY);
 async function bootConversationServer() {
   const mistral = new Mistral({
     apiKey: process.env.MISTRAL_API_KEY!,
-    retryConfig: { strategy: "backoff", retryConnectionErrors: true },
-    timeoutMs: 30_000,
+    retryConfig: MISTRAL_RETRY_CONFIG,
+    timeoutMs: MISTRAL_TIMEOUT_MS,
   });
   const server = new McpServer({ name: "test-conversations", version: "0.0.0" });
   registerConversationTools(server, mistral);

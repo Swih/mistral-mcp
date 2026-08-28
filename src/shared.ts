@@ -5,10 +5,12 @@
  * - `content[]` is the human-facing fallback; `structuredContent` is the strict JSON payload.
  * - Errors must surface as `{ content, isError: true }` so the calling LLM can self-correct.
  *
- * Keep this module zod-only + pure helpers. No SDK imports.
+ * Keep this module zod-only + pure helpers and constants. Type-only SDK
+ * imports are fine here; nothing in this module may run at import time.
  */
 
 import { z } from "zod";
+import type { Mistral } from "@mistralai/mistralai";
 
 // ---------- Common message shapes ----------
 
@@ -267,3 +269,32 @@ export function extractTextAndReasoning(raw: unknown): {
     reasoningParts.length > 0 ? reasoningParts.join("") : undefined;
   return { text, reasoning_content };
 }
+
+// ---------- Client policy ----------
+
+type MistralClientOptions = NonNullable<ConstructorParameters<typeof Mistral>[0]>;
+
+/**
+ * The retry policy every Mistral client in this repo must use — production and
+ * tests alike.
+ *
+ * It lives here because it drifted. `src/index.ts` carried the full policy while
+ * each live test built its own client with a partial one, and one with none at
+ * all. So the suite whose whole job is to prove the wrapper survives the real
+ * API was the only code the policy did not cover: the first 503 under load
+ * failed the run outright, even though the SDK lists 503 in its `retryCodes`
+ * and the production client would have absorbed it.
+ */
+export const MISTRAL_RETRY_CONFIG: NonNullable<MistralClientOptions["retryConfig"]> = {
+  strategy: "backoff",
+  backoff: {
+    initialInterval: 500,
+    maxInterval: 5000,
+    exponent: 2,
+    maxElapsedTime: 30_000,
+  },
+  retryConnectionErrors: true,
+};
+
+/** Request timeout shared by production and tests. */
+export const MISTRAL_TIMEOUT_MS = 60_000;

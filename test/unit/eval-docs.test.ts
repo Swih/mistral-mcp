@@ -113,6 +113,31 @@ describe("suggestThreshold", () => {
     expect(out.suggested).toBe(0.6);
   });
 
+  it("refuses when the gap is narrower than the clean population's own spread", () => {
+    // The shape of the first real run: everything lands in a narrow high band,
+    // including the document that is meant to be hard. The populations do not
+    // overlap, so the overlap check passes, but 0.009 of separation against
+    // 0.025 of ordinary spread is noise and the midpoint would be unusable.
+    const out = suggestThreshold([
+      score({ confidence: 0.985 }),
+      score({ confidence: 0.959 }),
+      score({ confidence: 0.95, low_signal: true }),
+    ]);
+    expect(out.suggested).toBeUndefined();
+    expect(out.reason).toMatch(/not separating signal from noise/i);
+    expect(out.reason).toMatch(/degraded documents/i);
+  });
+
+  it("still suggests when the gap is genuinely wider than the spread", () => {
+    const out = suggestThreshold([
+      score({ confidence: 0.95 }),
+      score({ confidence: 0.9 }),
+      score({ confidence: 0.4, low_signal: true }),
+    ]);
+    // Spread among clean is 0.05, gap is 0.5 — real separation.
+    expect(out.suggested).toBe(0.65);
+  });
+
   it("refuses to suggest when the populations overlap", () => {
     const out = suggestThreshold([
       score({ confidence: 0.55 }),

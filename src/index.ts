@@ -38,6 +38,7 @@ import { registerMistralResources } from "./resources.js";
 import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
 import { isEnabled, resolveRuntime, type RuntimeConfig } from "./profile.js";
+import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "./shared.js";
 import {
   configureAudit,
   instrumentTools,
@@ -91,17 +92,8 @@ const mistral = new Mistral({
   // customer's collector can join an MCP span to the Mistral span it caused.
   httpClient: tracingHttpClient(),
   ...(runtime.baseUrl ? { serverURL: runtime.baseUrl } : {}),
-  retryConfig: {
-    strategy: "backoff",
-    backoff: {
-      initialInterval: 500,
-      maxInterval: 5000,
-      exponent: 2,
-      maxElapsedTime: 30000,
-    },
-    retryConnectionErrors: true,
-  },
-  timeoutMs: 60_000,
+  retryConfig: MISTRAL_RETRY_CONFIG,
+  timeoutMs: MISTRAL_TIMEOUT_MS,
 });
 
 const { profile } = runtime;

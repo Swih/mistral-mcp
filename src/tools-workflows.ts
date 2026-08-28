@@ -53,6 +53,73 @@ export const WorkflowInteractOutputShape = {
 };
 export const WorkflowInteractOutputSchema = z.object(WorkflowInteractOutputShape);
 
+
+export const WorkflowDeploymentsListOutputShape = {
+  deployments: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      is_active: z
+        .boolean()
+        .describe("At least one worker is currently live. Only an active deployment can run a workflow."),
+      is_hardened: z.boolean().describe("The deployment has at least one authorized credential."),
+      worker_count: z.number().int(),
+      active_worker_count: z.number().int(),
+      managed: z.boolean().describe("false for a self-hosted deployment."),
+      created_at: z.string().optional(),
+      updated_at: z.string().optional(),
+    })
+  ),
+  count: z.number().int(),
+  runnable_count: z
+    .number()
+    .int()
+    .describe("Deployments with at least one live worker. Zero means no workflow can run right now."),
+};
+export const WorkflowDeploymentsListOutputSchema = z.object(WorkflowDeploymentsListOutputShape);
+
+/** Terminal and in-flight execution states, per components.WorkflowExecutionStatus. */
+export const WORKFLOW_EXECUTION_STATUSES = [
+  "RUNNING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELED",
+  "TERMINATED",
+  "CONTINUED_AS_NEW",
+  "TIMED_OUT",
+  "RETRYING_AFTER_ERROR",
+] as const;
+
+export const WorkflowRunsListOutputShape = {
+  executions: z.array(
+    z.object({
+      workflow_name: z.string(),
+      execution_id: z.string(),
+      root_execution_id: z.string().optional(),
+      status: z.string().nullable().optional(),
+      deployment_name: z.string().nullable().optional(),
+      start_time: z.string().optional(),
+      end_time: z.string().nullable().optional(),
+    })
+  ),
+  count: z.number().int(),
+  next_page_token: z.string().nullable().optional(),
+};
+export const WorkflowRunsListOutputSchema = z.object(WorkflowRunsListOutputShape);
+
+export const WorkflowStopOutputShape = {
+  execution_id: z.string(),
+  mode: z.enum(["cancel", "terminate"]),
+  requested: z.literal(true).describe("The API accepted the request; the execution winds down asynchronously."),
+};
+export const WorkflowStopOutputSchema = z.object(WorkflowStopOutputShape);
+
+/** Dates arrive as `Date` from the SDK; ISO strings travel better over JSON-RPC. */
+function toIso(value: unknown): string | undefined {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") return value;
+  return undefined;
+}
 // ---------- registration ----------
 
 export function registerWorkflowTools(server: McpServer, mistral: Mistral) {
@@ -345,6 +412,211 @@ export function registerWorkflowTools(server: McpServer, mistral: Mistral) {
         }
       } catch (err) {
         return errorResult("workflow_interact", err);
+      }
+    }
+  );
+
+  // ========== workflow_deployments_list ==========
+  server.registerTool(
+    "workflow_deployments_list",
+    {
+      title: "List workflow deployments",
+      description: [
+        "List the workflow deployments in this workspace and whether each can run right now.",
+        "",
+        "Call this before workflow_execute. A workflow returned by mistral://workflows is a",
+        "*definition*; running it requires a deployment with at least one live worker. A",
+        "workflow whose deployment is missing or has no live worker answers 404",
+        "(no active deployment found) — this tool is how to see that first.",
+        "",
+        "runnable_count is the number of deployments with a live worker. When it is 0,",
+        "no workflow can be executed and the operator has to start a deployment.",
+      ].join("\n"),
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Maximum deployments to return."),
+      }),
+      outputSchema: WorkflowDeploymentsListOutputSchema,
+      annotations: {
+        title: "List workflow deployments",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) => {
+      try {
+        const res = await mistral.workflows.deployments.listDeployments(
+          input.limit === undefined ? {} : { limit: input.limit }
+        );
+        const deployments = (res.deployments ?? []).map((d) => ({
+          id: d.id,
+          name: d.name,
+          is_active: d.isActive,
+          is_hardened: d.isHardened,
+          worker_count: d.workerCount,
+          active_worker_count: d.activeWorkerCount,
+          managed: d.managed != null,
+          ...(toIso(d.createdAt) ? { created_at: toIso(d.createdAt)! } : {}),
+          ...(toIso(d.updatedAt) ? { updated_at: toIso(d.updatedAt)! } : {}),
+        }));
+        const runnable = deployments.filter((d) => d.is_active);
+        const structured = {
+          deployments,
+          count: deployments.length,
+          runnable_count: runnable.length,
+        };
+        const summary =
+          deployments.length === 0
+            ? "No workflow deployment in this workspace — nothing can be executed until one is created."
+            : runnable.length === 0
+              ? `${deployments.length} deployment(s), none with a live worker — workflow_execute will fail until one is started.`
+              : `${runnable.length}/${deployments.length} deployment(s) runnable: ${runnable.map((d) => d.name).join(", ")}.`;
+        return { content: [toTextBlock(summary)], structuredContent: structured };
+      } catch (err) {
+        return errorResult("workflow_deployments_list", err);
+      }
+    }
+  );
+
+  // ========== workflow_runs_list ==========
+  server.registerTool(
+    "workflow_runs_list",
+    {
+      title: "List workflow executions",
+      description: [
+        "List workflow executions, most recent first. Use it to find an execution_id to pass",
+        "to workflow_status, workflow_interact or workflow_stop.",
+        "",
+        "All filters are optional; with none, returns the latest executions in the workspace.",
+      ].join("\n"),
+      inputSchema: z.object({
+        workflowIdentifier: z
+          .string()
+          .optional()
+          .describe("Restrict to one workflow, by name or ID."),
+        status: z
+          .enum(WORKFLOW_EXECUTION_STATUSES)
+          .optional()
+          .describe("Restrict to one execution status."),
+        deploymentName: z.string().optional().describe("Restrict to one deployment."),
+        limit: z.number().int().min(1).max(100).optional(),
+      }),
+      outputSchema: WorkflowRunsListOutputSchema,
+      annotations: {
+        title: "List workflow executions",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) => {
+      try {
+        const page = await mistral.workflows.runs.listRuns({
+          ...(input.workflowIdentifier ? { workflowIdentifier: input.workflowIdentifier } : {}),
+          ...(input.status ? { status: input.status } : {}),
+          ...(input.deploymentName ? { deploymentName: input.deploymentName } : {}),
+          ...(input.limit === undefined ? {} : { limit: input.limit }),
+        });
+        // listRuns hands back a page iterator; one tool call answers with the
+        // first page, and an agent narrows its filters rather than paginating.
+        const body = (page as { result?: { executions?: unknown[]; nextPageToken?: string | null } })
+          .result;
+        const raw = (body?.executions ?? []) as Array<Record<string, unknown>>;
+        const executions = raw.map((e) => ({
+          workflow_name: String(e.workflowName ?? ""),
+          execution_id: String(e.executionId ?? ""),
+          ...(e.rootExecutionId ? { root_execution_id: String(e.rootExecutionId) } : {}),
+          status: (e.status ?? null) as string | null,
+          deployment_name: (e.deploymentName ?? null) as string | null,
+          ...(toIso(e.startTime) ? { start_time: toIso(e.startTime)! } : {}),
+          end_time: toIso(e.endTime) ?? null,
+        }));
+        const structured = {
+          executions,
+          count: executions.length,
+          next_page_token: body?.nextPageToken ?? null,
+        };
+        const summary =
+          executions.length === 0
+            ? "No workflow execution matched."
+            : `${executions.length} execution(s): ${executions
+                .slice(0, 5)
+                .map((e) => `${e.workflow_name}/${e.execution_id} ${e.status ?? "?"}`)
+                .join(", ")}${executions.length > 5 ? ", ..." : ""}.`;
+        return { content: [toTextBlock(summary)], structuredContent: structured };
+      } catch (err) {
+        return errorResult("workflow_runs_list", err);
+      }
+    }
+  );
+
+  // ========== workflow_stop ==========
+  server.registerTool(
+    "workflow_stop",
+    {
+      title: "Stop a workflow execution",
+      description: [
+        "Stop a running workflow execution.",
+        "",
+        "  mode=cancel (default): asks the workflow to wind down, letting it run its cleanup",
+        "    handlers. Prefer this — a cancelled workflow leaves consistent state.",
+        "  mode=terminate: kills the execution immediately. Cleanup handlers do not run, so",
+        "    any half-finished side effect stays half-finished. Use only when cancel is stuck.",
+        "",
+        "Both are accepted asynchronously: the call returning does not mean the execution has",
+        "already stopped. Poll workflow_status to observe the final state.",
+      ].join("\n"),
+      inputSchema: z.object({
+        executionId: z.string().min(1).describe("Execution to stop."),
+        mode: z
+          .enum(["cancel", "terminate"])
+          .optional()
+          .describe("cancel (graceful, default) or terminate (immediate, skips cleanup)."),
+      }),
+      outputSchema: WorkflowStopOutputSchema,
+      annotations: {
+        title: "Stop a workflow execution",
+        readOnlyHint: false,
+        // Terminate skips the workflow's cleanup handlers, so this can leave
+        // externally-visible work half-done. The hint has to reflect the worst
+        // mode the tool can be asked for.
+        destructiveHint: true,
+        // Stopping an already-stopped execution changes nothing further.
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) => {
+      const mode = input.mode ?? "cancel";
+      try {
+        if (mode === "terminate") {
+          await mistral.workflows.executions.terminateWorkflowExecution({
+            executionId: input.executionId,
+          });
+        } else {
+          await mistral.workflows.executions.cancelWorkflowExecution({
+            executionId: input.executionId,
+          });
+        }
+        const structured = { execution_id: input.executionId, mode, requested: true as const };
+        return {
+          content: [
+            toTextBlock(
+              `${mode === "terminate" ? "Terminate" : "Cancel"} requested for ${input.executionId}. Poll workflow_status for the final state.`
+            ),
+          ],
+          structuredContent: structured,
+        };
+      } catch (err) {
+        return errorResult("workflow_stop", err);
       }
     }
   );
