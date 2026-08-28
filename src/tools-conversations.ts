@@ -23,12 +23,11 @@
  * Five tools: conversation_start, conversation_append, conversation_get,
  * conversation_list, conversation_history, conversation_delete.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import type { ConversationRequestTool } from "@mistralai/mistralai/models/components/conversationrequest.js";
 import { z } from "zod";
-import { ChatModelSchema, DEFAULT_CHAT_MODEL } from "./models.js";
+import { ChatModelSchema, defaultChatModel } from "./models.js";
 import { ChatSamplingParams, errorResult, toTextBlock } from "./shared.js";
 
 // ---------- shared sub-schemas ----------
@@ -254,31 +253,31 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         "Pass `documentLibraryIds` to additionally enable document_library search",
         "over specific Mistral Libraries.",
       ].join("\n"),
-      inputSchema: {
-        input: z.string().min(1).describe("User message that starts the conversation."),
-        agentId: z
-          .string()
-          .optional()
-          .describe("Pre-configured Mistral Agent ID. Mutually exclusive with model."),
-        model: ChatModelSchema.optional().describe(
-          `Base chat model. Mutually exclusive with agentId. Default: ${DEFAULT_CHAT_MODEL}.`
-        ),
-        instructions: z.string().optional().describe("System-level instructions."),
-        tools: z
-          .array(z.enum(BUILTIN_TOOL_TYPES))
-          .optional()
-          .describe("Built-in Mistral tools to enable."),
-        documentLibraryIds: z
-          .array(z.string().min(1))
-          .optional()
-          .describe("Library IDs to search via the document_library tool."),
-        store: z
-          .boolean()
-          .optional()
-          .describe("Persist the conversation server-side. Default: true."),
-        ...ChatSamplingParams,
-      },
-      outputSchema: ConversationResponseOutputShape,
+      inputSchema: z.object({
+              input: z.string().min(1).describe("User message that starts the conversation."),
+              agentId: z
+                .string()
+                .optional()
+                .describe("Pre-configured Mistral Agent ID. Mutually exclusive with model."),
+              model: ChatModelSchema.optional().describe(
+                `Base chat model. Mutually exclusive with agentId. Default: ${defaultChatModel()}.`
+              ),
+              instructions: z.string().optional().describe("System-level instructions."),
+              tools: z
+                .array(z.enum(BUILTIN_TOOL_TYPES))
+                .optional()
+                .describe("Built-in Mistral tools to enable."),
+              documentLibraryIds: z
+                .array(z.string().min(1))
+                .optional()
+                .describe("Library IDs to search via the document_library tool."),
+              store: z
+                .boolean()
+                .optional()
+                .describe("Persist the conversation server-side. Default: true."),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: ConversationResponseOutputSchema,
       annotations: {
         title: "Start Mistral conversation",
         readOnlyHint: false,
@@ -292,7 +291,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         const res = await mistral.beta.conversations.start({
           inputs: input.input,
           agentId: input.agentId,
-          model: input.agentId ? undefined : (input.model ?? DEFAULT_CHAT_MODEL),
+          model: input.agentId ? undefined : (input.model ?? defaultChatModel()),
           instructions: input.instructions,
           tools: buildToolsParam(input.tools, input.documentLibraryIds),
           store: input.store,
@@ -339,13 +338,13 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         "Append a new user turn to an existing conversation and run completion. " +
         "Returns only the newly created entries (not the full history) — use " +
         "conversation_history for the complete entry log.",
-      inputSchema: {
-        conversationId: z.string().min(1).describe("Conversation ID from conversation_start."),
-        input: z.string().min(1).describe("New user message to append."),
-        store: z.boolean().optional(),
-        ...ChatSamplingParams,
-      },
-      outputSchema: ConversationResponseOutputShape,
+      inputSchema: z.object({
+              conversationId: z.string().min(1).describe("Conversation ID from conversation_start."),
+              input: z.string().min(1).describe("New user message to append."),
+              store: z.boolean().optional(),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: ConversationResponseOutputSchema,
       annotations: {
         title: "Append to Mistral conversation",
         readOnlyHint: false,
@@ -402,10 +401,10 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
     {
       title: "Get a Mistral conversation's metadata",
       description: "Fetch a conversation's configuration (model/agent, tools, instructions).",
-      inputSchema: {
-        conversationId: z.string().min(1),
-      },
-      outputSchema: ConversationGetOutputShape,
+      inputSchema: z.object({
+              conversationId: z.string().min(1),
+            }),
+      outputSchema: ConversationGetOutputSchema,
       annotations: {
         title: "Get conversation metadata",
         readOnlyHint: true,
@@ -434,11 +433,11 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
     {
       title: "List Mistral conversations",
       description: "List conversations created with this API key, most recent first.",
-      inputSchema: {
-        page: z.number().int().nonnegative().optional(),
-        pageSize: z.number().int().positive().max(100).optional(),
-      },
-      outputSchema: ConversationListOutputShape,
+      inputSchema: z.object({
+              page: z.number().int().nonnegative().optional(),
+              pageSize: z.number().int().positive().max(100).optional(),
+            }),
+      outputSchema: ConversationListOutputSchema,
       annotations: {
         title: "List Mistral conversations",
         readOnlyHint: true,
@@ -472,10 +471,10 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
       description:
         "Fetch every entry in a conversation, in order: messages, function calls/results, " +
         "tool executions, and agent handoffs.",
-      inputSchema: {
-        conversationId: z.string().min(1),
-      },
-      outputSchema: ConversationHistoryOutputShape,
+      inputSchema: z.object({
+              conversationId: z.string().min(1),
+            }),
+      outputSchema: ConversationHistoryOutputSchema,
       annotations: {
         title: "Get conversation history",
         readOnlyHint: true,
@@ -511,10 +510,10 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
     {
       title: "Delete a Mistral conversation",
       description: "Permanently delete a conversation and its history.",
-      inputSchema: {
-        conversationId: z.string().min(1),
-      },
-      outputSchema: ConversationDeleteOutputShape,
+      inputSchema: z.object({
+              conversationId: z.string().min(1),
+            }),
+      outputSchema: ConversationDeleteOutputSchema,
       annotations: {
         title: "Delete Mistral conversation",
         readOnlyHint: false,

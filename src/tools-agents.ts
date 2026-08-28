@@ -16,8 +16,7 @@
  *   POST /v1/classifications  (SDK: mistral.classifiers.classify)
  *   Runs a fine-tuned classifier (or a preset) on one or more texts.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import type { AgentsCompletionRequest } from "@mistralai/mistralai/models/components/agentscompletionrequest.js";
 import { z } from "zod";
@@ -86,25 +85,25 @@ export function registerAgentTools(server: McpServer, mistral: Mistral) {
         "",
         "Use `mistral_chat` for direct model calls without stateful agent config.",
       ].join("\n"),
-      inputSchema: {
-        agentId: z
-          .string()
-          .min(1)
-          .describe(
-            "ID of the agent to call, as shown in the Mistral dashboard (e.g. 'ag:abcd...')."
-          ),
-        messages: z
-          .array(TextMessageSchema)
-          .min(1)
-          .describe("Chat-style messages to send to the agent."),
-        max_tokens: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe("Maximum number of completion tokens to generate."),
-      },
-      outputSchema: AgentOutputShape,
+      inputSchema: z.object({
+              agentId: z
+                .string()
+                .min(1)
+                .describe(
+                  "ID of the agent to call, as shown in the Mistral dashboard (e.g. 'ag:abcd...')."
+                ),
+              messages: z
+                .array(TextMessageSchema)
+                .min(1)
+                .describe("Chat-style messages to send to the agent."),
+              max_tokens: z
+                .number()
+                .int()
+                .positive()
+                .optional()
+                .describe("Maximum number of completion tokens to generate."),
+            }),
+      outputSchema: AgentOutputSchema,
       annotations: {
         title: "Mistral Agents completion",
         readOnlyHint: true,
@@ -161,15 +160,15 @@ export function registerAgentTools(server: McpServer, mistral: Mistral) {
         "Use `mistral_chat_moderate` style pre-filtering by calling this before",
         "passing user input to a downstream LLM.",
       ].join("\n"),
-      inputSchema: {
-        inputs: z
-          .union([z.string(), z.array(z.string()).min(1)])
-          .describe("Single text or array of texts to moderate."),
-        model: ModerationModelSchema.optional().describe(
-          `Moderation model. Default: ${DEFAULT_MODERATION_MODEL}.`
-        ),
-      },
-      outputSchema: ModerateOutputShape,
+      inputSchema: z.object({
+              inputs: z
+                .union([z.string(), z.array(z.string()).min(1)])
+                .describe("Single text or array of texts to moderate."),
+              model: ModerationModelSchema.optional().describe(
+                `Moderation model. Default: ${DEFAULT_MODERATION_MODEL}.`
+              ),
+            }),
+      outputSchema: ModerateOutputSchema,
       annotations: {
         title: "Mistral moderation",
         readOnlyHint: true,
@@ -224,18 +223,18 @@ export function registerAgentTools(server: McpServer, mistral: Mistral) {
         "trained via the Classifier Factory, or a preset classifier model.",
         "Each result is a dict of target_name → { scores: { label: score } }.",
       ].join("\n"),
-      inputSchema: {
-        inputs: z
-          .union([z.string(), z.array(z.string()).min(1)])
-          .describe("Single text or array of texts to classify."),
-        model: z
-          .string()
-          .min(1)
-          .describe(
-            "Classifier model id (fine-tuned `ft:classifier:...` or preset)."
-          ),
-      },
-      outputSchema: ClassifyOutputShape,
+      inputSchema: z.object({
+              inputs: z
+                .union([z.string(), z.array(z.string()).min(1)])
+                .describe("Single text or array of texts to classify."),
+              model: z
+                .string()
+                .min(1)
+                .describe(
+                  "Classifier model id (fine-tuned `ft:classifier:...` or preset)."
+                ),
+            }),
+      outputSchema: ClassifyOutputSchema,
       annotations: {
         title: "Mistral classification",
         readOnlyHint: true,

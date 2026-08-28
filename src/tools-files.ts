@@ -18,8 +18,7 @@
  * `download` endpoint returns a stream, which doesn't map cleanly to MCP —
  * callers should use `files_signed_url` to get a short-lived download URL.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { errorResult, toTextBlock } from "./shared.js";
@@ -142,19 +141,19 @@ export function registerFileTools(server: McpServer, mistral: Mistral) {
         "  - `visibility`: 'user' (default) or 'workspace' (shared with your team).",
         "  - `expiry_days`: optional auto-delete after N days.",
       ].join("\n"),
-      inputSchema: {
-        filename: z.string().min(1),
-        content_base64: z
-          .string()
-          .min(1)
-          .describe("Base64-encoded file bytes. `data:...;base64,` prefix accepted."),
-        purpose: FilePurposeSchema.optional().describe(
-          "File purpose. Fine-tuning requires .jsonl. Default: unset (server picks)."
-        ),
-        visibility: FileVisibilitySchema.optional(),
-        expiry_days: z.number().int().positive().optional(),
-      },
-      outputSchema: FileUploadOutputShape,
+      inputSchema: z.object({
+              filename: z.string().min(1),
+              content_base64: z
+                .string()
+                .min(1)
+                .describe("Base64-encoded file bytes. `data:...;base64,` prefix accepted."),
+              purpose: FilePurposeSchema.optional().describe(
+                "File purpose. Fine-tuning requires .jsonl. Default: unset (server picks)."
+              ),
+              visibility: FileVisibilitySchema.optional(),
+              expiry_days: z.number().int().positive().optional(),
+            }),
+      outputSchema: FileUploadOutputSchema,
       annotations: {
         title: "Upload file",
         readOnlyHint: false,
@@ -196,15 +195,15 @@ export function registerFileTools(server: McpServer, mistral: Mistral) {
       description:
         "List files owned by this API key, with optional filters. " +
         "Use `include_total: true` to get the total count across pages.",
-      inputSchema: {
-        page: z.number().int().nonnegative().optional(),
-        page_size: z.number().int().positive().optional(),
-        purpose: FilePurposeSchema.optional(),
-        search: z.string().optional(),
-        mimetypes: z.array(z.string()).optional(),
-        include_total: z.boolean().optional(),
-      },
-      outputSchema: FileListOutputShape,
+      inputSchema: z.object({
+              page: z.number().int().nonnegative().optional(),
+              page_size: z.number().int().positive().optional(),
+              purpose: FilePurposeSchema.optional(),
+              search: z.string().optional(),
+              mimetypes: z.array(z.string()).optional(),
+              include_total: z.boolean().optional(),
+            }),
+      outputSchema: FileListOutputSchema,
       annotations: {
         title: "List files",
         readOnlyHint: true,
@@ -252,10 +251,10 @@ export function registerFileTools(server: McpServer, mistral: Mistral) {
     {
       title: "Get Mistral file metadata",
       description: "Retrieve a single file's metadata by id.",
-      inputSchema: {
-        fileId: z.string().min(1),
-      },
-      outputSchema: FileGetOutputShape,
+      inputSchema: z.object({
+              fileId: z.string().min(1),
+            }),
+      outputSchema: FileGetOutputSchema,
       annotations: {
         title: "Get file",
         readOnlyHint: true,
@@ -289,10 +288,10 @@ export function registerFileTools(server: McpServer, mistral: Mistral) {
     {
       title: "Delete a Mistral file",
       description: "Delete a file by id. This is irreversible.",
-      inputSchema: {
-        fileId: z.string().min(1),
-      },
-      outputSchema: FileDeleteOutputShape,
+      inputSchema: z.object({
+              fileId: z.string().min(1),
+            }),
+      outputSchema: FileDeleteOutputSchema,
       annotations: {
         title: "Delete file",
         readOnlyHint: false,
@@ -333,11 +332,11 @@ export function registerFileTools(server: McpServer, mistral: Mistral) {
       description:
         "Generate a short-lived, signed URL to download a file. " +
         "Expiry is in hours (1–168). Defaults to 24h server-side.",
-      inputSchema: {
-        fileId: z.string().min(1),
-        expiry_hours: z.number().int().min(1).max(168).optional(),
-      },
-      outputSchema: FileSignedUrlOutputShape,
+      inputSchema: z.object({
+              fileId: z.string().min(1),
+              expiry_hours: z.number().int().min(1).max(168).optional(),
+            }),
+      outputSchema: FileSignedUrlOutputSchema,
       annotations: {
         title: "Signed URL",
         readOnlyHint: true,

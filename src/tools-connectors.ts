@@ -19,8 +19,7 @@
  *   connectors_list_tools — list the MCP tools a connector exposes
  *   connectors_call_tool  — invoke one of those tools (real MCP CallToolResult passthrough)
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { errorResult, toTextBlock } from "./shared.js";
@@ -137,15 +136,15 @@ export function registerConnectorTools(server: McpServer, mistral: Mistral) {
         "This is discovery only — activating a new connector or managing its",
         "credentials is not exposed here; use the Mistral console for that.",
       ].join("\n"),
-      inputSchema: {
-        active: z
-          .boolean()
-          .optional()
-          .describe("Filter to connectors currently active for the caller."),
-        cursor: z.string().optional().describe("Pagination cursor from a previous response."),
-        pageSize: z.number().int().positive().max(100).optional().describe("Default: 100."),
-      },
-      outputSchema: ConnectorsListOutputShape,
+      inputSchema: z.object({
+              active: z
+                .boolean()
+                .optional()
+                .describe("Filter to connectors currently active for the caller."),
+              cursor: z.string().optional().describe("Pagination cursor from a previous response."),
+              pageSize: z.number().int().positive().max(100).optional().describe("Default: 100."),
+            }),
+      outputSchema: ConnectorsListOutputSchema,
       annotations: {
         title: "List connectors",
         readOnlyHint: true,
@@ -189,10 +188,10 @@ export function registerConnectorTools(server: McpServer, mistral: Mistral) {
         "connector's public profile (name, description, protocol, visibility,",
         "activation/authentication status).",
       ].join("\n"),
-      inputSchema: {
-        connectorIdOrName: z.string().min(1).describe("Connector ID or unique name."),
-      },
-      outputSchema: ConnectorsGetOutputShape,
+      inputSchema: z.object({
+              connectorIdOrName: z.string().min(1).describe("Connector ID or unique name."),
+            }),
+      outputSchema: ConnectorsGetOutputSchema,
       annotations: {
         title: "Get connector",
         readOnlyHint: true,
@@ -231,17 +230,17 @@ export function registerConnectorTools(server: McpServer, mistral: Mistral) {
         "",
         "Set `refresh=true` to bypass any server-side cache of the tool catalog.",
       ].join("\n"),
-      inputSchema: {
-        connectorIdOrName: z.string().min(1).describe("Connector ID or unique name."),
-        page: z.number().int().positive().optional().describe("1-indexed page. Default: 1."),
-        pageSize: z.number().int().positive().max(100).optional().describe("Default: 100."),
-        refresh: z.boolean().optional().describe("Bypass cached tool catalog. Default: false."),
-        credentialsName: z
-          .string()
-          .optional()
-          .describe("Named credential set to use, when the connector has more than one."),
-      },
-      outputSchema: ConnectorsListToolsOutputShape,
+      inputSchema: z.object({
+              connectorIdOrName: z.string().min(1).describe("Connector ID or unique name."),
+              page: z.number().int().positive().optional().describe("1-indexed page. Default: 1."),
+              pageSize: z.number().int().positive().max(100).optional().describe("Default: 100."),
+              refresh: z.boolean().optional().describe("Bypass cached tool catalog. Default: false."),
+              credentialsName: z
+                .string()
+                .optional()
+                .describe("Named credential set to use, when the connector has more than one."),
+            }),
+      outputSchema: ConnectorsListToolsOutputSchema,
       annotations: {
         title: "List connector tools",
         readOnlyHint: true,
@@ -303,19 +302,19 @@ export function registerConnectorTools(server: McpServer, mistral: Mistral) {
         "MCP content blocks (text/image/audio/resource); `structuredContent`",
         "carries a flattened snake_case summary plus `is_error`.",
       ].join("\n"),
-      inputSchema: {
-        connectorIdOrName: z.string().min(1).describe("Connector ID or unique name."),
-        toolName: z.string().min(1).describe("Tool name, from connectors_list_tools."),
-        arguments: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe("Tool arguments matching its input schema."),
-        credentialsName: z
-          .string()
-          .optional()
-          .describe("Named credential set to use, when the connector has more than one."),
-      },
-      outputSchema: ConnectorsCallToolOutputShape,
+      inputSchema: z.object({
+              connectorIdOrName: z.string().min(1).describe("Connector ID or unique name."),
+              toolName: z.string().min(1).describe("Tool name, from connectors_list_tools."),
+              arguments: z
+                .record(z.string(), z.unknown())
+                .optional()
+                .describe("Tool arguments matching its input schema."),
+              credentialsName: z
+                .string()
+                .optional()
+                .describe("Named credential set to use, when the connector has more than one."),
+            }),
+      outputSchema: ConnectorsCallToolOutputSchema,
       annotations: {
         title: "Call connector tool",
         readOnlyHint: false,

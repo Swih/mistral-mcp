@@ -44,12 +44,3 @@ calling mistral_chat with: 'cc le chat'
 
 The exact reply text varies by model and API version.
 
-## `rate-it.mjs`
-
-Feeds the project's `README.md` to Mistral and asks for a critical engineering
-review. Useful as a quick sanity check that the built server can carry a larger
-payload through MCP end-to-end.
-
-```bash
-node examples/rate-it.mjs
-```

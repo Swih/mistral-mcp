@@ -13,8 +13,7 @@
  *   Output: base64-encoded audio; we pass it back as an audio content block
  *   plus structured metadata (format + mime type).
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import {
@@ -22,7 +21,7 @@ import {
   STT_MODELS,
   SttModelSchema,
 } from "./models.js";
-import type { MistralProfile } from "./profile.js";
+import { isEnabled, type MistralProfile } from "./profile.js";
 import { UsageSchema, errorResult, mapUsage, toTextBlock } from "./shared.js";
 
 // ---------- output schemas (exported for contract tests) ----------
@@ -90,8 +89,7 @@ export function registerAudioTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
-  if (profile === "workflows") return;
-
+  if (isEnabled("transcribe", profile)) {
   // ========== voxtral_transcribe ==========
   server.registerTool(
     "voxtral_transcribe",
@@ -116,24 +114,24 @@ export function registerAudioTools(
         "",
         "Returns plain `text`, detected `language`, optional `segments[]`, and token usage.",
       ].join("\n"),
-      inputSchema: {
-        audio: AudioSourceSchema,
-        model: SttModelSchema.optional().describe(
-          `STT model. Default: ${DEFAULT_STT_MODEL}.`
-        ),
-        language: z
-          .string()
-          .optional()
-          .describe("ISO-639-1 language hint (e.g. 'fr', 'en')."),
-        temperature: z.number().min(0).max(2).optional(),
-        diarize: z.boolean().optional(),
-        timestampGranularities: z
-          .array(z.enum(["segment"]))
-          .optional()
-          .describe("Only 'segment' is currently supported."),
-        contextBias: z.array(z.string()).optional(),
-      },
-      outputSchema: TranscribeOutputShape,
+      inputSchema: z.object({
+              audio: AudioSourceSchema,
+              model: SttModelSchema.optional().describe(
+                `STT model. Default: ${DEFAULT_STT_MODEL}.`
+              ),
+              language: z
+                .string()
+                .optional()
+                .describe("ISO-639-1 language hint (e.g. 'fr', 'en')."),
+              temperature: z.number().min(0).max(2).optional(),
+              diarize: z.boolean().optional(),
+              timestampGranularities: z
+                .array(z.enum(["segment"]))
+                .optional()
+                .describe("Only 'segment' is currently supported."),
+              contextBias: z.array(z.string()).optional(),
+            }),
+      outputSchema: TranscribeOutputSchema,
       annotations: {
         title: "Voxtral speech-to-text",
         readOnlyHint: true,
@@ -193,8 +191,9 @@ export function registerAudioTools(
       }
     }
   );
+  } // end transcribe
 
-  if (profile === "admin") {
+  if (isEnabled("tts", profile)) {
   // ========== voxtral_speak ==========
   server.registerTool(
     "voxtral_speak",
@@ -212,27 +211,27 @@ export function registerAudioTools(
         "",
         "Returns `audio_base64` plus `mime_type` and echoed `format`/`voice_id`.",
       ].join("\n"),
-      inputSchema: {
-        input: z.string().min(1).describe("Text to synthesize."),
-        voiceId: z
-          .string()
-          .optional()
-          .describe(
-            "Voice id or slug (see mistral://voices). Omit for the server default."
-          ),
-        responseFormat: z.enum(SPEECH_FORMATS).optional(),
-        model: z
-          .string()
-          .optional()
-          .describe("Optional speech model override."),
-        refAudio: z
-          .string()
-          .optional()
-          .describe(
-            "Reference audio (base64) for voice cloning, when supported by the model."
-          ),
-      },
-      outputSchema: SpeakOutputShape,
+      inputSchema: z.object({
+              input: z.string().min(1).describe("Text to synthesize."),
+              voiceId: z
+                .string()
+                .optional()
+                .describe(
+                  "Voice id or slug (see mistral://voices). Omit for the server default."
+                ),
+              responseFormat: z.enum(SPEECH_FORMATS).optional(),
+              model: z
+                .string()
+                .optional()
+                .describe("Optional speech model override."),
+              refAudio: z
+                .string()
+                .optional()
+                .describe(
+                  "Reference audio (base64) for voice cloning, when supported by the model."
+                ),
+            }),
+      outputSchema: SpeakOutputSchema,
       annotations: {
         title: "Mistral text-to-speech",
         readOnlyHint: true,
@@ -289,5 +288,5 @@ export function registerAudioTools(
       }
     }
   );
-  } // end profile === "admin"
+  } // end tts
 }

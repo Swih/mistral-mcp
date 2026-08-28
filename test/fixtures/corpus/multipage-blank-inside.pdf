@@ -1,0 +1,99 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R 11 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 203 >>
+stream
+BT /F2 20 Tf 1 0 0 1 50.00 641.89 Tm (DOSSIER TECHNIQUE) Tj ET
+BT /F1 11 Tf 1 0 0 1 50.00 606.89 Tm (Référence : DT-2026-0091) Tj ET
+BT /F1 11 Tf 1 0 0 1 50.00 586.89 Tm (Version 3 — 22 août 2026) Tj ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 893 >>
+stream
+BT /F2 13 Tf 1 0 0 1 50.00 781.89 Tm (Annexe 1 — Nomenclature) Tj ET
+BT /F2 10 Tf 1 0 0 1 50.00 731.89 Tm (Réf.) Tj ET
+BT /F2 10 Tf 1 0 0 1 160.00 731.89 Tm (Désignation) Tj ET
+BT /F2 10 Tf 1 0 0 1 420.00 731.89 Tm (Qté) Tj ET
+0.75 w 50.00 727.89 m 545.00 727.89 l S
+BT /F1 10 Tf 1 0 0 1 50.00 706.89 Tm (NX-100) Tj ET
+BT /F1 10 Tf 1 0 0 1 160.00 706.89 Tm (Module de commande) Tj ET
+BT /F1 10 Tf 1 0 0 1 420.00 706.89 Tm (4) Tj ET
+0.75 w 50.00 702.89 m 545.00 702.89 l S
+BT /F1 10 Tf 1 0 0 1 50.00 684.89 Tm (NX-214) Tj ET
+BT /F1 10 Tf 1 0 0 1 160.00 684.89 Tm (Capteur de température) Tj ET
+BT /F1 10 Tf 1 0 0 1 420.00 684.89 Tm (12) Tj ET
+0.75 w 50.00 680.89 m 545.00 680.89 l S
+BT /F1 10 Tf 1 0 0 1 50.00 662.89 Tm (NX-880) Tj ET
+BT /F1 10 Tf 1 0 0 1 160.00 662.89 Tm (Faisceau de raccordement) Tj ET
+BT /F1 10 Tf 1 0 0 1 420.00 662.89 Tm (6) Tj ET
+0.75 w 50.00 658.89 m 545.00 658.89 l S
+
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 0 >>
+stream
+
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 932 >>
+stream
+BT /F2 13 Tf 1 0 0 1 50.00 781.89 Tm (Annexe 2 — Procédure de recette) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 746.89 Tm (1. Vérifier la mise à la terre de l’armoire avant toute intervention.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 732.89 Tm (2. Contrôler la tension d’alimentation : 230 V ± 10 %, 50 Hz.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 718.89 Tm (3. Lancer l’auto-test intégré et relever le code de retour.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 704.89 Tm (4. Un code différent de 0000 impose l’arrêt de la procédure et) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 690.89 Tm (   l’ouverture d’une fiche d’anomalie auprès du service qualité.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 676.89 Tm (5. Consigner les relevés dans le registre RG-2026 et faire contresigner) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 662.89 Tm (   par le responsable d’atelier.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 648.89 Tm (6. Archiver le procès-verbal de recette pendant une durée de dix ans.) Tj ET
+
+endstream
+endobj
+xref
+0 13
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000237 00000 n 
+0000000339 00000 n 
+0000000481 00000 n 
+0000000735 00000 n 
+0000000877 00000 n 
+0000001821 00000 n 
+0000001964 00000 n 
+0000002014 00000 n 
+0000002158 00000 n 
+trailer
+<< /Size 13 /Root 1 0 R >>
+startxref
+3142
+%%EOF

@@ -1,8 +1,8 @@
 {
   "name": "mistral-mcp",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "mcpName": "io.github.Swih/mistral-mcp",
-  "description": "MCP server exposing Mistral AI capabilities over MCP: chat, embeddings, FIM, vision, OCR, audio, agents, moderation, classification, files, batch, workflows, conversations, RAG libraries, sampling, prompts, resources, and Streamable HTTP.",
+  "description": "Mistral, wherever you run it — MCP server for the full Mistral AI API: chat, OCR, Voxtral audio, Codestral FIM, vision, agents, batch, durable workflows, document extraction. Mistral Cloud or your own OpenAI-compatible endpoint (vLLM, TGI, LiteLLM). MCP 2026-07-28 and the 2025 handshake.",
   "type": "module",
   "bin": {
     "mistral-mcp": "dist/index.js"
@@ -18,25 +18,26 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
     "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "start": "node dist/index.js",
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:unit": "vitest run test/unit",
     "test:contract": "vitest run test/contract",
     "test:stdio": "vitest run test/stdio",
     "test:live": "vitest run test/live",
+    "eval:docs": "tsx scripts/eval-docs.ts",
+    "fixtures:generate": "node test/fixtures/generate-corpus.mjs",
     "inspector": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "mcp-server",
     "mistral",
     "mistral-ai",
-    "mcp-server",
     "llm",
-    "ai",
     "claude",
     "claude-code",
     "claude-desktop",
@@ -45,17 +46,24 @@
     "zed",
     "typescript",
     "streamable-http",
+    "self-hosted",
+    "on-premise",
+    "openai-compatible",
+    "vllm",
+    "sovereignty",
+    "observability",
+    "opentelemetry",
+    "kubernetes",
     "ocr",
+    "document-ai",
+    "mistral-ocr",
     "codestral",
     "voxtral",
-    "mistral-ocr",
-    "document-ai",
     "embeddings",
     "function-calling",
     "vision",
     "agents",
     "batch-api",
-    "agent-tools",
     "mistral-connectors",
     "workflows",
     "conversations",
@@ -72,11 +80,13 @@
   },
   "homepage": "https://github.com/Swih/mistral-mcp#readme",
   "dependencies": {
-    "@mistralai/mistralai": "^2.3.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.23.8"
+    "@mistralai/mistralai": "^2.6.4",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^20.11.0",
     "dotenv": "^17.4.2",
     "tsx": "^4.7.0",
@@ -84,7 +94,7 @@
     "vitest": "^2.1.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public",

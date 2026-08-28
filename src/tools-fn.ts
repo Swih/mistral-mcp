@@ -8,18 +8,17 @@
  * - FIM API contract: https://docs.mistral.ai/capabilities/code_generation/ — Codestral
  *   (mistral.fim.complete({ model: "codestral-latest", prompt, suffix }))
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { Mistral } from "@mistralai/mistralai";
 import type { ChatCompletionRequest } from "@mistralai/mistralai/models/components/chatcompletionrequest.js";
 import { z } from "zod";
 import {
   DEFAULT_FIM_MODEL,
-  DEFAULT_TOOL_MODEL,
+  defaultChatModel,
   FimModelSchema,
   ToolModelSchema,
 } from "./models.js";
-import type { MistralProfile } from "./profile.js";
+import { isEnabled, type MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
@@ -79,9 +78,7 @@ export function registerFunctionTools(
   mistral: Mistral,
   profile: MistralProfile = "core"
 ) {
-  if (profile === "workflows") return;
-
-  if (profile === "admin") {
+  if (isEnabled("tool_call", profile)) {
   // ========== mistral_tool_call ==========
   server.registerTool(
     "mistral_tool_call",
@@ -98,18 +95,18 @@ export function registerFunctionTools(
         "Use when: building agent loops where Mistral picks actions from a tool catalog.",
         "Supported models (via Mistral docs): mistral-*/magistral-*/ministral-*/devstral-*/codestral-*.",
       ].join("\n"),
-      inputSchema: {
-        messages: z.array(ToolMessageSchema).min(1),
-        tools: z.array(FunctionToolSchema).min(1).max(128),
-        model: ToolModelSchema.optional(),
-        tool_choice: ToolChoiceSchema.optional(),
-        parallel_tool_calls: z.boolean().optional(),
-        response_format: ResponseFormatSchema.optional().describe(
-          'Force structured output for the assistant text payload (json_object or json_schema). Tool-call arguments are independent and remain JSON per the function-calling spec.'
-        ),
-        ...ChatSamplingParams,
-      },
-      outputSchema: ToolCallOutputShape,
+      inputSchema: z.object({
+              messages: z.array(ToolMessageSchema).min(1),
+              tools: z.array(FunctionToolSchema).min(1).max(128),
+              model: ToolModelSchema.optional(),
+              tool_choice: ToolChoiceSchema.optional(),
+              parallel_tool_calls: z.boolean().optional(),
+              response_format: ResponseFormatSchema.optional().describe(
+                'Force structured output for the assistant text payload (json_object or json_schema). Tool-call arguments are independent and remain JSON per the function-calling spec.'
+              ),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: ToolCallOutputSchema,
       annotations: {
         title: "Mistral function calling",
         readOnlyHint: true,
@@ -120,7 +117,7 @@ export function registerFunctionTools(
     },
     async (input) => {
       try {
-        const model = input.model ?? DEFAULT_TOOL_MODEL;
+        const model = input.model ?? defaultChatModel();
         const request: ChatCompletionRequest = {
           model,
           messages: input.messages,
@@ -169,8 +166,9 @@ export function registerFunctionTools(
       }
     }
   );
-  } // end profile === "admin"
+  } // end tool_call
 
+  if (isEnabled("fim", profile)) {
   // ========== codestral_fim ==========
   server.registerTool(
     "codestral_fim",
@@ -185,14 +183,14 @@ export function registerFunctionTools(
         "",
         "Default stop tokens: [] — let the model decide. Override with `stop` if needed.",
       ].join("\n"),
-      inputSchema: {
-        prompt: z.string().min(1).describe("Code preceding the cursor."),
-        suffix: z.string().describe("Code after the cursor. Can be empty string."),
-        model: FimModelSchema.optional(),
-        stop: z.array(z.string()).optional(),
-        ...ChatSamplingParams,
-      },
-      outputSchema: FimOutputShape,
+      inputSchema: z.object({
+              prompt: z.string().min(1).describe("Code preceding the cursor."),
+              suffix: z.string().describe("Code after the cursor. Can be empty string."),
+              model: FimModelSchema.optional(),
+              stop: z.array(z.string()).optional(),
+              ...ChatSamplingParams,
+            }),
+      outputSchema: FimOutputSchema,
       annotations: {
         title: "Codestral FIM",
         readOnlyHint: true,
@@ -236,4 +234,5 @@ export function registerFunctionTools(
       }
     }
   );
+  } // end fim
 }

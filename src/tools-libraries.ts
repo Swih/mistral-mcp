@@ -22,8 +22,7 @@
  * Five tools: libraries_list, libraries_get, libraries_documents_list,
  * libraries_documents_upload, libraries_documents_status.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { errorResult, toTextBlock } from "./shared.js";
@@ -164,12 +163,12 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
       description:
         "List Libraries (managed RAG document stores) you own or have been shared with you. " +
         "Use a returned `id` as a `documentLibraryIds` entry on conversation_start to search it.",
-      inputSchema: {
-        page: z.number().int().nonnegative().optional(),
-        pageSize: z.number().int().positive().max(100).optional(),
-        search: z.string().optional().describe("Case-insensitive search on the library name."),
-      },
-      outputSchema: LibrariesListOutputShape,
+      inputSchema: z.object({
+              page: z.number().int().nonnegative().optional(),
+              pageSize: z.number().int().positive().max(100).optional(),
+              search: z.string().optional().describe("Case-insensitive search on the library name."),
+            }),
+      outputSchema: LibrariesListOutputSchema,
       annotations: {
         title: "List Mistral Libraries",
         readOnlyHint: true,
@@ -205,10 +204,10 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
     {
       title: "Get a Mistral Library",
       description: "Fetch a Library's metadata (owner, size, document count).",
-      inputSchema: {
-        libraryId: z.string().min(1),
-      },
-      outputSchema: LibrariesGetOutputShape,
+      inputSchema: z.object({
+              libraryId: z.string().min(1),
+            }),
+      outputSchema: LibrariesGetOutputSchema,
       annotations: {
         title: "Get Mistral Library",
         readOnlyHint: true,
@@ -237,13 +236,13 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
     {
       title: "List documents in a Mistral Library",
       description: "List the documents uploaded to a Library, with their processing status.",
-      inputSchema: {
-        libraryId: z.string().min(1),
-        page: z.number().int().nonnegative().optional(),
-        pageSize: z.number().int().positive().max(100).optional(),
-        search: z.string().optional(),
-      },
-      outputSchema: LibrariesDocumentsListOutputShape,
+      inputSchema: z.object({
+              libraryId: z.string().min(1),
+              page: z.number().int().nonnegative().optional(),
+              pageSize: z.number().int().positive().max(100).optional(),
+              search: z.string().optional(),
+            }),
+      outputSchema: LibrariesDocumentsListOutputSchema,
       annotations: {
         title: "List Library documents",
         readOnlyHint: true,
@@ -285,15 +284,15 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
         "searchable until `process_status` reaches 'done'. Poll with",
         "libraries_documents_status to track it.",
       ].join("\n"),
-      inputSchema: {
-        libraryId: z.string().min(1),
-        filename: z.string().min(1),
-        content_base64: z
-          .string()
-          .min(1)
-          .describe("Base64-encoded file bytes. `data:...;base64,` prefix accepted."),
-      },
-      outputSchema: LibrariesDocumentsUploadOutputShape,
+      inputSchema: z.object({
+              libraryId: z.string().min(1),
+              filename: z.string().min(1),
+              content_base64: z
+                .string()
+                .min(1)
+                .describe("Base64-encoded file bytes. `data:...;base64,` prefix accepted."),
+            }),
+      outputSchema: LibrariesDocumentsUploadOutputSchema,
       annotations: {
         title: "Upload document to Library",
         readOnlyHint: false,
@@ -328,11 +327,11 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
     {
       title: "Get a Library document's processing status",
       description: "Check whether an uploaded document has finished processing and is searchable.",
-      inputSchema: {
-        libraryId: z.string().min(1),
-        documentId: z.string().min(1),
-      },
-      outputSchema: LibrariesDocumentsStatusOutputShape,
+      inputSchema: z.object({
+              libraryId: z.string().min(1),
+              documentId: z.string().min(1),
+            }),
+      outputSchema: LibrariesDocumentsStatusOutputSchema,
       annotations: {
         title: "Get Library document status",
         readOnlyHint: true,

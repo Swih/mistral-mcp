@@ -14,10 +14,10 @@ import { describe, expect, it, beforeAll } from "vitest";
 import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
+import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import { Mistral } from "@mistralai/mistralai";
+import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "../../src/shared.js";
 import { registerLibraryTools } from "../../src/tools-libraries.js";
 
 const envPath = resolve(process.cwd(), ".env");
@@ -28,8 +28,8 @@ const HAS_KEY = Boolean(process.env.MISTRAL_API_KEY);
 async function bootLibraryServer() {
   const mistral = new Mistral({
     apiKey: process.env.MISTRAL_API_KEY!,
-    retryConfig: { strategy: "backoff", retryConnectionErrors: true },
-    timeoutMs: 30_000,
+    retryConfig: MISTRAL_RETRY_CONFIG,
+    timeoutMs: MISTRAL_TIMEOUT_MS,
   });
   const server = new McpServer({ name: "test-libraries", version: "0.0.0" });
   registerLibraryTools(server, mistral);

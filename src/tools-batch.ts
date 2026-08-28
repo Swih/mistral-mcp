@@ -16,8 +16,7 @@
  * is SUCCESS / FAILED / CANCELLED. Download results via `files_signed_url`
  * on the `output_file` id.
  */
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 import { errorResult, toTextBlock } from "./shared.js";
@@ -149,19 +148,19 @@ export function registerBatchTools(server: McpServer, mistral: Mistral) {
         "Poll with `batch_get`; once `status` is SUCCESS, download the result file",
         "via `files_signed_url({ fileId: output_file })`.",
       ].join("\n"),
-      inputSchema: {
-        input_files: z
-          .array(z.string().min(1))
-          .min(1)
-          .describe("Array of `fileId`s (uploaded with `purpose: 'batch'`)."),
-        endpoint: BatchEndpointSchema.describe(
-          "Target API endpoint; all rows in input_files must match this endpoint."
-        ),
-        model: z.string().optional(),
-        metadata: z.record(z.string(), z.string()).optional(),
-        timeout_hours: z.number().int().min(1).max(168).optional(),
-      },
-      outputSchema: BatchJobOutputShape,
+      inputSchema: z.object({
+              input_files: z
+                .array(z.string().min(1))
+                .min(1)
+                .describe("Array of `fileId`s (uploaded with `purpose: 'batch'`)."),
+              endpoint: BatchEndpointSchema.describe(
+                "Target API endpoint; all rows in input_files must match this endpoint."
+              ),
+              model: z.string().optional(),
+              metadata: z.record(z.string(), z.string()).optional(),
+              timeout_hours: z.number().int().min(1).max(168).optional(),
+            }),
+      outputSchema: BatchJobOutputSchema,
       annotations: {
         title: "Create batch job",
         readOnlyHint: false,
@@ -202,10 +201,10 @@ export function registerBatchTools(server: McpServer, mistral: Mistral) {
       description:
         "Fetch a batch job's current status and counters. " +
         "When `status: 'SUCCESS'`, the `output_file` is ready for download.",
-      inputSchema: {
-        jobId: z.string().min(1),
-      },
-      outputSchema: BatchJobOutputShape,
+      inputSchema: z.object({
+              jobId: z.string().min(1),
+            }),
+      outputSchema: BatchJobOutputSchema,
       annotations: {
         title: "Get batch job",
         readOnlyHint: true,
@@ -242,19 +241,19 @@ export function registerBatchTools(server: McpServer, mistral: Mistral) {
     {
       title: "List batch jobs",
       description: "List batch jobs with optional filters.",
-      inputSchema: {
-        page: z.number().int().nonnegative().optional(),
-        page_size: z.number().int().positive().optional(),
-        model: z.string().optional(),
-        status: z.array(BatchStatusSchema).optional(),
-        created_after: z
-          .string()
-          .optional()
-          .describe("ISO-8601 timestamp; only jobs created after are returned."),
-        created_by_me: z.boolean().optional(),
-        order_by: z.enum(["created", "-created"]).optional(),
-      },
-      outputSchema: BatchListOutputShape,
+      inputSchema: z.object({
+              page: z.number().int().nonnegative().optional(),
+              page_size: z.number().int().positive().optional(),
+              model: z.string().optional(),
+              status: z.array(BatchStatusSchema).optional(),
+              created_after: z
+                .string()
+                .optional()
+                .describe("ISO-8601 timestamp; only jobs created after are returned."),
+              created_by_me: z.boolean().optional(),
+              order_by: z.enum(["created", "-created"]).optional(),
+            }),
+      outputSchema: BatchListOutputSchema,
       annotations: {
         title: "List batch jobs",
         readOnlyHint: true,
@@ -302,10 +301,10 @@ export function registerBatchTools(server: McpServer, mistral: Mistral) {
       title: "Cancel a batch job",
       description:
         "Request cancellation of a running batch job. Completed requests still count for billing.",
-      inputSchema: {
-        jobId: z.string().min(1),
-      },
-      outputSchema: BatchJobOutputShape,
+      inputSchema: z.object({
+              jobId: z.string().min(1),
+            }),
+      outputSchema: BatchJobOutputSchema,
       annotations: {
         title: "Cancel batch job",
         readOnlyHint: false,

@@ -15,11 +15,18 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 
@@ -74,7 +81,12 @@ export const ProcessDocumentInputShape = {
         .max(1)
         .optional()
         .default(0.3)
-        .describe("Empirical floor; tune via real eval. Below this, the tool returns isError."),
+        .describe(
+          "Conservative floor: below it the tool returns isError rather than risk " +
+            "extracting from text OCR is not confident about. 0.3 is a starting " +
+            "point, not a measured value — run `npm run eval:docs` against your " +
+            "own documents and set the number that run justifies."
+        ),
       cache: z
         .enum(["read_write", "read_only", "bypass"])
         .optional()
@@ -83,7 +95,9 @@ export const ProcessDocumentInputShape = {
         ),
     })
     .optional()
-    .default({}),
+    // prefault, not default: zod 4 applies default() to the *output* type, so
+    // `{}` would no longer flow through the inner field defaults.
+    .prefault({}),
 };
 
 type ProcessDocumentInput = {
@@ -384,10 +398,22 @@ const EXTRACTION_PROMPTS: Record<string, string> = {
 const CLASSIFIER_PROMPT = [
   "Classify the type of document from its OCR text.",
   "Possible kinds: contract | invoice | id_document | generic.",
-  "- contract: legal agreement, terms, lease, NDA, service contract.",
-  "- invoice: billing document with vendor, line items, total amount.",
-  "- id_document: passport, ID card, driver license, residence permit.",
-  "- generic: anything else (article, report, manual, letter, etc.).",
+  "",
+  "Decide on what the document is, not on how it is laid out. Numbered",
+  "articles, annexes and formal headings are as common in technical",
+  "documentation as in agreements, and are not evidence on their own.",
+  "",
+  "- contract: two or more named parties entering mutual obligations. Look for",
+  "  the parties, what each owes the other, and terms of duration, termination",
+  "  or signature. With no identified parties, it is not a contract.",
+  "- invoice: a demand for payment - issuer, recipient, line items, total due.",
+  "- id_document: an identity credential issued to a person by an authority",
+  "  (passport, ID card, driver license, residence permit).",
+  "- generic: everything else, including technical dossiers, specifications,",
+  "  procedures, reports, manuals, meeting notes and correspondence.",
+  "",
+  "Hesitating between contract and generic: choose generic unless both the",
+  "parties and their mutual obligations are present.",
   "Return JSON: { kind: string }.",
 ].join("\n");
 
@@ -395,6 +421,39 @@ const CLASSIFIER_PROMPT = [
 
 function cacheDir(): string {
   return process.env.MISTRAL_MCP_CACHE_DIR ?? join(homedir(), ".mistral-mcp", "cache");
+}
+
+const DEFAULT_CACHE_TTL_HOURS = 168;
+
+/**
+ * How long a cached extraction may be reused.
+ *
+ * This is a retention policy, not a measured threshold, and it is stated as
+ * one: the cached payload holds extracted document content — a contract's
+ * parties and clauses, an invoice's line items — which is personal data, and
+ * personal data must not sit on disk indefinitely because a cache was
+ * convenient. Seven days covers the span over which the same document is
+ * realistically reprocessed (a batch, then its corrections); past that,
+ * re-running OCR costs less than holding the data.
+ *
+ * `MISTRAL_MCP_CACHE_TTL_HOURS=0` disables reuse entirely, for a deployment
+ * whose retention rules do not allow any.
+ */
+function cacheTtlMs(): number {
+  const raw = process.env.MISTRAL_MCP_CACHE_TTL_HOURS;
+  if (raw === undefined || raw.trim() === "") return DEFAULT_CACHE_TTL_HOURS * 3_600_000;
+  const hours = Number.parseFloat(raw);
+  if (!Number.isFinite(hours) || hours < 0) return DEFAULT_CACHE_TTL_HOURS * 3_600_000;
+  return hours * 3_600_000;
+}
+
+/** True when an entry stored at `storedAt` may still be served. */
+function isFresh(storedAt: unknown, ttlMs: number, now: number): boolean {
+  if (ttlMs === 0) return false;
+  if (typeof storedAt !== "string") return false;
+  const at = Date.parse(storedAt);
+  if (!Number.isFinite(at)) return false;
+  return now - at < ttlMs;
 }
 
 function sourceHash(src: ProcessDocumentInput["source"]): string {
@@ -420,20 +479,85 @@ function readCache(key: string): unknown | undefined {
   if (!existsSync(path)) return undefined;
   try {
     const raw = readFileSync(path, "utf8");
-    const parsed = JSON.parse(raw) as { _v: string; payload: unknown };
+    const parsed = JSON.parse(raw) as {
+      _v: string;
+      stored_at?: unknown;
+      payload: unknown;
+    };
     if (parsed._v !== PIPELINE_VERSION) return undefined;
+    if (!isFresh(parsed.stored_at, cacheTtlMs(), Date.now())) {
+      // Expired entries are deleted on the way past rather than left to rot:
+      // the point of the TTL is that the content stops existing, not merely
+      // that it stops being served.
+      try {
+        unlinkSync(path);
+      } catch {
+        /* a concurrent reader may have removed it already */
+      }
+      return undefined;
+    }
     return parsed.payload;
   } catch {
     return undefined;
   }
 }
 
+/**
+ * Drop expired entries from one shard.
+ *
+ * Read-time expiry only reaches entries somebody asks for again; a document
+ * processed once and never revisited would otherwise stay on disk forever.
+ * Keys are sharded on their first two hex characters, so sweeping the shard a
+ * write lands in touches about 1/256 of the cache and keeps the whole store
+ * bounded by the TTL without ever walking it end to end.
+ */
+function sweepShard(dir: string, ttlMs: number, now: number): void {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (!name.endsWith(".json")) continue;
+    const full = join(dir, name);
+    try {
+      const parsed = JSON.parse(readFileSync(full, "utf8")) as { stored_at?: unknown };
+      if (!isFresh(parsed.stored_at, ttlMs, now)) unlinkSync(full);
+    } catch {
+      /* unreadable or already gone — nothing useful to do about it here */
+    }
+  }
+}
+
+let sweepCursor = 0;
+
+/**
+ * Expire what a write can reach, and one more shard besides.
+ *
+ * Sweeping only the shard just written leaves a cold entry alive for as long
+ * as nothing else hashes into its shard — with 256 shards and a slow corpus,
+ * that is effectively forever, which is the defect this whole TTL exists to
+ * close. Advancing a cursor by one shard per write covers the entire keyspace
+ * in 256 writes while keeping each write's cost to two small directories.
+ */
+function sweepOnWrite(writtenShard: string, ttlMs: number, now: number): void {
+  const root = cacheDir();
+  sweepShard(join(root, writtenShard), ttlMs, now);
+  const cursorShard = sweepCursor.toString(16).padStart(2, "0");
+  sweepCursor = (sweepCursor + 1) % 256;
+  if (cursorShard !== writtenShard) sweepShard(join(root, cursorShard), ttlMs, now);
+}
+
 function writeCache(key: string, payload: unknown): void {
+  const ttlMs = cacheTtlMs();
+  if (ttlMs === 0) return;
   const path = cachePath(key);
   const tmp = `${path}.tmp.${process.pid}`;
   const body = JSON.stringify({ _v: PIPELINE_VERSION, stored_at: new Date().toISOString(), payload });
   writeFileSync(tmp, body, "utf8");
   renameSync(tmp, path);
+  sweepOnWrite(key.slice(0, 2), ttlMs, Date.now());
 }
 
 // ---------- pipeline helpers ----------
@@ -565,11 +689,13 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "Default cache mode is 'read_write' EXCEPT for kind=id_document (auto-bypass to avoid",
         "persisting PII). Set options.cache='read_write' explicitly to opt in for id documents.",
         "",
-        "OCR confidence floor is options.minOcrConfidence (default 0.3, empirical — tune via eval).",
-        "Below the floor the tool returns isError rather than risking hallucinated extraction.",
+        "OCR confidence floor is options.minOcrConfidence (default 0.3). Below the floor the",
+        "tool returns isError rather than risking extraction from text OCR is unsure about.",
+        "0.3 is a conservative starting point, not a measured one: calibrate it for your",
+        "corpus with `npm run eval:docs`.",
       ].join("\n"),
       inputSchema: ProcessDocumentInputShape,
-      outputSchema: ProcessDocumentOutputShape,
+      outputSchema: z.object(ProcessDocumentOutputShape),
       annotations: {
         title: "Process document (OCR + typed extraction)",
         readOnlyHint: true,

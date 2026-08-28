@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "../../src/shared.js";
 
 // load .env if it exists (local dev)
 const envPath = resolve(process.cwd(), ".env");
@@ -21,7 +22,11 @@ const HAS_KEY = Boolean(process.env.MISTRAL_API_KEY);
 describe.skipIf(!HAS_KEY)("live Mistral API", () => {
   it("mistral.chat.complete reaches the API and returns content", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.chat.complete({
       model: "mistral-small-latest",
@@ -44,7 +49,11 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
 
   it("mistral.embeddings.create returns 1024-dim vectors for mistral-embed", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.embeddings.create({
       model: "mistral-embed",
@@ -59,7 +68,11 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
 
   it("function calling: Mistral Medium emits a tool_call when forced", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.chat.complete({
       model: "mistral-medium-latest",
@@ -102,7 +115,11 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
 
   it("mistral.fim.complete returns a Codestral completion", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.fim.complete({
       model: "codestral-latest",
@@ -121,7 +138,11 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
 
   it("mistral.chat.complete with response_format:json_schema returns parseable JSON matching the schema", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.chat.complete({
       model: "mistral-small-latest",
@@ -162,7 +183,11 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
 
   it("mistral.ocr.process accepts document annotations when requested", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.ocr.process({
       model: "mistral-ocr-latest",
@@ -197,7 +222,11 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
 
   it("mistral.ocr.process returns paragraph-level blocks when includeBlocks is set", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
-    const mistral = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+    const mistral = new Mistral({
+      apiKey: process.env.MISTRAL_API_KEY!,
+      retryConfig: MISTRAL_RETRY_CONFIG,
+      timeoutMs: MISTRAL_TIMEOUT_MS,
+    });
 
     const res = await mistral.ocr.process({
       model: "mistral-ocr-latest",

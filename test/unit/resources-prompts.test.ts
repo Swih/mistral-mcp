@@ -3,11 +3,11 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
+import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { registerMistralResources } from "../../src/resources.js";
+import type { RuntimeConfig } from "../../src/profile.js";
 import { registerMistralPrompts } from "../../src/prompts.js";
 
 function firstTextContent(result: {
@@ -61,9 +61,20 @@ function makeMockMistral(overrides: Record<string, unknown> = {}): Mistral {
   } as unknown as Mistral;
 }
 
-async function boot(mock: Mistral = makeMockMistral()) {
+// "admin" so every resource is registered — voices and workflows are now
+// gated on the profiles that actually expose their tools.
+const ADMIN_RUNTIME: RuntimeConfig = {
+  profile: "admin",
+  customEndpoint: false,
+  profileInferred: false,
+};
+
+async function boot(
+  mock: Mistral = makeMockMistral(),
+  runtime: RuntimeConfig = ADMIN_RUNTIME
+) {
   const server = new McpServer({ name: "rp-test", version: "0.0.0" });
-  registerMistralResources(server, mock);
+  registerMistralResources(server, mock, runtime);
   registerMistralPrompts(server);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
@@ -93,7 +104,7 @@ describe("Resources primitive - mistral://models", () => {
     expect(parsed.accepted.embed).toContain("mistral-embed");
     expect(parsed.accepted.fim).toContain("codestral-latest");
     expect(parsed.accepted.tool_capable).toContain("mistral-large-latest");
-    expect(parsed.spec_version).toBe("2025-11-25");
+    expect(parsed.spec_version).toBe("2026-07-28");
     expect(parsed.fallback).toBe(false);
     expect(parsed.live).toBeTruthy();
     expect(parsed.live.ids).toContain("mistral-medium-latest");

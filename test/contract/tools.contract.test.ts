@@ -9,9 +9,8 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from "@modelcontextprotocol/client";
+import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 
 import {
@@ -55,14 +54,17 @@ import {
   BatchListOutputSchema,
 } from "../../src/tools-batch.js";
 import {
-  registerSamplingTools,
-  SampleOutputSchema,
-} from "../../src/tools-sampling.js";
+  registerRagTools,
+  RagIndexesListOutputSchema,
+} from "../../src/tools-rag.js";
 import {
   registerWorkflowTools,
   WorkflowExecuteOutputSchema,
   WorkflowStatusOutputSchema,
   WorkflowInteractOutputSchema,
+  WorkflowDeploymentsListOutputSchema,
+  WorkflowRunsListOutputSchema,
+  WorkflowStopOutputSchema,
 } from "../../src/tools-workflows.js";
 import {
   registerConnectorTools,
@@ -333,6 +335,54 @@ function makeMock(): Mistral {
       },
     },
     workflows: {
+      deployments: {
+        listDeployments: vi.fn(async () => ({
+          deployments: [
+            {
+              id: "dep-ct-1",
+              name: "prod",
+              isActive: true,
+              isHardened: true,
+              workerCount: 2,
+              activeWorkerCount: 2,
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              updatedAt: new Date("2026-01-02T00:00:00Z"),
+              managed: { state: "running" },
+            },
+            {
+              id: "dep-ct-2",
+              name: "staging",
+              isActive: false,
+              isHardened: false,
+              workerCount: 1,
+              activeWorkerCount: 0,
+              createdAt: new Date("2026-01-01T00:00:00Z"),
+              updatedAt: new Date("2026-01-02T00:00:00Z"),
+              managed: null,
+            },
+          ],
+          nextCursor: null,
+          workspaceId: "ws-ct",
+        })),
+      },
+      runs: {
+        listRuns: vi.fn(async () => ({
+          result: {
+            executions: [
+              {
+                workflowName: "my-workflow",
+                executionId: "exec-ct-1",
+                rootExecutionId: "exec-ct-1",
+                status: "RUNNING",
+                deploymentName: "prod",
+                startTime: new Date("2026-01-01T00:00:00Z"),
+                endTime: null,
+              },
+            ],
+            nextPageToken: null,
+          },
+        })),
+      },
       executeWorkflow: vi.fn(async () => ({
         workflowName: "my-workflow",
         executionId: "exec-ct-1",
@@ -354,6 +404,8 @@ function makeMock(): Mistral {
           result: { answer: 42 },
           totalDurationMs: 1000,
         })),
+        cancelWorkflowExecution: vi.fn(async () => undefined),
+        terminateWorkflowExecution: vi.fn(async () => undefined),
         signalWorkflowExecution: vi.fn(async () => ({
           message: "Signal accepted",
         })),
@@ -368,6 +420,27 @@ function makeMock(): Mistral {
       },
     },
     beta: {
+      rag: {
+        searchIndexes: {
+          getDeploymentSummaries: vi.fn(async () => ({
+            deployments: [
+              {
+                id: "dep-ct-1",
+                name: "Contract corpus",
+                creatorId: "user-ct-1",
+                documentCount: 7,
+                status: "ready",
+                createdAt: new Date("2026-08-01T00:00:00Z"),
+                modifiedAt: new Date("2026-08-02T00:00:00Z"),
+                deployment: {
+                  type: "vespa",
+                  indexes: [{ id: "idx-ct-1", name: "primary", documentCount: 7 }],
+                },
+              },
+            ],
+          })),
+        },
+      },
       connectors: {
         list: vi.fn(async () => ({
           items: [
@@ -547,16 +620,16 @@ async function boot(mock: Mistral = makeMock()) {
   const server = new McpServer({ name: "contract-test", version: "0.0.0" });
   registerMistralTools(server, mock, "admin");
   registerFunctionTools(server, mock, "admin");
-  registerVisionTools(server, mock);
+  registerVisionTools(server, mock, "admin");
   registerAudioTools(server, mock, "admin");
   registerAgentTools(server, mock);
   registerFileTools(server, mock);
   registerBatchTools(server, mock);
-  registerSamplingTools(server);
   registerWorkflowTools(server, mock);
   registerConnectorTools(server, mock);
   registerConversationTools(server, mock);
   registerLibraryTools(server, mock);
+  registerRagTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -938,13 +1011,6 @@ describe("contract: structuredContent matches outputSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("mcp_sample has an outputSchema (runtime shape validated in unit tests)", () => {
-    const shape = SampleOutputSchema.shape;
-    expect(shape.role).toBeTruthy();
-    expect(shape.text).toBeTruthy();
-    expect(shape.model).toBeTruthy();
-  });
-
   it("workflow_execute", async () => {
     const { client } = await boot();
     const res = await client.callTool({
@@ -962,6 +1028,56 @@ describe("contract: structuredContent matches outputSchema", () => {
       );
     }
     expect(parsed.success).toBe(true);
+  });
+
+  it("workflow_deployments_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "workflow_deployments_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowDeploymentsListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_deployments_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    // runnable_count is the field the agent acts on, so pin its meaning:
+    // two deployments, only one with a live worker.
+    expect(parsed.data.count).toBe(2);
+    expect(parsed.data.runnable_count).toBe(1);
+    expect(parsed.data.deployments[0]!.managed).toBe(true);
+    expect(parsed.data.deployments[1]!.managed).toBe(false);
+  });
+
+  it("workflow_runs_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({ name: "workflow_runs_list", arguments: {} });
+    expect(res.isError).toBeFalsy();
+    const parsed = WorkflowRunsListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (workflow_runs_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.data.executions[0]!.execution_id).toBe("exec-ct-1");
+    expect(parsed.data.executions[0]!.start_time).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("workflow_stop (cancel and terminate)", async () => {
+    const { client } = await boot();
+    for (const mode of ["cancel", "terminate"] as const) {
+      const res = await client.callTool({
+        name: "workflow_stop",
+        arguments: { executionId: "exec-ct-1", mode },
+      });
+      expect(res.isError).toBeFalsy();
+      const parsed = WorkflowStopOutputSchema.safeParse(res.structuredContent);
+      if (!parsed.success) {
+        throw new Error(
+          `Contract violation (workflow_stop/${mode}): ${JSON.stringify(parsed.error.format(), null, 2)}`
+        );
+      }
+      expect(parsed.data.mode).toBe(mode);
+    }
   });
 
   it("workflow_status", async () => {
@@ -1182,6 +1298,22 @@ describe("contract: structuredContent matches outputSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("rag_indexes_list", async () => {
+    const { client } = await boot();
+    const res = await client.callTool({
+      name: "rag_indexes_list",
+      arguments: {},
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = RagIndexesListOutputSchema.safeParse(res.structuredContent);
+    if (!parsed.success) {
+      throw new Error(
+        `Contract violation (rag_indexes_list): ${JSON.stringify(parsed.error.format(), null, 2)}`
+      );
+    }
+    expect(parsed.success).toBe(true);
+  });
+
   it("libraries_list", async () => {
     const { client } = await boot();
     const res = await client.callTool({ name: "libraries_list", arguments: {} });
@@ -1268,7 +1400,9 @@ describe("contract: every tool declares required spec-compliance hooks", () => {
   it("exposes outputSchema + annotations for all tools", async () => {
     const { client } = await boot();
     const { tools } = await client.listTools();
-    expect(tools.length).toBe(40); // 22 v0.5 tools + 3 workflow tools + 4 connector tools + 6 conversation tools + 5 library tools
+    // Canary against accidental additions/removals. Bump deliberately, with a
+    // CHANGELOG entry — never to make a red build green.
+    expect(tools.length).toBe(43);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

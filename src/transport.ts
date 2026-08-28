@@ -1,9 +1,21 @@
 /**
  * Transport selection — stdio (default) or Streamable HTTP.
  *
- * MCP spec 2025-03-26 / 2025-11-25 defines Streamable HTTP as the canonical
- * remote transport: a single endpoint that accepts POST for client→server
- * messages and GET + SSE for the server→client stream.
+ * Both entries take a *factory*, not a server instance, because the SDK owns
+ * the protocol-era decision: one factory serves 2026-07-28 clients and 2025-era
+ * clients (Claude Code, Cursor, Zed and every other shipping client today) from
+ * the same tool registrations.
+ *   - stdio  — `serveStdio(factory, { legacy: "serve" })`: the opening exchange
+ *     picks the era and pins one instance for the connection.
+ *   - http   — `createMcpHandler(factory, { legacy: "stateless" })`: modern
+ *     traffic gets the per-request envelope, 2025-era traffic gets the
+ *     stateless fallback, on one endpoint.
+ *
+ * The Node adapter below is hand-written rather than taking
+ * `@modelcontextprotocol/node`: that package exists to bridge web-standard
+ * `Request`/`Response` into `node:http`, and pulls `@hono/node-server` to do
+ * it. Node 20 has `Request`, `Response` and `Readable.toWeb` natively, so the
+ * bridge is the forty lines below and the dependency budget stays at three.
  *
  * Security notes:
  *   - Binds to 127.0.0.1 by default (never 0.0.0.0 unless the operator opts in
@@ -15,16 +27,20 @@
  *     MCP server — useful for load balancers.
  */
 
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import {
+  createMcpHandler,
+  type McpHttpHandler,
+  type McpServerFactory,
+} from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import {
   createServer,
   type IncomingMessage,
   type Server as HttpServer,
   type ServerResponse,
 } from "node:http";
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { Readable } from "node:stream";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export type TransportMode = "stdio" | "http";
 
@@ -35,7 +51,6 @@ export interface TransportOptions {
   httpPath: string;
   httpAuthToken?: string;
   httpAllowedOrigins?: string[];
-  statelessHttp: boolean;
 }
 
 export interface ConnectedTransport {
@@ -81,40 +96,44 @@ export function resolveTransportOptions(
     httpAllowedOrigins: env.MCP_HTTP_ALLOWED_ORIGINS
       ? env.MCP_HTTP_ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
       : undefined,
-    statelessHttp: env.MCP_HTTP_STATELESS === "1",
   };
 }
 
-/** Connect the server to the chosen transport and return a close handle. */
+/** Serve the factory over the chosen transport and return a close handle. */
 export async function connectTransport(
-  server: McpServer,
+  factory: McpServerFactory,
   opts: TransportOptions
 ): Promise<ConnectedTransport> {
   if (opts.mode === "stdio") {
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    return {
-      mode: "stdio",
-      close: async () => {
-        await transport.close();
-      },
-    };
+    const handle = serveStdio(factory, {
+      legacy: "serve",
+      onerror: (err) => console.error("[mistral-mcp:stdio]", err.message),
+    });
+    return { mode: "stdio", close: () => handle.close() };
   }
-  return startHttpTransport(server, opts);
+  return startHttpTransport(factory, opts);
 }
 
 async function startHttpTransport(
-  server: McpServer,
+  factory: McpServerFactory,
   opts: TransportOptions
 ): Promise<ConnectedTransport> {
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: opts.statelessHttp ? undefined : () => randomUUID(),
+  const handler = createMcpHandler(factory, {
+    legacy: "stateless",
+    onerror: (err) => console.error("[mistral-mcp:http]", err.message),
   });
-  await server.connect(transport);
 
-  const httpServer: HttpServer = createServer((req, res) =>
-    handleHttpRequest(req, res, transport, opts)
-  );
+  const httpServer: HttpServer = createServer((req, res) => {
+    handleHttpRequest(req, res, handler, opts).catch((err) => {
+      console.error("[mistral-mcp:http]", err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end("Internal transport error");
+      } else {
+        res.end();
+      }
+    });
+  });
 
   await new Promise<void>((resolve, reject) => {
     httpServer.once("error", reject);
@@ -135,17 +154,59 @@ async function startHttpTransport(
       await new Promise<void>((resolve, reject) => {
         httpServer.close((err) => (err ? reject(err) : resolve()));
       });
-      await transport.close();
+      await handler.close();
     },
   };
 }
 
-function handleHttpRequest(
+/** node:http request to a web `Request`, so the web-standard handler can serve it. */
+function toWebRequest(req: IncomingMessage, host: string): Request {
+  const url = new URL(req.url ?? "/", `http://${req.headers.host ?? host}`);
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) for (const one of value) headers.append(key, one);
+    else if (value !== undefined) headers.set(key, value);
+  }
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  return new Request(url, {
+    method: req.method,
+    headers,
+    // `duplex` is mandatory in the fetch spec whenever a stream is the body.
+    ...(hasBody
+      ? { body: Readable.toWeb(req) as ReadableStream<Uint8Array>, duplex: "half" }
+      : {}),
+  } as RequestInit & { duplex?: "half" });
+}
+
+/** A web `Response` back onto node:http, chunk by chunk so SSE streams live. */
+async function writeWebResponse(res: ServerResponse, web: Response): Promise<void> {
+  const headers: Record<string, string> = {};
+  web.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  res.writeHead(web.status, headers);
+  if (!web.body) {
+    res.end();
+    return;
+  }
+  const reader = web.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
+
+async function handleHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  transport: StreamableHTTPServerTransport,
+  handler: McpHttpHandler,
   opts: TransportOptions
-): void {
+): Promise<void> {
   const url = req.url ?? "/";
 
   // Health probe — no auth, no MCP.
@@ -182,13 +243,8 @@ function handleHttpRequest(
 
   // Route MCP requests.
   if (url === opts.httpPath || url.startsWith(`${opts.httpPath}?`)) {
-    transport.handleRequest(req, res).catch((err) => {
-      console.error("[mistral-mcp:http]", err);
-      if (!res.headersSent) {
-        res.statusCode = 500;
-        res.end("Internal transport error");
-      }
-    });
+    const web = await handler.fetch(toWebRequest(req, opts.httpHost));
+    await writeWebResponse(res, web);
     return;
   }
 

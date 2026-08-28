@@ -104,7 +104,6 @@ curl -X POST https://api.mistral.ai/v1/conversations \
 ## Hardening
 
 - `MCP_HTTP_ALLOWED_ORIGINS` — comma-separated allow-list for CORS / Origin checks.
-- `MCP_HTTP_STATELESS=1` — recommended for serverless platforms (no session state across requests).
 - `MISTRAL_MCP_PROFILE=core` — keep the tool surface lean to reduce LLM context overhead. Use `admin` only for debug.
 - `/healthz` is public and does **not** touch the MCP server — safe for liveness probes.
 

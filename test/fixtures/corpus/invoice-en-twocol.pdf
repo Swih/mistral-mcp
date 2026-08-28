@@ -1,0 +1,75 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 2156 >>
+stream
+BT /F2 18 Tf 1 0 0 1 50.00 786.89 Tm (INVOICE) Tj ET
+BT /F1 9 Tf 1 0 0 1 50.00 746.89 Tm (From) Tj ET
+BT /F1 9 Tf 1 0 0 1 50.00 733.89 Tm (Northwind Logistics Ltd) Tj ET
+BT /F1 9 Tf 1 0 0 1 50.00 720.89 Tm (44 Dock Road) Tj ET
+BT /F1 9 Tf 1 0 0 1 50.00 707.89 Tm (Bristol BS1 6XN) Tj ET
+BT /F1 9 Tf 1 0 0 1 50.00 694.89 Tm (United Kingdom) Tj ET
+BT /F1 9 Tf 1 0 0 1 50.00 681.89 Tm (VAT GB 384 2910 55) Tj ET
+BT /F1 9 Tf 1 0 0 1 330.00 746.89 Tm (Bill to) Tj ET
+BT /F1 9 Tf 1 0 0 1 330.00 733.89 Tm (ACME SAS) Tj ET
+BT /F1 9 Tf 1 0 0 1 330.00 720.89 Tm (12 rue de la Paix) Tj ET
+BT /F1 9 Tf 1 0 0 1 330.00 707.89 Tm (75002 Paris) Tj ET
+BT /F1 9 Tf 1 0 0 1 330.00 694.89 Tm (France) Tj ET
+BT /F1 9 Tf 1 0 0 1 330.00 681.89 Tm (VAT FR 42 845327109) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 641.89 Tm (Invoice number: NW-2026-1177) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 627.89 Tm (Issue date: 2026-08-03) Tj ET
+BT /F1 10 Tf 1 0 0 1 50.00 613.89 Tm (Due date: 2026-09-02) Tj ET
+BT /F2 10 Tf 1 0 0 1 50.00 571.89 Tm (Description) Tj ET
+BT /F2 10 Tf 1 0 0 1 360.00 571.89 Tm (Hours) Tj ET
+BT /F2 10 Tf 1 0 0 1 430.00 571.89 Tm (Rate) Tj ET
+BT /F2 10 Tf 1 0 0 1 500.00 571.89 Tm (Amount) Tj ET
+0.75 w 50.00 567.89 m 545.00 567.89 l S
+BT /F1 10 Tf 1 0 0 1 50.00 546.89 Tm (Freight consolidation, July) Tj ET
+BT /F1 10 Tf 1 0 0 1 360.00 546.89 Tm (38.5) Tj ET
+BT /F1 10 Tf 1 0 0 1 430.00 546.89 Tm (GBP 62.00) Tj ET
+BT /F1 10 Tf 1 0 0 1 500.00 546.89 Tm (GBP 2,387.00) Tj ET
+0.75 w 50.00 542.89 m 545.00 542.89 l S
+BT /F1 10 Tf 1 0 0 1 50.00 524.89 Tm (Customs documentation) Tj ET
+BT /F1 10 Tf 1 0 0 1 360.00 524.89 Tm (6.0) Tj ET
+BT /F1 10 Tf 1 0 0 1 430.00 524.89 Tm (GBP 85.00) Tj ET
+BT /F1 10 Tf 1 0 0 1 500.00 524.89 Tm (GBP 510.00) Tj ET
+0.75 w 50.00 520.89 m 545.00 520.89 l S
+BT /F2 10 Tf 1 0 0 1 430.00 471.89 Tm (Subtotal) Tj ET
+BT /F2 10 Tf 1 0 0 1 500.00 471.89 Tm (GBP 2,897.00) Tj ET
+BT /F1 10 Tf 1 0 0 1 430.00 451.89 Tm (VAT \(reverse charge\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 500.00 451.89 Tm (GBP 0.00) Tj ET
+BT /F2 10 Tf 1 0 0 1 430.00 431.89 Tm (Total due) Tj ET
+BT /F2 10 Tf 1 0 0 1 500.00 431.89 Tm (GBP 2,897.00) Tj ET
+0.75 w 50.00 427.89 m 545.00 427.89 l S
+
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000218 00000 n 
+0000000320 00000 n 
+0000000462 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+2670
+%%EOF
