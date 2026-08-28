@@ -15,7 +15,15 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/server";
@@ -415,6 +423,39 @@ function cacheDir(): string {
   return process.env.MISTRAL_MCP_CACHE_DIR ?? join(homedir(), ".mistral-mcp", "cache");
 }
 
+const DEFAULT_CACHE_TTL_HOURS = 168;
+
+/**
+ * How long a cached extraction may be reused.
+ *
+ * This is a retention policy, not a measured threshold, and it is stated as
+ * one: the cached payload holds extracted document content — a contract's
+ * parties and clauses, an invoice's line items — which is personal data, and
+ * personal data must not sit on disk indefinitely because a cache was
+ * convenient. Seven days covers the span over which the same document is
+ * realistically reprocessed (a batch, then its corrections); past that,
+ * re-running OCR costs less than holding the data.
+ *
+ * `MISTRAL_MCP_CACHE_TTL_HOURS=0` disables reuse entirely, for a deployment
+ * whose retention rules do not allow any.
+ */
+function cacheTtlMs(): number {
+  const raw = process.env.MISTRAL_MCP_CACHE_TTL_HOURS;
+  if (raw === undefined || raw.trim() === "") return DEFAULT_CACHE_TTL_HOURS * 3_600_000;
+  const hours = Number.parseFloat(raw);
+  if (!Number.isFinite(hours) || hours < 0) return DEFAULT_CACHE_TTL_HOURS * 3_600_000;
+  return hours * 3_600_000;
+}
+
+/** True when an entry stored at `storedAt` may still be served. */
+function isFresh(storedAt: unknown, ttlMs: number, now: number): boolean {
+  if (ttlMs === 0) return false;
+  if (typeof storedAt !== "string") return false;
+  const at = Date.parse(storedAt);
+  if (!Number.isFinite(at)) return false;
+  return now - at < ttlMs;
+}
+
 function sourceHash(src: ProcessDocumentInput["source"]): string {
   const h = createHash("sha256");
   h.update(JSON.stringify(src));
@@ -438,20 +479,85 @@ function readCache(key: string): unknown | undefined {
   if (!existsSync(path)) return undefined;
   try {
     const raw = readFileSync(path, "utf8");
-    const parsed = JSON.parse(raw) as { _v: string; payload: unknown };
+    const parsed = JSON.parse(raw) as {
+      _v: string;
+      stored_at?: unknown;
+      payload: unknown;
+    };
     if (parsed._v !== PIPELINE_VERSION) return undefined;
+    if (!isFresh(parsed.stored_at, cacheTtlMs(), Date.now())) {
+      // Expired entries are deleted on the way past rather than left to rot:
+      // the point of the TTL is that the content stops existing, not merely
+      // that it stops being served.
+      try {
+        unlinkSync(path);
+      } catch {
+        /* a concurrent reader may have removed it already */
+      }
+      return undefined;
+    }
     return parsed.payload;
   } catch {
     return undefined;
   }
 }
 
+/**
+ * Drop expired entries from one shard.
+ *
+ * Read-time expiry only reaches entries somebody asks for again; a document
+ * processed once and never revisited would otherwise stay on disk forever.
+ * Keys are sharded on their first two hex characters, so sweeping the shard a
+ * write lands in touches about 1/256 of the cache and keeps the whole store
+ * bounded by the TTL without ever walking it end to end.
+ */
+function sweepShard(dir: string, ttlMs: number, now: number): void {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (!name.endsWith(".json")) continue;
+    const full = join(dir, name);
+    try {
+      const parsed = JSON.parse(readFileSync(full, "utf8")) as { stored_at?: unknown };
+      if (!isFresh(parsed.stored_at, ttlMs, now)) unlinkSync(full);
+    } catch {
+      /* unreadable or already gone — nothing useful to do about it here */
+    }
+  }
+}
+
+let sweepCursor = 0;
+
+/**
+ * Expire what a write can reach, and one more shard besides.
+ *
+ * Sweeping only the shard just written leaves a cold entry alive for as long
+ * as nothing else hashes into its shard — with 256 shards and a slow corpus,
+ * that is effectively forever, which is the defect this whole TTL exists to
+ * close. Advancing a cursor by one shard per write covers the entire keyspace
+ * in 256 writes while keeping each write's cost to two small directories.
+ */
+function sweepOnWrite(writtenShard: string, ttlMs: number, now: number): void {
+  const root = cacheDir();
+  sweepShard(join(root, writtenShard), ttlMs, now);
+  const cursorShard = sweepCursor.toString(16).padStart(2, "0");
+  sweepCursor = (sweepCursor + 1) % 256;
+  if (cursorShard !== writtenShard) sweepShard(join(root, cursorShard), ttlMs, now);
+}
+
 function writeCache(key: string, payload: unknown): void {
+  const ttlMs = cacheTtlMs();
+  if (ttlMs === 0) return;
   const path = cachePath(key);
   const tmp = `${path}.tmp.${process.pid}`;
   const body = JSON.stringify({ _v: PIPELINE_VERSION, stored_at: new Date().toISOString(), payload });
   writeFileSync(tmp, body, "utf8");
   renameSync(tmp, path);
+  sweepOnWrite(key.slice(0, 2), ttlMs, Date.now());
 }
 
 // ---------- pipeline helpers ----------

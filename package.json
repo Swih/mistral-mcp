@@ -2,7 +2,7 @@
   "name": "mistral-mcp",
   "version": "0.10.0",
   "mcpName": "io.github.Swih/mistral-mcp",
-  "description": "MCP server for Mistral AI — chat, OCR, Voxtral audio, Codestral FIM, vision, agents, batch, workflows, conversations and RAG. Speaks MCP 2026-07-28 and the 2025 handshake, runs against Mistral Cloud or your own OpenAI-compatible endpoint (vLLM, TGI, LiteLLM), with trace propagation and on-prem manifests.",
+  "description": "Mistral, wherever you run it — MCP server for the full Mistral AI API: chat, OCR, Voxtral audio, Codestral FIM, vision, agents, batch, durable workflows, document extraction. Mistral Cloud or your own OpenAI-compatible endpoint (vLLM, TGI, LiteLLM). MCP 2026-07-28 and the 2025 handshake.",
   "type": "module",
   "bin": {
     "mistral-mcp": "dist/index.js"

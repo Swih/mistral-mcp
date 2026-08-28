@@ -1,6 +1,7 @@
 # mistral-mcp
 
-> **MCP server for Mistral AI — chat, OCR, audio (Voxtral), code (Codestral), vision, agents, batch, and durable workflows.**
+> **Mistral, wherever you run it.**
+> MCP server for the full Mistral AI API — chat, OCR, audio (Voxtral), code (Codestral), vision, agents, batch, durable workflows — against Mistral Cloud or your own infrastructure.
 > Plug into Claude Code, Cursor, Zed, Windsurf, or Claude Desktop in one command.
 >
 > _Version française : [README.fr.md](./README.fr.md)_
@@ -40,7 +41,7 @@ This can be useful for European organisations evaluating AI stacks under GDPR, D
 - bring-your-own Mistral API key (BYOK) — Mistral states API data is not used to train its models
 - `MISTRAL_BASE_URL` routes every call to your own OpenAI-compatible endpoint (vLLM, TGI, LiteLLM, an internal gateway) — no traffic to `api.mistral.ai`
 - lean `core` profile and focused `metier-docs` profile to limit tool exposure
-- `process_document` cache configurable per-call and via `MISTRAL_MCP_CACHE_DIR`
+- `process_document` cache configurable per-call and via `MISTRAL_MCP_CACHE_DIR`, with a retention window (`MISTRAL_MCP_CACHE_TTL_HOURS`, default 7 days, `0` to disable) after which entries are deleted, not merely bypassed
 - ID document cache bypass enabled by default, even when `kind:"auto"` resolves to `id_document`
 - Streamable HTTP + bearer auth path for controlled / on-prem deployments
 - French-first prompts and skills (meeting minutes, legal summary, invoice reminder, commit message, email reply)
