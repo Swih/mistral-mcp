@@ -193,4 +193,4 @@ Règle : **un tool non testé ne ship pas**. Si on ajoute `mistral_ocr`, on ajou
 
 ---
 
-*Mis à jour : v0.10.0 (MCP 2026-07-28 + SDK v2). Lire en entier avant de toucher au code.*
+*Mis à jour : v0.10.1 (MCP 2026-07-28 + SDK v2). Lire en entier avant de toucher au code.*

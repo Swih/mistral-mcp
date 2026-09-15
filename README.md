@@ -45,7 +45,7 @@ This can be useful for European organisations evaluating AI stacks under GDPR, D
 - ID document cache bypass enabled by default, even when `kind:"auto"` resolves to `id_document`
 - Streamable HTTP + bearer auth path for controlled / on-prem deployments
 - French-first prompts and skills (meeting minutes, legal summary, invoice reminder, commit message, email reply)
-- free Experiment tier on the Mistral side covers most evaluation needs (~1B tokens/month)
+- Mistral Free mode includes API usage for evaluation, subject to the model-specific limits shown in the Studio [Limits page](https://console.mistral.ai/limits)
 
 **What this project does NOT claim:**
 

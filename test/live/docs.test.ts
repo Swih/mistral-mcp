@@ -82,7 +82,7 @@ describe.skipIf(!HAS_KEY || !HAS_CORPUS)("live process_document — synthetic co
         options: { cache: "bypass" },
       },
     });
-    expect(res.isError).toBeFalsy();
+    expect(res.isError, JSON.stringify(res.content)).toBeFalsy();
     const sc = res.structuredContent as Record<string, unknown>;
     expect(sc.kind).toBe("contract");
     expect(Array.isArray(sc.parties)).toBe(true);
@@ -101,7 +101,7 @@ describe.skipIf(!HAS_KEY || !HAS_CORPUS)("live process_document — synthetic co
         options: { cache: "bypass" },
       },
     });
-    expect(res.isError).toBeFalsy();
+    expect(res.isError, JSON.stringify(res.content)).toBeFalsy();
     const sc = res.structuredContent as Record<string, unknown>;
     expect(sc.kind).toBe("invoice");
     const vendor = sc.vendor as Record<string, unknown>;
@@ -120,7 +120,7 @@ describe.skipIf(!HAS_KEY || !HAS_CORPUS)("live process_document — synthetic co
         // no cache option → must auto-bypass for id_document
       },
     });
-    expect(res.isError).toBeFalsy();
+    expect(res.isError, JSON.stringify(res.content)).toBeFalsy();
     const sc = res.structuredContent as Record<string, unknown>;
     expect(sc.kind).toBe("id_document");
     expect(typeof sc.name).toBe("string");

@@ -4,6 +4,35 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-09-15
+
+### Changed
+
+- Live API tests use the existing `MISTRAL_DEFAULT_MODEL` override, set to
+  `ministral-3b-latest` in the scheduled workflow. The CI organization reports
+  a zero request-per-minute limit for Small and Medium while Ministral 3B is
+  available, so the suite now exercises Chat, forced tool calls, JSON Schema,
+  and document extraction against a model the account can actually call.
+
+### Fixed
+
+- `process_document` structured extraction now honours
+  `MISTRAL_DEFAULT_MODEL`; classification already used Ministral 3B, but
+  extraction was hard-coded to `mistral-medium-latest`. This made the documented
+  override incomplete and caused all typed document flows to fail on accounts
+  where Medium has no quota.
+- Vitest allows 45 seconds per test instead of racing the SDK's 30-second retry
+  budget. API failures such as 429 now surface with their real cause, and live
+  document assertions include the tool error content in CI annotations.
+- Release metadata and the supported-version table are aligned on 0.10.1. The
+  obsolete claim that Free mode provides roughly one billion tokens per month
+  is replaced with the current model-specific limits wording.
+
+### Notes
+
+- 0.10.0 was released on GitHub but not published to npm. The npm package moves
+  directly from 0.8.2 to 0.10.1.
+
 ## [0.10.0] - 2026-08-28
 
 Two things: the server moves to the current protocol revision without asking a

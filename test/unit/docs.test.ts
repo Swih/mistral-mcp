@@ -240,6 +240,8 @@ describe("process_document — generic kind happy path", () => {
 
 describe("process_document — id_document PII safeguard", () => {
   it("auto-bypasses cache for kind=id_document when no explicit cache mode is set", async () => {
+    const previousModel = process.env.MISTRAL_DEFAULT_MODEL;
+    process.env.MISTRAL_DEFAULT_MODEL = "ci-chat-model";
     const mistral = {
       ocr: {
         process: vi.fn(async () => ({
@@ -286,7 +288,11 @@ describe("process_document — id_document PII safeguard", () => {
       expect((r2.structuredContent as Record<string, unknown>).cache_hit).toBe(false);
       // SDK called twice — proves no cache write happened on the first call
       expect((mistral.ocr.process as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
+      const extractionCalls = (mistral.chat.complete as ReturnType<typeof vi.fn>).mock.calls;
+      expect(extractionCalls.every(([input]) => input.model === "ci-chat-model")).toBe(true);
     } finally {
+      if (previousModel === undefined) delete process.env.MISTRAL_DEFAULT_MODEL;
+      else process.env.MISTRAL_DEFAULT_MODEL = previousModel;
       rmSync(cacheDir, { recursive: true, force: true });
     }
   });

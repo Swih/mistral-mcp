@@ -30,7 +30,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
 
-import { DEFAULT_OCR_MODEL } from "./models.js";
+import { DEFAULT_OCR_MODEL, defaultChatModel } from "./models.js";
 import { errorResult, toTextBlock } from "./shared.js";
 
 // ---------- pipeline version (bump on breaking schema/prompt changes) ----------
@@ -587,7 +587,7 @@ function toOcrDocument(src: ProcessDocumentInput["source"]) {
 }
 
 function pickModelForExtraction(): string {
-  return "mistral-medium-latest";
+  return defaultChatModel();
 }
 
 function pickModelForClassification(): string {

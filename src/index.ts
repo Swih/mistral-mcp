@@ -50,7 +50,7 @@ import {
  * server identity and the boot log can never disagree — they already drifted
  * twice (see "fix(release): align runtime log version to 0.7.0").
  */
-const SERVER_VERSION = "0.10.0";
+const SERVER_VERSION = "0.10.1";
 
 let runtime: RuntimeConfig;
 try {
@@ -71,7 +71,7 @@ if (!API_KEY) {
   } else {
     console.error(
       "[mistral-mcp] MISTRAL_API_KEY is not set.\n" +
-        "  → Get a free key (1B tokens/month on the Experiment tier):\n" +
+        "  → Get an API key (usage and limits depend on your Mistral organization):\n" +
         "    https://console.mistral.ai/api-keys\n" +
         "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
         "  → Or point the server at your own endpoint: MISTRAL_BASE_URL=http://...\n" +

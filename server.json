@@ -1,24 +1,24 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Swih/mistral-mcp",
-  "description": "Mistral AI MCP server: chat, OCR, Voxtral audio, Codestral FIM, vision, agents, batch.",
+  "description": "Mistral AI MCP server for chat, OCR, audio, code, agents, workflows, document extraction, and self-hosted OpenAI-compatible endpoints.",
   "repository": {
     "url": "https://github.com/Swih/mistral-mcp",
     "source": "github"
   },
-  "version": "0.10.0",
+  "version": "0.10.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "mistral-mcp",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "MISTRAL_API_KEY",
-          "description": "Mistral API key from https://console.mistral.ai/. The free Experiment tier provides 1B tokens/month.",
+          "description": "Mistral API key from https://console.mistral.ai/. Model-specific usage and rate limits depend on the organization tier.",
           "format": "string",
           "isRequired": true,
           "isSecret": true
@@ -33,6 +33,13 @@
         {
           "name": "MISTRAL_MCP_PROFILE",
           "description": "Tool surface to expose: core (default), admin, workflows, metier-docs, self-hosted. Overrides what MISTRAL_BASE_URL would infer.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "MISTRAL_DEFAULT_MODEL",
+          "description": "Default chat and structured-extraction model when a call omits model. Useful for account-specific availability and self-hosted model ids.",
           "format": "string",
           "isRequired": false,
           "isSecret": false

@@ -2,7 +2,7 @@
  * Live integration test — hits the real Mistral API.
  *
  * Skipped unless MISTRAL_API_KEY is set in the environment.
- * Uses mistral-small-latest to minimise token cost on CI.
+ * Uses MISTRAL_DEFAULT_MODEL so CI can select a model available to its account.
  */
 
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { config as loadEnv } from "dotenv";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "../../src/shared.js";
+import { defaultChatModel } from "../../src/models.js";
 
 // load .env if it exists (local dev)
 const envPath = resolve(process.cwd(), ".env");
@@ -29,7 +30,7 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     });
 
     const res = await mistral.chat.complete({
-      model: "mistral-small-latest",
+      model: defaultChatModel(),
       messages: [
         {
           role: "user",
@@ -66,7 +67,7 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     expect(typeof v![0]).toBe("number");
   });
 
-  it("function calling: Mistral Medium emits a tool_call when forced", async () => {
+  it("function calling: the configured chat model emits a tool_call when forced", async () => {
     const { Mistral } = await import("@mistralai/mistralai");
     const mistral = new Mistral({
       apiKey: process.env.MISTRAL_API_KEY!,
@@ -75,7 +76,7 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     });
 
     const res = await mistral.chat.complete({
-      model: "mistral-medium-latest",
+      model: defaultChatModel(),
       messages: [
         { role: "user", content: "What is the weather in Paris today?" },
       ],
@@ -145,7 +146,7 @@ describe.skipIf(!HAS_KEY)("live Mistral API", () => {
     });
 
     const res = await mistral.chat.complete({
-      model: "mistral-small-latest",
+      model: defaultChatModel(),
       messages: [
         {
           role: "user",

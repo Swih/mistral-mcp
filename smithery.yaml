@@ -12,8 +12,8 @@ startCommand:
         type: string
         title: Mistral API key
         description: >-
-          Get one at https://console.mistral.ai/. The free Experiment tier
-          gives 1B tokens/month.
+          Get one at https://console.mistral.ai/. Usage and model-specific
+          limits depend on your Mistral organization tier.
   commandFunction: |-
     (config) => ({
       command: "npx",

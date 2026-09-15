@@ -51,5 +51,5 @@ Only the latest minor receives security patches.
 
 | Version | Status                |
 | ------- | --------------------- |
-| 0.8.x   | Supported             |
-| < 0.8   | Best effort / not supported |
+| 0.10.x  | Supported                  |
+| < 0.10  | Best effort / not supported |

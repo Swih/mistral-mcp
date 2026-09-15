@@ -45,7 +45,7 @@ Cela peut être utile pour les organisations européennes qui évaluent une stac
 - bypass du cache pour les documents d'identité activé par défaut, même quand `kind:"auto"` résout en `id_document`
 - transport Streamable HTTP + bearer pour déploiements contrôlés / on-premise
 - prompts et skills français de série (compte-rendu de réunion, résumé juridique, relance facture, message de commit, réponse email)
-- tier Experiment gratuit côté Mistral suffisant pour évaluer (~1 milliard de tokens/mois)
+- le mode Free de Mistral inclut de l'usage API pour l'évaluation, dans les limites propres à chaque modèle affichées sur la page [Limits de Studio](https://console.mistral.ai/limits)
 
 **Ce que ce projet ne prétend PAS être :**
 
