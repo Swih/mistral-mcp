@@ -21,6 +21,8 @@ import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import { Mistral } from "@mistralai/mistralai";
 import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "../../src/shared.js";
 import { registerDocsTools } from "../../src/tools-docs.js";
+import { DEFAULT_OCR_MODEL } from "../../src/models.js";
+import { waitForOcrFile } from "../helpers/ocr-file-ready.js";
 
 const envPath = resolve(process.cwd(), ".env");
 if (existsSync(envPath)) loadEnv({ path: envPath });
@@ -51,6 +53,11 @@ async function uploadFixture(mistral: Mistral, file: string): Promise<string> {
     file: { fileName: file, content: buf },
     purpose: "ocr",
   });
+  await waitForOcrFile(() => mistral.ocr.process({
+    model: DEFAULT_OCR_MODEL,
+    document: { type: "file", fileId: res.id },
+    pages: [0],
+  }));
   return res.id;
 }
 

@@ -4,6 +4,15 @@ All notable changes to `mistral-mcp` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Live document fixtures verify OCR readability after upload, with three bounded
+  retries only for the observed `422 invalid_file / 1901 / Could not get file.`
+  response. Persistent file errors and other failures still fail the run; document
+  extraction assertions are unchanged. This adds one OCR page per fixture.
+
 ## [0.10.1] - 2026-09-15
 
 ### Changed
