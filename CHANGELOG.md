@@ -16,25 +16,53 @@ The source version is `1.0.0-rc.1`; npm `latest` remains `0.11.0` until a separa
   `metier-docs` preserves its 17-tool surface, including every former core tool;
   `workflows` and `admin` remain unchanged. See [MIGRATION.md](MIGRATION.md).
 - Document processing is the primary README walkthrough, with a local invoice
-  example and explicit separation between schema validation and extraction accuracy.
+  example led by existing plain text or Markdown, and explicit separation between
+  schema validation and extraction accuracy. English/French guides describe
+  Docling only as an optional upstream local converter producing Markdown, with
+  no integration, dependency or automatic fallback.
+- **Breaking:** every successful `process_document` result includes the required
+  `extraction_source` field (`provided_text` or `mistral_ocr`). `ocr_confidence` and
+  `page_count` are `null` for supplied text and remain numeric for successful OCR.
+  `ocr_text` retains its name and holds the unchanged input for text sources.
+  `options.maxPages` and `options.minOcrConfidence` apply only to OCR sources.
+- Pipeline version `v1.0.0-text.1` prevents reuse of older cache entries after the
+  result-contract change; it does not guarantee immediate deletion of old files.
 - The evaluation harness checks synthetic invoice field values separately from
   OCR text retention. Reports identify checks that have not been measured.
 
 ### Added
 
-- `npm run example:invoice -- <file> [--output result.json]` uploads one local
-  document, extracts a typed invoice through MCP, bypasses the document cache and
-  attempts to delete the uploaded file on success or failure. Existing output
-  files are not overwritten.
+- `process_document` accepts `source: { type: "text", text: string }` for existing
+  plain text or Markdown, preserved unchanged. Blank/whitespace-only strings and
+  inputs above 60,000 UTF-16 code units are rejected for every kind. Text with
+  explicit `kind: "generic"` makes no API calls; `auto` still uses chat for
+  classification and typed kinds use chat for extraction on a cache miss or bypass.
+- `npm run example:invoice -- <file> [--output result.json]` reads local `.txt` or
+  `.md` invoices without Files upload, deletion or OCR calls. It still requires a
+  Mistral API key and chat quota for invoice extraction. The PDF/image route
+  uploads the file and attempts deletion on success or failure. Both routes use
+  MCP, bypass the document cache and never overwrite existing output files.
+- Synthetic Markdown invoice [fixture](./test/fixtures/invoice-text.md) and a
+  [chat-only live extraction test](./test/live/docs-text.test.ts). On
+  2026-09-28, that test and the full CLI example passed with
+  `MISTRAL_DEFAULT_MODEL=ministral-3b-latest`: vendor `ACME SAS`, total `12960` EUR,
+  due date `2026-09-11` and quantities, unit prices and amounts for all three lines
+  were verified without Files or OCR calls. The walkthrough sets this tested
+  model explicitly; users still need a model with quota on their own account.
+  This is one synthetic invoice result, not an accuracy or reliability score.
 - Built-binary tests for all five profiles, default-profile migration and
   capability/resource consistency. Document contract tests cover all four kinds.
 
 ### Fixed
 
 - Document output schemas expose nested invoice, contract and identity fields
-  rather than untyped JSON. Generated fields cannot overwrite OCR provenance.
-- Typed extraction rejects text beyond its 60,000-character limit instead of
-  silently dropping the rest. `kind=generic` remains available for OCR text.
+  rather than untyped JSON. Generated fields cannot overwrite source provenance.
+- Typed extraction rejects text beyond its 60,000-UTF-16-code-unit limit instead
+  of silently dropping the rest. `kind=generic` remains available for longer OCR
+  text; supplied text keeps its input limit for every kind.
+- README and migration instructions no longer claim a separate OCR readiness
+  probe in the invoice example. The PDF/image route retries only the recognized
+  file-not-ready tool error; successful calls need no extra OCR probe.
 - Language hints are described, applied during extraction and included in cache
   identity. Core input parameters now include usage descriptions.
 - API errors distinguish authentication, quota and provider failures without
@@ -42,8 +70,10 @@ The source version is `1.0.0-rc.1`; npm `latest` remains `0.11.0` until a separa
 
 ### Known limitations
 
-- Live OCR and document accuracy remain unverified for this candidate while the
-  CI account's effective OCR request quota is zero. No paid plan was activated.
+- Live OCR and OCR-based extraction accuracy remain unverified for this candidate while the
+  CI account's effective OCR request quota is zero (HTTP 429). The text route
+  avoids OCR but does not resolve that blocker or make chat processing local or
+  free. No paid plan was activated.
   Offline checks do not establish provider availability or extraction accuracy.
 
 ## [0.11.0] - 2026-09-28

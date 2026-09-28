@@ -56,7 +56,7 @@ describe("process_document advertised and runtime contracts", () => {
       expect(props.vendor.type).toBe("object");
       expect(props.line_items.items?.type).toBe("object");
       expect(z.object(ProcessDocumentOutputShape).safeParse({
-        kind: "invoice", source_id: "x", ocr_text: "x", ocr_confidence: 0.9,
+        kind: "invoice", source_id: "x", extraction_source: "mistral_ocr", ocr_text: "x", ocr_confidence: 0.9,
         page_count: 1, total_duration_ms: 1, cache_hit: false, pipeline_version: "test",
         vendor: "not-an-object",
       }).success).toBe(false);
@@ -92,9 +92,35 @@ describe("process_document advertised and runtime contracts", () => {
       expect(result.isError).toBeFalsy();
       const payload = ProcessDocumentOutputSchema.parse(result.structuredContent);
       expect(payload.ocr_confidence).toBe(0.9);
+      expect(payload.extraction_source).toBe("mistral_ocr");
       expect(payload.page_count).toBe(1);
       expect(payload.kind).toBe("invoice");
-    }, "Invoice", { ...payloads.invoice, ocr_confidence: 1, page_count: 999, kind: "generic" });
+    }, "Invoice", { ...payloads.invoice, extraction_source: "provided_text", ocr_confidence: 1, page_count: 999, kind: "generic" });
+  });
+
+  it.each(["invoice", "contract", "id_document", "generic"] as const)("validates %s from provided Markdown without OCR", async kind => {
+    await withDocument(kind, async (client, mock) => {
+      const result = await client.callTool({ name: "process_document", arguments: {
+        ...args(kind), source: { type: "text", text: "# Synthetic document\n\nSome text.\n" },
+      } });
+      expect(result.isError).toBeFalsy();
+      const payload = ProcessDocumentOutputSchema.parse(result.structuredContent);
+      expect(payload).toMatchObject({ extraction_source: "provided_text", ocr_confidence: null, page_count: null });
+      expect(z.object(ProcessDocumentOutputShape).safeParse(payload).success).toBe(true);
+      expect(result.content).toEqual([{ type: "text", text: JSON.stringify(result.structuredContent) }]);
+      expect(mock.ocr.process).not.toHaveBeenCalled();
+      expect(mock.chat.complete).toHaveBeenCalledTimes(kind === "generic" ? 0 : 1);
+    });
+  });
+
+  it("does not allow generated fields to invent OCR evidence for provided text", async () => {
+    await withDocument("invoice", async client => {
+      const result = await client.callTool({ name: "process_document", arguments: {
+        ...args("invoice"), source: { type: "text", text: "Synthetic invoice" },
+      } });
+      const payload = ProcessDocumentOutputSchema.parse(result.structuredContent);
+      expect(payload).toMatchObject({ extraction_source: "provided_text", ocr_confidence: null, page_count: null, ocr_text: "Synthetic invoice" });
+    }, "unused", { ...payloads.invoice, extraction_source: "mistral_ocr", ocr_confidence: 1, page_count: 999, ocr_text: "fabricated" });
   });
 
   it("returns a tool error for malformed typed extraction", async () => {

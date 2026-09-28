@@ -199,7 +199,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolFamily>> = {
     tools: ["process_document"],
     profiles: ["core", "admin", "metier-docs"],
     openaiCompatible: false,
-    summary: "OCR + typed extraction macro-tool.",
+    summary: "Typed document extraction from provided text/Markdown or Mistral OCR.",
   },
 } as const;
 

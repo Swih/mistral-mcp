@@ -10,6 +10,7 @@ import { main } from "../../examples/invoice.mjs";
 const PDF = Buffer.from("%PDF-1.7\nSynthetic invoice bytes for offline tests.\n%%EOF\n");
 const INVOICE = {
   kind: "invoice", source_id: "synthetic-source", ocr_text: "Synthetic invoice",
+  extraction_source: "mistral_ocr",
   ocr_confidence: 0.95, page_count: 1, total_duration_ms: 20,
   cache_hit: false, pipeline_version: "unit-test",
   vendor: { name: "Invented vendor" }, total: 12, currency: "EUR",
@@ -17,6 +18,10 @@ const INVOICE = {
   due_date: null, anomalies: [],
 };
 const RESULT = { content: [{ type: "text", text: "Synthetic result" }], structuredContent: INVOICE };
+const TEXT = "  # Facture inventée\r\n\r\n| Article | Total |\r\n| Thé | 12 € |\r\n ";
+const TEXT_INVOICE = { ...INVOICE, ocr_text: TEXT, extraction_source: "provided_text",
+  ocr_confidence: null, page_count: null };
+const TEXT_RESULT = { ...RESULT, structuredContent: TEXT_INVOICE };
 const NOT_READY = { type: "invalid_file", code: "1901", message: "Could not get file." };
 function toolError(text: string) {
   return { isError: true, content: [{ type: "text", text }] };
@@ -136,6 +141,99 @@ describe("invoice CLI example (offline)", () => {
     }));
   });
 
+  it.each([[".txt", ""], [".TXT", "\uFEFF"], [".md", ""], [".MD", "\uFEFF"]])(
+    "extracts UTF-8 %s directly, preserving text and skipping the Files SDK", async (extension, bom) => {
+      const path = join(dir, `invoice${extension}`);
+      await writeFile(path, bom + TEXT, "utf8");
+      const h = harness();
+      h.client.callTool.mockResolvedValue(TEXT_RESULT);
+      await h.run([path]);
+      expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+      expect(h.sdk.files.upload).not.toHaveBeenCalled();
+      expect(h.sdk.files.delete).not.toHaveBeenCalled();
+      expect(h.dependencies.pause).not.toHaveBeenCalled();
+      expect(h.client.callTool).toHaveBeenCalledOnce();
+      expect(h.client.callTool).toHaveBeenCalledWith({ name: "process_document", arguments: {
+        source: { type: "text", text: TEXT }, kind: "invoice", options: { cache: "bypass" },
+      } }, { timeout: 240_000 });
+      expect(h.dependencies.createTransport).toHaveBeenCalledWith(expect.objectContaining({
+        env: expect.objectContaining({ MISTRAL_API_KEY: "unit-key", MISTRAL_MCP_PROFILE: "core" }),
+      }));
+      expect(JSON.parse(h.output())).toEqual(TEXT_INVOICE);
+      expect(h.client.close).toHaveBeenCalledOnce();
+      expect(h.transport.close).toHaveBeenCalledOnce();
+      expect(h.logs()).toContain("typed extraction");
+      expect(h.logs()).not.toContain(TEXT);
+      expect(h.logs()).not.toContain("Uploading");
+    });
+
+  it.each([
+    ["ASCII", "x".repeat(60_000)],
+    ["two-byte UTF-8", "é".repeat(60_000)],
+    ["three-byte UTF-8 with BOM", "\uFEFF" + "€".repeat(60_000)],
+    ["UTF-16 surrogate pairs", "😀".repeat(30_000)],
+  ])("accepts exactly 60000 text characters (%s) without truncation", async (_label, text) => {
+    const path = join(dir, "invoice.txt");
+    await writeFile(path, text, "utf8");
+    const h = harness();
+    h.client.callTool.mockResolvedValue(TEXT_RESULT);
+    await h.run([path]);
+    expect(h.client.callTool).toHaveBeenCalledWith(expect.objectContaining({ arguments: {
+      source: { type: "text", text: text.replace(/^\uFEFF/, "") }, kind: "invoice", options: { cache: "bypass" },
+    } }), { timeout: 240_000 });
+    expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+  });
+
+  describe.each([".txt", ".md"])("%s local validation", (extension) => {
+    it.each([
+      ["empty", Buffer.from(""), /nonempty/],
+      ["whitespace", Buffer.from(" \t\r\n"), /nonempty/],
+      ["Unicode whitespace", Buffer.from("\uFEFF\u00A0\u2003\n"), /nonempty/],
+      ["BOM only", Buffer.from("\uFEFF"), /nonempty/],
+      ["invalid UTF-8", Buffer.from([0xff]), /valid UTF-8/],
+      ["truncated UTF-8", Buffer.from([0x41, 0xe2, 0x82]), /valid UTF-8/],
+      ["overlong UTF-8", Buffer.from([0xc0, 0xaf]), /valid UTF-8/],
+      ["UTF-16 file", Buffer.from([0xff, 0xfe, 0x41, 0x00]), /valid UTF-8/],
+      ["too many ASCII characters", Buffer.from("x".repeat(60_001)), /60000 characters/],
+      ["too many multibyte characters", Buffer.from("€".repeat(60_001)), /60000 characters/],
+      ["too many UTF-16 code units", Buffer.from("😀".repeat(30_000) + "x"), /60000 characters/],
+      ["trailing whitespace over the limit", Buffer.from("x".repeat(60_000) + "\n"), /60000 characters/],
+      ["too many bytes", Buffer.from("\uFEFF" + "€".repeat(60_001)), /60000 characters/],
+    ])("rejects %s before connection or output creation", async (_label, bytes, message) => {
+      const path = join(dir, `invoice${extension}`);
+      const output = join(dir, "result.json");
+      await writeFile(path, bytes);
+      const h = harness();
+      await expect(h.run([path, "--output", output])).rejects.toThrow(message);
+      expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+      expect(h.dependencies.createClient).not.toHaveBeenCalled();
+      expect(h.dependencies.createTransport).not.toHaveBeenCalled();
+      expect(h.sdk.files.upload).not.toHaveBeenCalled();
+      expect(h.sdk.files.delete).not.toHaveBeenCalled();
+      expect(h.client.callTool).not.toHaveBeenCalled();
+      expect(h.output()).toBe("");
+      await expect(readFile(output)).rejects.toMatchObject({ code: "ENOENT" });
+    });
+
+    it.each(["missing", "directory"])("rejects a %s path before connection", async (kind) => {
+      const path = join(dir, `invoice${extension}`);
+      if (kind === "directory") await mkdir(path);
+      const h = harness();
+      await expect(h.run([path])).rejects.toThrow();
+      expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+      expect(h.dependencies.createClient).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, "", " \t"])("requires an API key for typed text extraction (%j)", async (key) => {
+      const path = join(dir, `invoice${extension}`);
+      await writeFile(path, TEXT);
+      const h = harness(key === undefined ? {} : { MISTRAL_API_KEY: key });
+      await expect(h.run([path])).rejects.toThrow("Set MISTRAL_API_KEY");
+      expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+      expect(h.dependencies.createClient).not.toHaveBeenCalled();
+    });
+  });
+
   it.each([[], ["--help"], ["one.pdf", "extra"], ["one.pdf", "--output"],
     ["one.pdf", "--unknown", "result.json"], ["one.pdf", "--output", "-x"],
     ["one.pdf", "--output", "result.json", "extra"]])("rejects invalid arguments %j before any provider work", async (...args) => {
@@ -151,7 +249,7 @@ describe("invoice CLI example (offline)", () => {
       if (kind === "directory") { path = join(dir, "folder.pdf"); await mkdir(path); }
       if (kind === "empty") await writeFile(path, "");
       if (kind === "large") await truncate(path, 20 * 1024 * 1024 + 1);
-      if (kind === "unsupported") { path = join(dir, "invoice.txt"); await writeFile(path, PDF); }
+      if (kind === "unsupported") { path = join(dir, "invoice.csv"); await writeFile(path, PDF); }
       if (kind === "mismatched") await writeFile(path, "not a PDF");
       if (kind === "url") path = "https://example.invalid/invoice.pdf";
       const output = join(dir, "result.json");
@@ -196,6 +294,36 @@ describe("invoice CLI example (offline)", () => {
     expect(JSON.parse(await readFile(output, "utf8"))).toEqual(INVOICE);
   });
 
+  it("reserves text output before connection and saves the nullable OCR metadata", async () => {
+    const path = join(dir, "invoice.md");
+    const output = join(dir, "result.json");
+    await writeFile(path, TEXT);
+    const h = harness();
+    h.client.connect.mockImplementation(async () => {
+      expect(await readFile(output, "utf8")).toBe("");
+    });
+    h.client.callTool.mockResolvedValue(TEXT_RESULT);
+    await h.run([path, "--output", output]);
+    expect(JSON.parse(await readFile(output, "utf8"))).toEqual(TEXT_INVOICE);
+    expect(h.output()).toBe(`${output}\n`);
+    expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+  });
+
+  it.each([".txt", ".md"])("never overwrites the %s input or an existing output", async (extension) => {
+    const path = join(dir, `invoice${extension}`);
+    const output = join(dir, "result.json");
+    await writeFile(path, TEXT);
+    await writeFile(output, "keep this");
+    const h = harness();
+    for (const destination of [path, output]) {
+      await expect(h.run([path, "--output", destination])).rejects.toThrow("exclusively");
+    }
+    expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+    expect(h.dependencies.createClient).not.toHaveBeenCalled();
+    expect(await readFile(path, "utf8")).toBe(TEXT);
+    expect(await readFile(output, "utf8")).toBe("keep this");
+  });
+
   it.each(["existing", "input", "missing-parent", "directory"])("never overwrites a %s destination", async (kind) => {
     let output = join(dir, "result.json");
     if (kind === "existing") await writeFile(output, "keep this");
@@ -217,6 +345,65 @@ describe("invoice CLI example (offline)", () => {
     expect(h.dependencies.pause.mock.calls).toEqual([[1000], [2000], [4000]]);
     expect(h.sdk.files.upload).toHaveBeenCalledOnce();
     expect(h.sdk.files.delete).toHaveBeenCalledOnce();
+  });
+
+  it.each([".txt", ".md"])("never retries an upload-readiness error for %s", async (extension) => {
+    const path = join(dir, `invoice${extension}`);
+    await writeFile(path, TEXT);
+    const h = harness();
+    h.client.callTool.mockResolvedValue(NOT_READY_RESULT);
+    await expect(h.run([path])).rejects.toThrow("Check the supplied text and account/model access");
+    expect(h.client.callTool).toHaveBeenCalledOnce();
+    expect(h.dependencies.pause).not.toHaveBeenCalled();
+    expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+    expect(h.sdk.files.upload).not.toHaveBeenCalled();
+    expect(h.sdk.files.delete).not.toHaveBeenCalled();
+    expect(h.client.close).toHaveBeenCalledOnce();
+    expect(h.transport.close).toHaveBeenCalledOnce();
+    expect(h.output()).toBe("");
+    expect(h.logs()).not.toContain("retry");
+  });
+
+  it.each(["tool error", "thrown error", "invalid result"])(
+    "closes text connections and leaves reserved output empty on %s without Files calls", async (mode) => {
+      const path = join(dir, "invoice.txt");
+      const output = join(dir, "result.json");
+      await writeFile(path, TEXT);
+      const h = harness();
+      if (mode === "tool error") h.client.callTool.mockResolvedValue(toolError("SECRET_KEY PRIVATE_DOCUMENT"));
+      if (mode === "thrown error") h.client.callTool.mockRejectedValue(apiError(422));
+      if (mode === "invalid result") h.client.callTool.mockResolvedValue({
+        structuredContent: { ...TEXT_INVOICE, total: "SECRET_KEY PRIVATE_DOCUMENT" },
+      });
+      const failure = await h.run([path, "--output", output]).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).toMatchObject({ message: expect.not.stringMatching(/SECRET_KEY|PRIVATE_DOCUMENT/) });
+      expect(h.client.callTool).toHaveBeenCalledOnce();
+      expect(h.dependencies.pause).not.toHaveBeenCalled();
+      expect(h.dependencies.createMistral).not.toHaveBeenCalled();
+      expect(h.sdk.files.upload).not.toHaveBeenCalled();
+      expect(h.sdk.files.delete).not.toHaveBeenCalled();
+      expect(h.client.close).toHaveBeenCalledOnce();
+      expect(h.transport.close).toHaveBeenCalledOnce();
+      expect(h.output()).toBe("");
+      expect(await readFile(output, "utf8")).toBe("");
+      expect(h.logs()).toContain("reserved output");
+      expect(h.logs()).not.toMatch(/SECRET_KEY|PRIVATE_DOCUMENT/);
+    });
+
+  it("preserves a valid text extraction when MCP shutdown fails", async () => {
+    const path = join(dir, "invoice.txt");
+    const output = join(dir, "result.json");
+    await writeFile(path, TEXT);
+    const h = harness();
+    h.client.callTool.mockResolvedValue(TEXT_RESULT);
+    h.client.close.mockRejectedValue(new Error("SECRET_KEY PRIVATE_DOCUMENT"));
+    await expect(h.run([path, "--output", output])).rejects.toThrow("MCP shutdown failed");
+    expect(JSON.parse(await readFile(output, "utf8"))).toEqual(TEXT_INVOICE);
+    expect(h.output()).toBe(`${output}\n`);
+    expect(h.sdk.files.delete).not.toHaveBeenCalled();
+    expect(h.transport.close).toHaveBeenCalledOnce();
+    expect(h.logs()).not.toMatch(/SECRET_KEY|PRIVATE_DOCUMENT|No complete extraction was saved/);
   });
 
   it("continues after an eventually ready file without repeating the upload", async () => {
@@ -294,6 +481,8 @@ describe("invoice CLI example (offline)", () => {
     { structuredContent: { ...INVOICE, total: "twelve" } },
     { structuredContent: { ...INVOICE, line_items: [{ qty: "one" }] } },
     { structuredContent: { ...INVOICE, ocr_confidence: 2 } },
+    { structuredContent: { ...INVOICE, extraction_source: undefined } },
+    { structuredContent: { ...INVOICE, extraction_source: "unknown" } },
     { structuredContent: { ...INVOICE, kind: "generic", structured_text: "Synthetic" } },
   ])("rejects tool errors and invalid invoice results, then deletes the upload", async (response) => {
     const h = harness();

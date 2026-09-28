@@ -1,12 +1,12 @@
 /**
  * Document pipeline shared by the default and advanced profiles.
  *
- * `process_document` is a macro-tool that chains OCR + kind-specific structured
- * extraction in one call. Replaces the typical mistral_ocr → mistral_chat →
- * zod-parse pattern an agent would otherwise glue together.
+ * `process_document` accepts caller-provided text or runs OCR before kind-specific
+ * extraction. Keeping ingestion separate lets callers use their own converter
+ * without losing validation, provenance or the sensitive-document cache policy.
  *
- * Kinds: contract, invoice, id_document, generic (OCR text only). When `kind:"auto"`,
- * the pipeline runs a lightweight classification on the first page.
+ * Kinds: contract, invoice, id_document, generic (text only). When `kind:"auto"`,
+ * the pipeline classifies a sample of the text.
  *
  * Output is a discriminated union — clients can switch on `kind` to access typed fields.
  *
@@ -35,11 +35,17 @@ import { errorResult, toTextBlock } from "./shared.js";
 
 // ---------- pipeline version (bump on breaking schema/prompt changes) ----------
 
-const PIPELINE_VERSION = "v1.0.0";
+const PIPELINE_VERSION = "v1.0.0-text.1";
+const MAX_EXTRACTION_CHARACTERS = 60_000;
 
 // ---------- input schema ----------
 
 const DocumentSourceSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("text").describe("Use already extracted plain text or Markdown without calling OCR or the Files API."),
+    text: z.string().max(MAX_EXTRACTION_CHARACTERS).regex(/\S/, "Document text must not be empty or whitespace-only.")
+      .describe("Document text or Markdown, preserved as supplied. Maximum 60000 UTF-16 code units. Typed extraction sends this text to the configured Mistral chat endpoint."),
+  }),
   z.object({
     type: z.literal("url").describe("Fetch a document from a provider-accessible URL."),
     url: z.string().url().describe("HTTPS URL to a PDF or image."),
@@ -69,12 +75,12 @@ const DocumentKindSchema = z.enum([
 ]);
 
 export const ProcessDocumentInputShape = {
-  source: DocumentSourceSchema.describe("Document location: remote URL, uploaded file ID, or inline image."),
-  kind: DocumentKindSchema.default("auto").describe("Extraction task. auto classifies the document; generic returns OCR text without typed extraction."),
+  source: DocumentSourceSchema.describe("Already extracted text/Markdown, or an OCR source: remote URL, uploaded file ID, or inline image."),
+  kind: DocumentKindSchema.default("auto").describe("Extraction task. auto classifies the document; generic returns text without typed extraction. Text source with generic makes no API calls."),
   options: z
     .object({
       languageHints: z.array(z.string().regex(/^[a-z]{2}$/i)).optional().describe("Optional two-letter language hints for typed extraction; they do not select an OCR model."),
-      maxPages: z.number().int().positive().max(200).optional().default(50).describe("Maximum number of pages to send to OCR, from the start of the document. The result covers only this selection."),
+      maxPages: z.number().int().positive().max(200).optional().default(50).describe("OCR sources only: maximum pages to process from the start. The result covers only this selection. Not applied to provided text."),
       minOcrConfidence: z
         .number()
         .min(0)
@@ -82,7 +88,7 @@ export const ProcessDocumentInputShape = {
         .optional()
         .default(0.3)
         .describe(
-          "Conservative floor: below it the tool returns isError rather than risk " +
+          "OCR sources only; not applied to provided text. Conservative floor: below it the tool returns isError rather than risk " +
             "extracting from text OCR is not confident about. 0.3 is a starting " +
             "point, not a measured value — run `npm run eval:docs` against your " +
             "own documents and set the number that run justifies."
@@ -117,9 +123,10 @@ type ProcessDocumentInput = {
 const CommonShape = {
   source_id: z.string(),
   kind: z.enum(["contract", "invoice", "id_document", "generic"]),
-  ocr_text: z.string(),
-  ocr_confidence: z.number().min(0).max(1),
-  page_count: z.number().int().nonnegative(),
+  extraction_source: z.enum(["provided_text", "mistral_ocr"]).describe("How the input text was obtained. provided_text is supplied by the caller, not verified by OCR."),
+  ocr_text: z.string().describe("Text used for extraction: provided text unchanged, or Markdown returned by Mistral OCR."),
+  ocr_confidence: z.number().min(0).max(1).nullable().describe("Mean Mistral OCR page confidence. Null for provided text; never an extraction accuracy score."),
+  page_count: z.number().int().positive().nullable().describe("Pages processed by Mistral OCR. Null for provided text, whose pagination is unknown."),
   total_duration_ms: z.number().int().nonnegative(),
   cache_hit: z.boolean(),
   pipeline_version: z.string(),
@@ -193,7 +200,16 @@ export const ProcessDocumentOutputSchema = z.discriminatedUnion("kind", [
   InvoicePayloadSchema,
   IdDocPayloadSchema,
   GenericPayloadSchema,
-]);
+]).superRefine((payload, ctx) => {
+  const provided = payload.extraction_source === "provided_text";
+  for (const field of ["ocr_confidence", "page_count"] as const) {
+    if ((payload[field] === null) !== provided) {
+      ctx.addIssue({ code: "custom", path: [field], message: provided
+        ? "Provided text has no measured OCR confidence or page count."
+        : "Mistral OCR results require measured confidence and a page count." });
+    }
+  }
+});
 
 export const ProcessDocumentOutputShape = {
   ...CommonShape,
@@ -391,7 +407,7 @@ const EXTRACTION_PROMPTS: Record<string, string> = {
 };
 
 const CLASSIFIER_PROMPT = [
-  "Classify the type of document from its OCR text.",
+  "Classify the type of document from its text.",
   "Possible kinds: contract | invoice | id_document | generic.",
   "",
   "Decide on what the document is, not on how it is laid out. Numbered",
@@ -460,7 +476,8 @@ function sourceHash(src: ProcessDocumentInput["source"]): string {
 function cacheKey(src: ProcessDocumentInput["source"], kind: string, maxPages: number, languageHints?: string[]): string {
   const id = sourceHash(src);
   const config = createHash("sha256").update(JSON.stringify({
-    maxPages, languageHints, ocr: DEFAULT_OCR_MODEL, extraction: defaultChatModel(),
+    maxPages: src.type === "text" ? undefined : maxPages, languageHints,
+    ocr: src.type === "text" ? undefined : DEFAULT_OCR_MODEL, extraction: defaultChatModel(),
     classification: pickModelForClassification(), endpoint: process.env.MISTRAL_BASE_URL ?? "https://api.mistral.ai",
   })).digest("hex");
   return `${id}.${kind}.${config}.${PIPELINE_VERSION}.json`;
@@ -567,7 +584,9 @@ type OcrRes = {
   pages: number;
 };
 
-function toOcrDocument(src: ProcessDocumentInput["source"]) {
+type OcrSource = Exclude<ProcessDocumentInput["source"], { type: "text" }>;
+
+function toOcrDocument(src: OcrSource) {
   switch (src.type) {
     case "url": {
       const isImage = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(src.url);
@@ -595,7 +614,7 @@ function pickModelForClassification(): string {
 
 async function runOcr(
   mistral: Mistral,
-  src: ProcessDocumentInput["source"],
+  src: OcrSource,
   maxPages: number
 ): Promise<OcrRes> {
   const document = toOcrDocument(src);
@@ -653,7 +672,7 @@ async function extractTyped(
 ): Promise<Record<string, unknown>> {
   // A partial invoice can still produce valid JSON with incorrect totals.
   // Reject beyond the supported extraction size instead of silently slicing it.
-  if (ocrText.length > 60_000) {
+  if (ocrText.length > MAX_EXTRACTION_CHARACTERS) {
     throw new Error("Document exceeds the 60000-character extraction limit. Split it into smaller documents or use kind=generic for OCR text.");
   }
   const schema =
@@ -689,12 +708,14 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
     {
       title: "Process a business document end-to-end",
       description: [
-        "Single-call pipeline: OCR → classify (if kind=auto) → typed extraction → validation.",
+        "Single-call pipeline: provided text/Markdown or Mistral OCR → classify (if kind=auto) → typed extraction → validation.",
+        "source.type=text skips OCR and Files uploads. Text with kind=generic makes no API calls; classification and typed extraction use Mistral chat.",
+        "Results expose extraction_source. Provided text has null ocr_confidence and page_count; ocr_text contains the supplied text unchanged.",
         "Replaces the manual chain of mistral_ocr + mistral_chat + JSON parsing.",
         "",
         "Kinds: contract | invoice | id_document | generic. Use kind=auto to let the server classify.",
         "Returns a discriminated union — switch on `kind` to access typed fields.",
-        "Validation checks schema and OCR confidence, not factual or accounting accuracy.",
+        "Validation checks schema and, for OCR sources, OCR confidence; not factual or accounting accuracy.",
         "Typed extraction rejects text longer than 60000 characters rather than truncating it.",
         "",
         "Cache keys include source, kind, page limit, endpoint, models and pipeline version.",
@@ -702,7 +723,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "Default cache mode is 'read_write' EXCEPT for kind=id_document (auto-bypass to avoid",
         "persisting PII). Set options.cache='read_write' explicitly to opt in for id documents.",
         "",
-        "OCR confidence floor is options.minOcrConfidence (default 0.3). Below the floor the",
+        "options.maxPages and options.minOcrConfidence apply only to OCR sources. The confidence floor defaults to 0.3. Below the floor the",
         "tool returns isError. Missing or partial confidence scores also return isError;",
         "use mistral_ocr directly if you need raw OCR without a confidence guarantee.",
         "0.3 is a conservative starting point, not a measured one: calibrate it for your",
@@ -711,7 +732,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
       inputSchema: ProcessDocumentInputShape,
       outputSchema: z.object(ProcessDocumentOutputShape),
       annotations: {
-        title: "Process document (OCR + typed extraction)",
+        title: "Process document (text or OCR + typed extraction)",
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
@@ -729,6 +750,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         };
         const maxPages = opts.maxPages;
         const minConfidence = opts.minOcrConfidence;
+        const extractionSource = source.type === "text" ? "provided_text" : "mistral_ocr";
 
         // Tentative cache mode (may be overridden after classification if the
         // resolved kind is id_document and the user did not explicitly opt in).
@@ -742,13 +764,13 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         if (cacheModeInitial !== "bypass") {
           const parsedCache = ProcessDocumentOutputSchema.safeParse(readCache(key));
           const cached = parsedCache.success ? parsedCache.data : undefined;
-          if (cached) {
+          if (cached && cached.extraction_source === extractionSource) {
             // PII safety: never serve cached id_document payloads unless the
             // caller explicitly set cache='read_write'. Catches the case where
             // a previous kind='auto' call cached an id_document under the auto key.
             const isCachedId = cached.kind === "id_document";
             if (!isCachedId || opts.cache === "read_write") {
-              if (cached.ocr_confidence < minConfidence) {
+              if (cached.ocr_confidence !== null && cached.ocr_confidence < minConfidence) {
                 return errorResult("process_document", `Cached OCR confidence ${cached.ocr_confidence} is below the requested minimum ${minConfidence}. Use cache=bypass to process again.`);
               }
               const payload = { ...cached, cache_hit: true, total_duration_ms: Date.now() - start };
@@ -760,22 +782,31 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
           }
         }
 
-        // 2. OCR
-        const ocr = await runOcr(mistral, source, maxPages);
-        if (ocr.confidence === undefined) {
-          return errorResult("process_document", "OCR confidence is unavailable or incomplete; cannot verify the requested quality floor. Use mistral_ocr for raw OCR.");
-        }
-        if (ocr.pages === 0 || ocr.confidence < minConfidence) {
-          return errorResult(
-            "process_document",
-            `OCR quality too low (pages=${ocr.pages}, confidence=${ocr.confidence.toFixed(2)}, min=${minConfidence})`
-          );
+        let documentText: string;
+        let confidence: number | null = null;
+        let pages: number | null = null;
+        if (source.type === "text") {
+          documentText = source.text;
+        } else {
+          const ocr = await runOcr(mistral, source, maxPages);
+          if (ocr.confidence === undefined) {
+            return errorResult("process_document", "OCR confidence is unavailable or incomplete; cannot verify the requested quality floor. Use mistral_ocr for raw OCR.");
+          }
+          if (ocr.pages === 0 || ocr.confidence < minConfidence) {
+            return errorResult(
+              "process_document",
+              `OCR quality too low (pages=${ocr.pages}, confidence=${ocr.confidence.toFixed(2)}, min=${minConfidence})`
+            );
+          }
+          documentText = ocr.text;
+          confidence = ocr.confidence;
+          pages = ocr.pages;
         }
 
         // 3. Resolve kind
         let kind: "contract" | "invoice" | "id_document" | "generic" = "generic";
         if (requestedKind === "auto") {
-          kind = await classifyKind(mistral, ocr.text);
+          kind = await classifyKind(mistral, documentText);
         } else {
           kind = requestedKind;
         }
@@ -783,23 +814,24 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         // 4. Typed extraction (skip for generic)
         let typed: Record<string, unknown> = {};
         if (kind !== "generic") {
-          typed = await extractTyped(mistral, kind, ocr.text, opts.languageHints);
+          typed = await extractTyped(mistral, kind, documentText, opts.languageHints);
         }
 
         // 5. Compose payload
         const common = {
           source_id: sourceId,
           kind,
-          ocr_text: ocr.text,
-          ocr_confidence: ocr.confidence,
-          page_count: ocr.pages,
+          extraction_source: extractionSource,
+          ocr_text: documentText,
+          ocr_confidence: confidence,
+          page_count: pages,
           total_duration_ms: Date.now() - start,
           cache_hit: false,
           pipeline_version: PIPELINE_VERSION,
         };
         const payload =
           kind === "generic"
-            ? { ...common, structured_text: ocr.text }
+            ? { ...common, structured_text: documentText }
             : { ...typed, ...common };
 
         // 6. Validate via discriminated union

@@ -9,10 +9,12 @@ import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 const CLOUD = "https://api.mistral.ai";
 const MAX_BYTES = 20 * 1024 * 1024;
-const USAGE = "Usage: node examples/invoice.mjs <local PDF/image> [--output result.json]";
+const MAX_TEXT_CHARS = 60_000;
+const USAGE = "Usage: node examples/invoice.mjs <local PDF/image/text/Markdown> [--output result.json]";
 const MIME_TYPES = new Map([
   [".pdf", "application/pdf"], [".png", "image/png"],
   [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"], [".webp", "image/webp"],
+  [".txt", "text/plain"], [".md", "text/markdown"],
 ]);
 
 class InvoiceExampleError extends Error {}
@@ -38,11 +40,16 @@ function matchesSignature(bytes, mime) {
 
 async function readInput(path) {
   const mime = MIME_TYPES.get(extname(path).toLowerCase());
-  if (!mime) throw new InvoiceExampleError("Choose a local .pdf, .png, .jpg, .jpeg or .webp file.");
+  if (!mime) throw new InvoiceExampleError("Choose a local .pdf, .png, .jpg, .jpeg, .webp, .txt or .md file.");
+  const isText = mime.startsWith("text/");
+  // Zod counts UTF-16 code units: each needs at most three UTF-8 bytes, plus a BOM.
+  const maxBytes = isText ? MAX_TEXT_CHARS * 3 + 3 : MAX_BYTES;
+  const sizeAdvice = isText
+    ? `Choose nonempty UTF-8 text of at most ${MAX_TEXT_CHARS} characters.`
+    : "Choose a nonempty regular file of at most 20 MiB.";
   const check = (info) => {
-    if (!info.isFile() || info.size === 0 || info.size > MAX_BYTES) {
-      throw new InvoiceExampleError("Choose a nonempty regular file of at most 20 MiB.");
-    }
+    if (!info.isFile()) throw new InvoiceExampleError("Choose a regular file.");
+    if (info.size === 0 || info.size > maxBytes) throw new InvoiceExampleError(sizeAdvice);
   };
   check(await stat(path));
   const handle = await open(path, "r");
@@ -53,10 +60,20 @@ async function readInput(path) {
     // Bound reads too: the file can grow after stat().
     for await (const chunk of handle.createReadStream({ autoClose: false })) {
       size += chunk.length;
-      if (size > MAX_BYTES) throw new InvoiceExampleError("Choose a file of at most 20 MiB.");
+      if (size > maxBytes) throw new InvoiceExampleError(sizeAdvice);
       chunks.push(chunk);
     }
     const bytes = Buffer.concat(chunks);
+    if (isText) {
+      let text;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch {
+        throw new InvoiceExampleError("Text and Markdown files must use valid UTF-8. Export as UTF-8 and try again.");
+      }
+      if (!text.trim() || text.length > MAX_TEXT_CHARS) throw new InvoiceExampleError(sizeAdvice);
+      return { text };
+    }
     if (!matchesSignature(bytes, mime)) {
       throw new InvoiceExampleError("The file signature does not match its extension. Export a valid PDF, PNG, JPEG or WebP and try again.");
     }
@@ -86,18 +103,20 @@ function toolDiagnostic(response) {
   return undefined;
 }
 
-async function extractInvoice(client, fileId, pause, log) {
+async function extractInvoice(client, source, pause, log) {
   // Only the server's sanitized, classified OCR 422 permits a retry. No raw
   // provider bodies are parsed here, and a successful call needs no OCR probe.
   for (let attempt = 0; ; attempt++) {
     // OCR and extraction each have their own SDK timeout and retry budget.
     const response = await client.callTool({ name: "process_document", arguments: {
-      source: { type: "file_id", fileId }, kind: "invoice", options: { cache: "bypass" },
+      source, kind: "invoice", options: { cache: "bypass" },
     } }, { timeout: 240_000 });
     if (!response.isError) return response;
     const diagnostic = toolDiagnostic(response);
-    if (attempt === 3 || diagnostic?.marker !== "OCR file not ready") {
-      const advice = diagnostic?.advice ?? "Check document readability, OCR confidence and account/model access.";
+    if (source.type !== "file_id" || attempt === 3 || diagnostic?.marker !== "OCR file not ready") {
+      const advice = source.type === "text" && (!diagnostic || diagnostic.marker === "OCR file not ready")
+        ? "Check the supplied text and account/model access."
+        : diagnostic?.advice ?? "Check document readability, OCR confidence and account/model access.";
       throw new InvoiceExampleError(`process_document failed. ${advice} No extraction was saved; provider details are withheld to protect document data.`);
     }
     log(`OCR file not ready; retry ${attempt + 1}/3.\n`);
@@ -160,7 +179,7 @@ export async function main(args = process.argv.slice(2), dependencies = {}) {
     }
     const apiKey = env.MISTRAL_API_KEY?.trim();
     if (!apiKey) throw new InvoiceExampleError("Set MISTRAL_API_KEY in your environment or .env. This example makes real Cloud API calls; check your account allowance first.");
-    const { bytes, mime } = await readInput(paths.input);
+    const input = await readInput(paths.input);
     if (output) {
       try {
         // Reserve before provider calls; an existing path (including a symlink)
@@ -171,10 +190,6 @@ export async function main(args = process.argv.slice(2), dependencies = {}) {
       }
     }
     const { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS, ProcessDocumentOutputSchema } = await loadBuild();
-    sdk = createMistral({
-      apiKey, serverURL: CLOUD, retryConfig: MISTRAL_RETRY_CONFIG, timeoutMs: MISTRAL_TIMEOUT_MS,
-      debugLogger: { group() {}, groupEnd() {}, log() {} },
-    });
     client = createClient();
     // Pass only the provider settings needed here. Inherited HTTP, debug and
     // profile overrides must not change this local core/stdio workflow.
@@ -187,19 +202,30 @@ export async function main(args = process.argv.slice(2), dependencies = {}) {
     });
     stage = "MCP connection";
     await client.connect(transport);
-    stderr("Uploading the supplied invoice to Mistral Cloud; API usage may be billed under your existing account.\n");
-    stage = "Upload";
-    const uploaded = await sdk.files.upload({
-      file: { fileName: basename(paths.input), content: new Blob([bytes], { type: mime }) },
-      purpose: "ocr", visibility: "user",
-    });
-    if (typeof uploaded?.id !== "string" || !uploaded.id.trim()) {
-      throw new InvoiceExampleError("Upload returned no file ID. Check recent files in your Mistral account and delete the upload if present.");
+    let source;
+    if (input.text !== undefined) {
+      stderr("Sending the supplied invoice text to Mistral Cloud for typed extraction; API usage may be billed under your existing account.\n");
+      source = { type: "text", text: input.text };
+    } else {
+      stderr("Uploading the supplied invoice to Mistral Cloud; API usage may be billed under your existing account.\n");
+      stage = "Upload";
+      sdk = createMistral({
+        apiKey, serverURL: CLOUD, retryConfig: MISTRAL_RETRY_CONFIG, timeoutMs: MISTRAL_TIMEOUT_MS,
+        debugLogger: { group() {}, groupEnd() {}, log() {} },
+      });
+      const uploaded = await sdk.files.upload({
+        file: { fileName: basename(paths.input), content: new Blob([input.bytes], { type: input.mime }) },
+        purpose: "ocr", visibility: "user",
+      });
+      if (typeof uploaded?.id !== "string" || !uploaded.id.trim()) {
+        throw new InvoiceExampleError("Upload returned no file ID. Check recent files in your Mistral account and delete the upload if present.");
+      }
+      fileId = uploaded.id;
+      source = { type: "file_id", fileId };
     }
-    fileId = uploaded.id;
     stderr("Extracting invoice fields through process_document (core profile, cache bypass).\n");
     stage = "Invoice extraction";
-    const response = await extractInvoice(client, fileId, pause, stderr);
+    const response = await extractInvoice(client, source, pause, stderr);
     const parsed = ProcessDocumentOutputSchema.safeParse(response.structuredContent);
     if (!parsed.success || parsed.data.kind !== "invoice") {
       throw new InvoiceExampleError("process_document returned an invalid invoice result. Rebuild the server with npm run build and check its version; no result was saved.");

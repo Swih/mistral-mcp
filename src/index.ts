@@ -83,8 +83,8 @@ if (!API_KEY) {
         "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
         "  → Or point the server at your own endpoint: MISTRAL_BASE_URL=http://...\n" +
         "  Server will start without auth so tools/list works for sandboxed\n" +
-        "  introspection (Glama, Smithery, etc.). Tool calls will fail with\n" +
-        "  a 401 from Mistral until a valid key is provided."
+          "  introspection (Glama, Smithery, etc.). Calls that use Mistral APIs\n" +
+          "  require a valid key; generic provided-text processing is local."
     );
   }
 }
