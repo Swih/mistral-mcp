@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-28
+
+### Known limitations
+
+- Live OCR validation remains blocked for the CI account: an isolated one-page
+  request returns HTTP 429 with an effective limit of zero requests per minute.
+  Document extraction has not been revalidated against the provider for this
+  release. Other account access depends on Mistral's availability and quotas.
+  Offline tests and Node 20/22/24 CI pass; this release does not claim a green
+  complete live suite. No paid plan is required by the server itself, but free
+  provider access is not guaranteed.
+
 ### Fixed
 
 - Document cache keys include page limits, models and endpoint; cached payloads
@@ -34,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its contents and catalogs, and exercise inference against a local stub.
 - Local-file upload example and three explicit live example routes. No billing
   configuration changes or automatic provider probes are performed.
+- Manual isolated OCR diagnostic in GitHub Actions, without retries.
 
 ## [0.10.1] - 2026-09-15
 
