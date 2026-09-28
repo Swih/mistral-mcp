@@ -1,185 +1,36 @@
 ---
-description: Execute a multi-step research pipeline Mistral Workflow with hypothesis validation checkpoints. Query intermediate hypotheses via workflow_interact(action="query"), validate or amend them, and inject additional sources via workflow_interact(action="signal"). Use when the user wants to run an autonomous research pipeline with human oversight.
+name: research-pipeline-workflow
+description: Run an existing deployed Mistral research workflow, track its results, and handle documented hypothesis or source checkpoints. Use when the user asks to execute that pipeline.
 ---
 
 # Research pipeline workflow
 
-Orchestrates a deployed Mistral Workflow for multi-step research (literature review, competitive analysis, technical deep-dive). Queries hypotheses at each checkpoint, lets the user validate or amend them, and injects additional sources when needed — all via `workflow_interact`.
+Requires workflow tools in `workflows`, `metier-docs`, or `admin`. They are not part of `core`. Check `mistral://capabilities`. This skill does not deploy a pipeline or add web search, source ingestion, or hypothesis validation to one.
 
-**Profile note**: `workflow_execute`, `workflow_status`, and `workflow_interact` are available in the **core** profile (default). No additional profile is required for workflow-only orchestration.
+## Verify the pipeline
 
-**Temporal behavior**: the workflow status stays `RUNNING` even when the pipeline is blocked waiting for hypothesis validation (a `wait_for_input()` pause in the workflow). Detect this state by querying a status handler — do not wait for a `PAUSED` status, which does not exist in this API.
+Read `mistral://workflows` to identify the requested workflow. Call `workflow_deployments_list` with `{}` and verify that an active deployment serves it. A definition without live workers cannot run; explain the missing deployment if none is available.
 
-## Important: handler names are workflow-specific
+Obtain the input schema, supported research tasks, source formats, output contract, and any query, signal, or update handlers from the deployment documentation or owner. The discovery resource does not expose those schemas. Do not invent `topic`, `depth`, source fields, handler names, or validation choices just because they sound useful.
 
-Ask the user (or consult `mistral://workflows`) for:
-- Query handler for progress: e.g. `"get_progress"`
-- Query handler for hypotheses: e.g. `"get_hypotheses"`
-- Signal handler for hypothesis decisions: e.g. `"hypothesis_decision"`
+Map the user's research question and constraints to the documented input fields. Confirm that the deployment accepts supplied URLs or file IDs before including them. Source discovery, source injection, and restarting a phase are available only if the workflow implements them.
 
-## Steps
+## Execute and track
 
-### Step 1 — Define the research mission
+Call `workflow_execute` with the verified `workflowIdentifier`, its documented `input` object, optional verified `deploymentName`, and `waitForResult: false`. Check `isError`, then retain `structuredContent.execution_id`. If the user supplies an existing execution ID, inspect that run instead of starting another.
 
-Ask the user for:
-1. `workflowIdentifier` — the deployed research workflow name or ID
-2. `topic` — the research question (be specific)
-3. `depth` — `"shallow"` (quick scan), `"medium"` (balanced), `"deep"` (comprehensive)
-4. `output_format` — `"bullets"`, `"report"`, or `"json"`
-5. Optional: initial source URLs or `file_id`s to seed the pipeline
-6. Handler names (if non-default)
+Poll `workflow_status` with `executionId`, using spaced, bounded checks. Return the ID and latest state if further tracking must resume later.
 
-### Step 2 — Launch the pipeline
+- `RUNNING` or `RETRYING_AFTER_ERROR`: pending. Use documented queries for progress or hypothesis checkpoints if available.
+- `COMPLETED`: inspect `structuredContent.result` for the actual research output.
+- `FAILED`, `CANCELED`, `TERMINATED`, or `TIMED_OUT`: report the state and available result, then stop.
+- `CONTINUED_AS_NEW`: locate the continuation with `workflow_runs_list` filtered by `workflowIdentifier` and verify it against the returned run identifiers.
+- Null or unknown status: preserve the uncertainty.
 
-Call `workflow_execute`:
+To query, call `workflow_interact` with `executionId`, `action: "query"`, the documented `name`, and any required `input` object. A checkpoint may retain `RUNNING` status; its meaning comes from the workflow's query contract.
 
-```json
-{
-  "workflowIdentifier": "<workflow name or ID>",
-  "input": {
-    "topic": "<research question>",
-    "depth": "medium",
-    "output_format": "report",
-    "sources": ["<url_or_file_id>"]
-  }
-}
-```
+If the returned state requires a decision, present the hypotheses, evidence, and supported choices actually returned. Apply the user's existing decision or obtain one if missing. Send only the documented `signal` or `update` name and payload. Do not equate adding sources with approval, or assume a restart action exists. A signal acknowledgement is not completion; inspect state before retrying an ambiguous mutation.
 
-Note `structuredContent.execution_id`. Confirm: "Research pipeline started — execution ID: `<execution_id>`."
+## Deliver the result
 
-### Step 3 — Poll and query progress
-
-Loop:
-1. Call `workflow_status` with `{ "executionId": "<execution_id>" }`
-2. Check `structuredContent.status`:
-   - `COMPLETED` → go to Step 5
-   - `FAILED` / `TIMED_OUT` / `CANCELED` → surface error and stop
-   - `RUNNING` → continue
-
-While `RUNNING`, query progress every ~20 seconds:
-
-```json
-{
-  "executionId": "<execution_id>",
-  "action": "query",
-  "name": "get_progress"
-}
-```
-
-Show the user what the pipeline is doing:
-```
-🔍  RESEARCH IN PROGRESS
-─────────────────────────
-Phase: [phase from result, e.g. "source discovery", "synthesis"]
-Sources processed: [N from result]
-Hypotheses formed: [N from result]
-```
-
-Also probe for hypothesis checkpoints:
-
-```json
-{
-  "executionId": "<execution_id>",
-  "action": "query",
-  "name": "get_hypotheses"
-}
-```
-
-If the result contains pending hypotheses awaiting validation, proceed to Step 4.
-
-### Step 4 — Handle hypothesis checkpoints
-
-When hypotheses are ready for review (detected from the `get_hypotheses` query result):
-
-1. Present hypotheses to the user:
-   ```
-   ⏸  HYPOTHESIS CHECKPOINT
-   ──────────────────────────
-   H1: [hypothesis text]
-      Supporting sources: [N]
-      Confidence: [low/medium/high]
-
-   H2: [hypothesis text]
-      ...
-
-   Options:
-   (A) Validate — continue with these hypotheses
-   (B) Amend — provide corrections or constraints
-   (C) Inject sources — add documents/URLs to refine
-   (D) Discard — restart this hypothesis phase
-   ```
-
-2. Based on user choice, signal the workflow:
-
-   **Validate** (proceed as-is):
-   ```json
-   {
-     "executionId": "<execution_id>",
-     "action": "signal",
-     "name": "hypothesis_decision",
-     "input": { "decision": "validate" }
-   }
-   ```
-
-   **Amend** (with corrections):
-   ```json
-   {
-     "executionId": "<execution_id>",
-     "action": "signal",
-     "name": "hypothesis_decision",
-     "input": {
-       "decision": "amend",
-       "amendments": "<user corrections or constraints in plain text>"
-     }
-   }
-   ```
-
-   **Inject sources**:
-   ```json
-   {
-     "executionId": "<execution_id>",
-     "action": "signal",
-     "name": "hypothesis_decision",
-     "input": {
-       "decision": "validate",
-       "additional_sources": ["<url_or_file_id>", "..."]
-     }
-   }
-   ```
-
-   **Discard and restart** (hypothesis phase only):
-   ```json
-   {
-     "executionId": "<execution_id>",
-     "action": "signal",
-     "name": "hypothesis_decision",
-     "input": { "decision": "discard", "reason": "<user feedback>" }
-   }
-   ```
-
-Return to Step 3. Deep pipelines may have multiple hypothesis gates.
-
-### Step 5 — Deliver the research output
-
-When `status === "COMPLETED"`, present `structuredContent.result` in the requested format:
-
-```
-✅  RESEARCH COMPLETE
-──────────────────────
-Topic:       [topic]
-Depth:       [depth]
-Execution:   <execution_id>
-Sources used: [N from result]
-
-[formatted output — bullets / report / JSON as requested]
-
-KEY FINDINGS
-────────────
-[top 3–5 findings with source citations from result]
-
-CONFIDENCE ASSESSMENT
-──────────────────────
-[per-finding confidence level + supporting source count]
-```
-
-Offer to pass the output to `mistral_chat` with `magistral-medium-latest` + `reasoning_effort: "high"` for a critical peer review of the findings.
+Provide the execution ID, actual state, findings, and source references returned by the workflow. Preserve partial coverage and unresolved questions. Separate hypotheses from established findings; do not invent citations, source counts, confidence ratings, or verification steps. A completed run does not itself prove that its sources or conclusions are correct.

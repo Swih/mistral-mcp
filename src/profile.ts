@@ -3,24 +3,19 @@
  *
  * Profiles
  * --------
- * core (default)  lean agentic surface — chat, vision, OCR, FIM, transcribe.
- *                 Keeps the LLM tool context small.
+ * core (default)  documents, chat, vision, OCR, FIM, transcription.
+ *                 Keeps the everyday surface independent of deployed workflows.
  * admin           full API surface. Opt-in for debug, CI, advanced scripting.
  *                 ("full" is still accepted as a deprecated alias.)
  * workflows       pipeline orchestration only.
- * metier-docs     documents vertical — core plus `process_document`.
+ * metier-docs     compatibility surface: core plus workflows, connectors, RAG discovery.
  * self-hosted     the subset that an OpenAI-compatible endpoint actually
  *                 serves. Selected automatically when MISTRAL_BASE_URL is set.
  *
  * Why the family table exists
  * ---------------------------
- * Gating used to be `if (profile === "workflows") return;` scattered across
- * five registrars. That is how `codestral_fim` and `voxtral_transcribe` leaked
- * into the `workflows` profile (fixed in 0.8.0) — a negative condition someone
- * forgot to add. Adding a fifth profile that way would have needed another
- * negative branch in every file.
- *
- * So membership lives in one table. Registrars ask `isEnabled()`, and
+ * Membership lives in one table rather than scattered negative conditions.
+ * Registrars ask `isEnabled()`, and
  * `mistral://capabilities` is a projection of the same data, which means the
  * catalogue an agent reads can never drift from the tools actually registered.
  */
@@ -170,7 +165,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolFamily>> = {
   },
   rag: {
     tools: ["rag_indexes_list"],
-    profiles: ["core", "admin", "metier-docs", "workflows"],
+    profiles: ["admin", "metier-docs", "workflows"],
     openaiCompatible: false,
     summary:
       "Discovery of registered search-index deployments (GET /v1/rag/deployments).",
@@ -184,7 +179,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolFamily>> = {
       "workflow_runs_list",
       "workflow_stop",
     ],
-    profiles: ["core", "admin", "workflows", "metier-docs"],
+    profiles: ["admin", "workflows", "metier-docs"],
     openaiCompatible: false,
     summary:
       "Durable workflow execution: what is runnable, what is running, signals, and stopping.",
@@ -196,15 +191,15 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolFamily>> = {
       "connectors_list_tools",
       "connectors_call_tool",
     ],
-    profiles: ["core", "admin", "workflows", "metier-docs"],
+    profiles: ["admin", "workflows", "metier-docs"],
     openaiCompatible: false,
     summary: "Discover and invoke already-activated Mistral Connectors.",
   },
   documents: {
     tools: ["process_document"],
-    profiles: ["admin", "metier-docs"],
+    profiles: ["core", "admin", "metier-docs"],
     openaiCompatible: false,
-    summary: "OCR + typed extraction macro-tool.",
+    summary: "Typed document extraction from provided text/Markdown or Mistral OCR.",
   },
 } as const;
 

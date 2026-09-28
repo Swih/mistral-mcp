@@ -3,6 +3,9 @@ dist/
 *.log
 npm-debug.log*
 
+# Local extraction results may contain private document content.
+invoice-result.json
+
 # Env — never commit secrets
 .env
 .env.local

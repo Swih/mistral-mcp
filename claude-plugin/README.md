@@ -1,11 +1,19 @@
 # mistral-mcp — Claude Code plugin
 
-Mistral AI capabilities for Claude Code, packaged as a one-click plugin. Auto-installs the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) server from npm and adds five curated skills for the most common Mistral workflows.
+Extract typed JSON from text or Markdown documents in Claude Code, with optional
+Mistral OCR for PDFs and images. The plugin runs `mistral-mcp@1.0.0` from npm and
+adds 11 skills for document, audio, code and workflow tasks.
+
+**Upgrading from 0.11.0:** the default now exposes six tools, including
+`process_document`. Workflow skills require `MISTRAL_MCP_PROFILE=workflows` or
+`admin`; `metier-docs` preserves the previous broader default. Document results
+require `extraction_source` and accept `null` for OCR metadata. See the
+[migration guide](../MIGRATION.md), then restart the MCP server after changing profiles.
 
 ## What you get
 
 - **Auto-installed MCP server** (`mistral`) exposing the core profile by default, with additional tools available through profiles (chat, OCR, vision, Voxtral audio, Codestral, agents, moderation, files, batch, workflows). See the [main README](../README.md) for the full surface.
-- **Five curated skills** that orchestrate the underlying tools/prompts with smart defaults:
+- **11 skills** that use the underlying tools and prompts:
 
 | Skill | What it does |
 |---|---|
@@ -14,6 +22,11 @@ Mistral AI capabilities for Claude Code, packaged as a one-click plugin. Auto-in
 | `/mistral-mcp:french-commit-message` | Pulls `git diff --staged`, picks the Conventional Commits scope, generates a French commit message via Codestral |
 | `/mistral-mcp:codestral-review` | Auto-fetches the diff and runs a focused code review (correctness / perf / security / api_design) |
 | `/mistral-mcp:mistral-router` | Picks the right Mistral model + tool for a given task (decision-tree skill) |
+
+Additional skills: `pdf-invoice-extractor`, `contract-analyzer`, `audio-dispatch`,
+`contract-review-workflow`, `compliance-audit-workflow`, and `research-pipeline-workflow`.
+The final three require an orchestration profile and deployed Mistral workflows;
+installing the plugin does not create those deployments.
 
 ## Install
 
@@ -24,18 +37,25 @@ Mistral AI capabilities for Claude Code, packaged as a one-click plugin. Auto-in
 /plugin install mistral-mcp@swih-plugins
 ```
 
-Claude Code will prompt for your **Mistral API key** (stored in the system keychain). Get a key at <https://console.mistral.ai/>.
+Requires Node.js 20+ and npm. Configure your **Mistral API key** in the client's
+supported secret configuration. Get a key at [Mistral Console](https://console.mistral.ai/)
+and check your [account limits](https://console.mistral.ai/limits): model access
+and free quota depend on the account.
 
 ### Local development
 
-Clone the repo and load the plugin directly:
+Load the plugin files from the release tag:
 
 ```bash
 git clone https://github.com/Swih/mistral-mcp.git
-claude --plugin-dir ./mistral-mcp/claude-plugin
+cd mistral-mcp
+git checkout v1.0.0
+claude --plugin-dir ./claude-plugin
 ```
 
-Then, inside Claude Code, configure the API key when prompted, or set `MISTRAL_API_KEY` in your environment.
+The local plugin still starts the pinned npm server. To run the source invoice
+example, use the [checkout and build instructions](../examples/README.md);
+the example scripts are not included in the npm package.
 
 ## How it works
 
@@ -46,7 +66,7 @@ The plugin's `.mcp.json` declares one MCP server:
   "mcpServers": {
     "mistral": {
       "command": "npx",
-      "args": ["-y", "mistral-mcp@^0.11.0"],
+      "args": ["-y", "mistral-mcp@1.0.0"],
       "env": {
         "MISTRAL_API_KEY": "${user_config.mistral_api_key}"
       }
@@ -55,23 +75,28 @@ The plugin's `.mcp.json` declares one MCP server:
 }
 ```
 
-When the plugin is enabled, Claude Code spawns `npx -y mistral-mcp@^0.11.0` and connects to it over stdio. The skill files in `skills/` are loaded as namespaced commands (`/mistral-mcp:*`).
+When the plugin is enabled, Claude Code spawns `npx -y mistral-mcp@1.0.0` and connects to it over stdio. The skill files in `skills/` are loaded as namespaced commands (`/mistral-mcp:*`).
+
+The recorded text extraction check covers one synthetic invoice with
+`ministral-3b-latest`, not general accuracy. Live OCR validation was blocked by
+HTTP 429 / zero OCR quota on the test account. See the [main README](../README.md)
+for the measured fields and document behavior.
 
 ## Versioning
 
-This plugin tracks the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) npm package version. Plugin `0.11.0` pulls `mistral-mcp@^0.11.0`. The plugin manifest, marketplace entry and `.mcp.json` are updated together.
+This plugin tracks the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) npm package version. Plugin `1.0.0` pins `mistral-mcp@1.0.0`. The plugin manifest, marketplace entry and `.mcp.json` are updated together.
 
 ## Security
 
-- The API key is stored in the system keychain (or `~/.claude/.credentials.json` as fallback) — never written to settings.json.
-- The plugin runs `npx` with `-y` to auto-install `mistral-mcp@^0.11.0` from npm. If you'd rather pin to an exact version, edit `.mcp.json` and replace the spec with `mistral-mcp@0.11.0` (no caret).
+- Keep your API key in the client's supported secret configuration. Do not commit it to this repository.
+- The plugin runs `npx` with `-y` to auto-install `mistral-mcp@1.0.0` from npm. The version is pinned exactly to avoid unintended upgrades.
 
 ## Links
 
-- npm: <https://www.npmjs.com/package/mistral-mcp>
-- Source: <https://github.com/Swih/mistral-mcp>
+- [npm package](https://www.npmjs.com/package/mistral-mcp)
+- [Source and releases](https://github.com/Swih/mistral-mcp)
 - Official MCP Registry: `io.github.Swih/mistral-mcp`
-- Mistral docs: <https://docs.mistral.ai/>
+- [Mistral documentation](https://docs.mistral.ai/)
 
 ## License
 

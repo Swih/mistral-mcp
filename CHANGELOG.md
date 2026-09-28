@@ -6,6 +6,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-28
+
+### Changed
+
+- **Breaking:** the default `core` profile now exposes six tools: `process_document`,
+  `mistral_ocr`, `mistral_chat`, `mistral_vision`, `codestral_fim` and `voxtral_transcribe`.
+  Workflows, connectors and RAG index discovery require an explicit profile.
+  `metier-docs` preserves its 17-tool surface, including every former core tool;
+  `workflows` and `admin` remain unchanged. See [MIGRATION.md](MIGRATION.md).
+- Document processing is the primary README walkthrough, with a local invoice
+  example led by existing plain text or Markdown, and explicit separation between
+  schema validation and extraction accuracy. English/French guides describe
+  Docling only as an optional upstream local converter producing Markdown, with
+  no integration, dependency or automatic fallback.
+- **Breaking:** every successful `process_document` result includes the required
+  `extraction_source` field (`provided_text` or `mistral_ocr`). `ocr_confidence` and
+  `page_count` are `null` for supplied text and remain numeric for successful OCR.
+  `ocr_text` retains its name and holds the unchanged input for text sources.
+  `options.maxPages` and `options.minOcrConfidence` apply only to OCR sources.
+- Pipeline version `v1.0.0-text.1` prevents reuse of older cache entries after the
+  result-contract change; it does not guarantee immediate deletion of old files.
+- The evaluation harness checks synthetic invoice field values separately from
+  OCR text retention. Reports identify checks that have not been measured.
+
+### Added
+
+- `process_document` accepts `source: { type: "text", text: string }` for existing
+  plain text or Markdown, preserved unchanged. Blank/whitespace-only strings and
+  inputs above 60,000 UTF-16 code units are rejected for every kind. Text with
+  explicit `kind: "generic"` makes no API calls; `auto` still uses chat for
+  classification and typed kinds use chat for extraction on a cache miss or bypass.
+- `npm run example:invoice -- <file> [--output result.json]` reads local `.txt` or
+  `.md` invoices without Files upload, deletion or OCR calls. It still requires a
+  Mistral API key and chat quota for invoice extraction. The PDF/image route
+  uploads the file and attempts deletion on success or failure. Both routes use
+  MCP, bypass the document cache and never overwrite existing output files.
+- Synthetic Markdown invoice [fixture](./test/fixtures/invoice-text.md) and a
+  [chat-only live extraction test](./test/live/docs-text.test.ts). On
+  2026-09-28, that test and the full CLI example passed with
+  `MISTRAL_DEFAULT_MODEL=ministral-3b-latest`: vendor `ACME SAS`, total `12960` EUR,
+  due date `2026-09-11` and quantities, unit prices and amounts for all three lines
+  were verified without Files or OCR calls. The walkthrough sets this tested
+  model explicitly; users still need a model with quota on their own account.
+  This is one synthetic invoice result, not an accuracy or reliability score.
+- Built-binary tests for all five profiles, default-profile migration and
+  capability/resource consistency. Document contract tests cover all four kinds.
+- `npm run build:bundles -- <new-output-directory>` creates and validates the MCPB,
+  exports the actual tool catalog and packages the Claude Code plugin. Runtime
+  dependencies are locked; the artifacts include SHA-256 checksums.
+
+### Fixed
+
+- Document output schemas expose nested invoice, contract and identity fields
+  rather than untyped JSON. Generated fields cannot overwrite source provenance.
+- Typed extraction rejects text beyond its 60,000-UTF-16-code-unit limit instead
+  of silently dropping the rest. `kind=generic` remains available for longer OCR
+  text; supplied text keeps its input limit for every kind.
+- README and migration instructions no longer claim a separate OCR readiness
+  probe in the invoice example. The PDF/image route retries only the recognized
+  file-not-ready tool error; successful calls need no extra OCR probe.
+- Language hints are described, applied during extraction and included in cache
+  identity. Core input parameters now include usage descriptions.
+- API errors distinguish authentication, quota and provider failures without
+  copying provider HTTP bodies into tool results.
+- All 11 Claude Code skills use current tool arguments and profile requirements.
+  Invoice and contract guides use `process_document`, including supplied text.
+
+### Known limitations
+
+- Live OCR and OCR-based extraction accuracy remain unverified for this release while the
+  CI account's effective OCR request quota is zero (HTTP 429). The text route
+  avoids OCR but does not resolve that blocker or make chat processing local or
+  free. No paid plan was activated.
+  Offline checks do not establish provider availability or extraction accuracy.
+
 ## [0.11.0] - 2026-09-28
 
 ### Known limitations

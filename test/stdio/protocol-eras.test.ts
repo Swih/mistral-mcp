@@ -14,8 +14,8 @@
  * Both must see the same tools. `@modelcontextprotocol/sdk` is a devDependency
  * for exactly this reason: the old client is the contract being tested.
  *
- * No API key and no network — only tools/list and resources/list, which never
- * reach Mistral.
+ * No API key and no network — discovery and generic text processing never
+ * reach Mistral. The tool call also exercises nullable output fields in both eras.
  */
 
 import { describe, expect, it } from "vitest";
@@ -34,6 +34,7 @@ function cleanEnv(): Record<string, string> {
   const env = { ...(process.env as Record<string, string>) };
   delete env.MISTRAL_BASE_URL;
   delete env.MISTRAL_MCP_PROFILE;
+  delete env.MISTRAL_API_KEY;
   return env;
 }
 
@@ -47,6 +48,8 @@ describe.skipIf(!DIST_EXISTS)("protocol eras served from one registration", () =
       const { tools } = await client.listTools();
       expect(tools.length).toBeGreaterThan(0);
       expect(tools.map((t) => t.name)).toContain("mistral_chat");
+      expect(tools.map((t) => t.name)).toContain("process_document");
+      expect(tools).toHaveLength(6);
 
       // The 2025-era surface must keep everything it had: a tool without
       // annotations or an outputSchema is a regression for those clients.
@@ -60,6 +63,14 @@ describe.skipIf(!DIST_EXISTS)("protocol eras served from one registration", () =
 
       const { resources } = await client.listResources();
       expect(resources.map((r) => r.uri)).toContain("mistral://capabilities");
+      const result = await client.callTool({ name: "process_document", arguments: {
+        source: { type: "text", text: "# Legacy text\n\nPreserve this.\n" }, kind: "generic", options: { cache: "bypass" },
+      } });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        extraction_source: "provided_text", ocr_confidence: null, page_count: null,
+        structured_text: "# Legacy text\n\nPreserve this.\n",
+      });
     } finally {
       await client.close();
     }
@@ -80,6 +91,14 @@ describe.skipIf(!DIST_EXISTS)("protocol eras served from one registration", () =
 
       const { tools } = await client.listTools();
       expect(tools.map((t) => t.name)).toContain("mistral_chat");
+      const result = await client.callTool({ name: "process_document", arguments: {
+        source: { type: "text", text: "# Modern text\n\nPreserve this.\n" }, kind: "generic", options: { cache: "bypass" },
+      } });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        extraction_source: "provided_text", ocr_confidence: null, page_count: null,
+        structured_text: "# Modern text\n\nPreserve this.\n",
+      });
     } finally {
       await client.close();
     }

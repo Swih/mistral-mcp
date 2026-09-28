@@ -1,124 +1,39 @@
 ---
-description: Trigger a deployed Mistral Workflow for contract review, poll execution status, detect human-in-the-loop checkpoints via workflow_interact(query), collect approval or changes, and resume the workflow via workflow_interact(signal). Use when the user wants to run a contract through a Mistral Workflow with oversight checkpoints.
+name: contract-review-workflow
+description: Run an existing deployed Mistral contract-review workflow and handle its documented review checkpoints. Use when the user explicitly wants that workflow, rather than direct contract extraction.
 ---
 
 # Contract review workflow
 
-Orchestrates a deployed Mistral Workflow for contract review. Detects `wait_for_input()` human-in-the-loop checkpoints by querying a status handler, presents findings to the user, and resumes the workflow with their decision via `workflow_interact(action: "signal")`.
+Requires `workflow_execute`, `workflow_status`, and related workflow tools in `workflows`, `metier-docs`, or `admin`. They are absent from `core`. Check `mistral://capabilities` first. This skill does not create a workflow or supply a contract approval system.
 
-**Profile note**: `workflow_execute`, `workflow_status`, and `workflow_interact` are available in the **core** profile (default). `files_upload` (for local PDF upload) requires `MISTRAL_MCP_PROFILE=full`.
+## Establish the deployment contract
 
-**Why workflows vs direct API**: the workflow runs durably on Mistral's infrastructure — it persists across restarts, handles retries, and can run multi-step analysis (OCR → clause extraction → legal DB lookup → risk scoring) without keeping a connection open.
+Read `mistral://workflows` to identify the requested definition, and call `workflow_deployments_list` with `{}` to check deployments and live workers. A catalog entry alone does not prove that the workflow is runnable. If `runnable_count` is zero, report that a deployment must be started. Confirm which active deployment serves the selected workflow before execution.
 
-## Important: handler names are workflow-specific
+Obtain its documented input schema, output meaning, checkpoint query names, decision handlers, and payload shapes from the workflow documentation or owner. The discovery resource lists metadata, not these contracts. Do not invent document fields, review modes, approval handlers, or a standard checkpoint object.
 
-The `name` field in `workflow_interact` calls (signal handler, query handler) is defined by the deployed workflow. Ask the user for:
-- The query handler name that exposes checkpoint state (e.g. `"get_checkpoint"`)
-- The signal handler name that receives approval decisions (e.g. `"human_approval"`)
+Use only document representations that this deployment accepts. A local document can be converted to text with an available converter; `files_upload` requires `admin` and takes file bytes in `content_base64`, with `filename` and `purpose: "ocr"` for a PDF. Its ID is `structuredContent.id`. A file ID is useful only if the workflow accepts it.
 
-Defaults used in the examples below — replace with the actual names from the workflow.
+If no suitable deployment exists, explain the requirement. For direct extraction, use the `contract-analyzer` skill when `process_document` is exposed; extraction does not provide an approval workflow.
 
-## Steps
+## Execute and follow the run
 
-### Step 1 — Collect inputs
+Call `workflow_execute` with:
 
-Ask the user for:
-1. `workflowIdentifier` — the deployed workflow name or ID (visible in `mistral://workflows`)
-2. The contract document: a `file_id` (from `files_upload`, requires `full` profile) or a public URL
-3. Optional: `review_type` (e.g. `"vendor"`, `"employment"`, `"partnership"`) and `language` (`"fr"` or `"en"`)
-4. The query handler name and signal handler name (if not the defaults)
+- `workflowIdentifier`: the verified workflow name or ID.
+- `input`: a JSON object matching that workflow's input contract; omit only if no input is required.
+- `deploymentName`: the verified target deployment when needed.
+- `waitForResult: false` for workflows with human checkpoints.
 
-### Step 2 — Start the workflow
+Check `isError` and save `structuredContent.execution_id`. Poll `workflow_status` with `{ "executionId": "<returned execution ID>" }`. Use spaced, bounded checks and retain the ID so the user can resume tracking.
 
-Call `workflow_execute`:
+- `RUNNING` or `RETRYING_AFTER_ERROR`: execution is not complete. Query a checkpoint only through a documented handler.
+- `COMPLETED`: inspect `structuredContent.result`; workflow completion alone does not mean the contract was approved.
+- `FAILED`, `CANCELED`, `TERMINATED`, or `TIMED_OUT`: report the returned state and result, then stop.
+- `CONTINUED_AS_NEW`: use `workflow_runs_list` with the verified `workflowIdentifier` and returned run identifiers to locate the continuation. Do not invent its ID or re-execute the review.
+- Null or unfamiliar status: report uncertainty instead of assuming success.
 
-```json
-{
-  "workflowIdentifier": "<workflow name or ID>",
-  "input": {
-    "document_id": "<file_id, or omit if using document_url>",
-    "document_url": "<URL, or omit if using file_id>",
-    "review_type": "<vendor|employment|partnership|other>",
-    "language": "fr"
-  }
-}
-```
+A checkpoint may still have `RUNNING` status. Query it with `workflow_interact` using `executionId`, `action: "query"`, the documented `name`, and any required `input` object. Present the returned findings and supported choices. Use the user's decision or existing authorization; obtain a decision if it is missing. Send only the documented `signal` or `update` payload. A signal acknowledgement does not confirm completion, and an ambiguous error is not a reason to repeat a mutating call blindly.
 
-Note the `structuredContent.execution_id`. Confirm to the user: "Workflow started — execution ID: `<execution_id>`."
-
-### Step 3 — Poll and probe for checkpoints
-
-Loop:
-1. Call `workflow_status` with `{ "executionId": "<execution_id>" }`
-2. Check `structuredContent.status`:
-   - `COMPLETED` → go to Step 5
-   - `FAILED` / `CANCELED` / `TIMED_OUT` → surface `structuredContent.result` and stop
-   - `RUNNING` → probe for checkpoint (see below), then wait ~10 seconds
-
-While `RUNNING`, query the checkpoint handler to detect if the workflow is waiting for human input:
-
-```json
-{
-  "executionId": "<execution_id>",
-  "action": "query",
-  "name": "get_checkpoint"
-}
-```
-
-If `structuredContent.result` is non-null and contains checkpoint data (e.g. `{ "waiting": true, "data": {...} }`), proceed to Step 4.
-
-If no checkpoint or `result` is null, show a progress update and continue polling.
-
-### Step 4 — Handle approval checkpoints
-
-When a checkpoint is detected:
-
-1. Display the checkpoint findings from the query result:
-   ```
-   ⏸  CHECKPOINT — Human review required
-   ──────────────────────────────────────
-   [findings from query result.data — risk summary, flagged clauses, etc.]
-   ```
-
-2. Ask the user: "Approve and continue / Request changes?"
-
-3. If **approved**, signal the workflow:
-   ```json
-   {
-     "executionId": "<execution_id>",
-     "action": "signal",
-     "name": "human_approval",
-     "input": { "approved": true }
-   }
-   ```
-
-4. If **changes requested**, capture the user's comment and signal:
-   ```json
-   {
-     "executionId": "<execution_id>",
-     "action": "signal",
-     "name": "human_approval",
-     "input": { "approved": false, "comment": "<user comment>" }
-   }
-   ```
-
-Return to Step 3 after signaling. A workflow may have multiple checkpoints.
-
-### Step 5 — Deliver final report
-
-When `status === "COMPLETED"`, format `structuredContent.result` as a structured contract review:
-
-```
-✅  CONTRACT REVIEW COMPLETE
-─────────────────────────────
-Execution: <execution_id>
-Overall risk: [level from result]
-
-KEY FINDINGS
-[structured list from result]
-
-RECOMMENDED ACTIONS
-[list from result]
-```
-
-Offer to pass the output to `/mistral-mcp:contract-analyzer` for a complementary stateless view, or to `french_legal_summary` for a plain-language summary.
+Deliver the execution ID, actual status, review findings, and unresolved decisions present in the result. Keep contract facts separate from model assessments. Do not imply that the workflow performed legal database searches, approvals, or external actions unless the deployment and result establish them.

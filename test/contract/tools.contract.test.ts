@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/client";
 import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
+import { registerDocsTools } from "../../src/tools-docs.js";
 import { registerAgentCatalogTools, AgentsListOutputSchema, AgentsGetOutputSchema } from "../../src/tools-agent-catalog.js";
 
 import {
@@ -636,6 +637,7 @@ async function boot(mock: Mistral = makeMock()) {
   registerConversationTools(server, mock);
   registerLibraryTools(server, mock);
   registerRagTools(server, mock);
+  registerDocsTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
@@ -1420,7 +1422,7 @@ describe("contract: every tool declares required spec-compliance hooks", () => {
     const { tools } = await client.listTools();
     // Canary against accidental additions/removals. Bump deliberately, with a
     // CHANGELOG entry — never to make a red build green.
-    expect(tools.length).toBe(45);
+    expect(tools.length).toBe(46);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();

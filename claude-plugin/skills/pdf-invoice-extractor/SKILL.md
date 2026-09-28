@@ -1,125 +1,49 @@
 ---
-description: OCR a PDF invoice with mistral_ocr and extract structured line-item data (vendor, date, amounts, VAT) for accounting reconciliation. Use when the user provides an invoice PDF to process.
+name: pdf-invoice-extractor
+description: Extract typed invoice data from supplied text, Markdown, or a PDF/image through process_document. Use for invoice totals, line items, due dates, and extraction anomalies.
 ---
 
-# PDF invoice extractor
+# Invoice extraction
 
-Extracts structured invoice data from PDFs for accounting reconciliation and ERP import. Uses `mistral_ocr` for document understanding, then `mistral_chat` with `json_schema` for strict field extraction.
+Use `process_document`, available in `core`, `metier-docs`, and `admin`. Check `mistral://capabilities` if it is unavailable. Prefer existing text or Markdown; request OCR only when the document still needs it.
 
-**Profile requirements**:
-- `mistral_ocr` + `mistral_chat` — available in **core** profile (default)
-- `files_upload` (to upload a local PDF) — requires `MISTRAL_MCP_PROFILE=full`
-- `batch_create` (for bulk invoice processing) — requires `MISTRAL_MCP_PROFILE=full`
-- If the user provides a public URL, this skill runs entirely on the core profile
+## Process the source
 
-Works with French, English, and multi-language invoices. Handles scanned PDFs, digital PDFs, and receipts.
-
-## Steps
-
-### Step 1 — Get the invoice
-
-Ask the user for one of:
-- A public URL (direct link to the PDF or image) — works with core profile
-- A local file path → upload with `files_upload` (requires `MISTRAL_MCP_PROFILE=full`), note the `file_id`
-
-If the user has multiple invoices, offer to use `batch_create` (requires `full` profile) to process them concurrently.
-
-### Step 2 — OCR the invoice
-
-Call `mistral_ocr`:
+Call `process_document` with an explicit invoice kind and local cache bypass:
 
 ```json
 {
-  "document": {
-    "type": "document_url",
-    "documentUrl": "<URL>"
-  }
+  "source": { "type": "text", "text": "<invoice text or Markdown>" },
+  "kind": "invoice",
+  "options": { "cache": "bypass" }
 }
 ```
 
-Use `"type": "document_id", "documentId": "<file_id>"` for uploaded files.
+For OCR, replace `source` with one of:
 
-Concatenate `structuredContent.pages[*].markdown` for multi-page invoices.
+- `{ "type": "url", "url": "https://example.com/invoice.pdf" }` for a provider-accessible PDF or image.
+- `{ "type": "file_id", "fileId": "<existing Mistral file ID>" }` for an uploaded document.
 
-### Step 3 — Extract invoice fields
+A local path is not a source URL. If a local converter is available, use its extracted text. Otherwise `files_upload` requires `admin` and accepts `filename`, `content_base64` containing the file bytes, and `purpose: "ocr"`. Use its `structuredContent.id` as `source.fileId`. If neither route is available, request text, an accessible URL, or an existing upload ID.
 
-Pass the OCR text to `mistral_chat` with `response_format: json_schema`:
+Text input skips OCR and the Files API; invoice extraction still sends text to the configured chat endpoint. OCR requires account access and quota, and processing is not guaranteed to be free. Omit model selection: this tool uses the configured chat default internally. `options.cache: "bypass"` prevents this call from reading or writing the local extraction cache; it is not a provider retention setting.
 
-```json
-{
-  "model": "mistral-small-latest",
-  "temperature": 0,
-  "response_format": {
-    "type": "json_schema",
-    "json_schema": {
-      "name": "invoice",
-      "strict": true,
-      "schema": {
-        "type": "object",
-        "properties": {
-          "invoice_number": { "type": "string" },
-          "vendor_name": { "type": "string" },
-          "vendor_address": { "type": "string" },
-          "vendor_vat_number": { "type": "string" },
-          "client_name": { "type": "string" },
-          "client_address": { "type": "string" },
-          "issue_date": { "type": "string", "description": "ISO 8601 if determinable" },
-          "due_date": { "type": "string" },
-          "currency": { "type": "string", "description": "ISO 4217 code, e.g. EUR" },
-          "line_items": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "description": { "type": "string" },
-                "quantity": { "type": "number" },
-                "unit_price": { "type": "number" },
-                "total": { "type": "number" }
-              },
-              "required": ["description", "total"]
-            }
-          },
-          "subtotal_ht": { "type": "number" },
-          "vat_rate": { "type": "number", "description": "As decimal, e.g. 0.20 for 20%" },
-          "vat_amount": { "type": "number" },
-          "total_ttc": { "type": "number" },
-          "payment_terms": { "type": "string" },
-          "iban": { "type": "string" },
-          "payment_reference": { "type": "string" }
-        },
-        "required": ["vendor_name", "issue_date", "total_ttc", "line_items"]
-      }
-    }
-  },
-  "messages": [
-    {
-      "role": "user",
-      "content": "<OCR text>\n\nExtract all invoice fields from the document above. Use null for fields not present in the invoice. Convert dates to ISO 8601 format when possible (YYYY-MM-DD). Do not invent values that are not in the document."
-    }
-  ]
-}
-```
+## Interpret the result
 
-### Step 4 — Validate and display
+Check `isError` first. On success, use `structuredContent` with `kind: "invoice"`:
 
-Check for mandatory fields. Flag any that are null or missing:
+| Field | Meaning |
+|---|---|
+| `vendor.name`, optional nullable `vendor.tax_id` | Extracted vendor identity |
+| `total`, `currency` | Nullable total and three-character currency code |
+| `line_items[]` | `desc`, `qty`, `unit_price`, `amount` |
+| `due_date` | Nullable due date |
+| `anomalies[]` | Reported extraction anomalies |
+| `ocr_text`, `extraction_source` | Text used and whether it came from `provided_text` or `mistral_ocr` |
+| `ocr_confidence`, `page_count` | Both null for supplied text; OCR metadata otherwise |
 
-```
-✅ EXTRACTED INVOICE
-──────────────────────────────
-Invoice #: [number]       Date: [date]
-Vendor:    [name]         Due:  [date]
-Currency:  [EUR/USD/...]  Total: [amount]
+Present the total, currency, vendor, due date, line-item table, and anomalies. Preserve nulls as unknown. Check the reported amounts against the source; schema validation does not establish accounting accuracy. Distinguish discrepancies you find from the tool's `anomalies`.
 
-LINE ITEMS
-──────────
-[table: description | qty | unit price | total]
+Typed extraction is limited to 60,000 UTF-16 code units. OCR processes the first 50 pages by default; `options.maxPages` may select up to 200. State the selection and do not claim a complete invoice when pages or text are missing. Do not add totals across overlapping extracts.
 
-Subtotal (HT): [amount]
-VAT [rate]%:   [amount]
-TOTAL (TTC):   [amount]
-
-⚠️  MISSING FIELDS: [list of null mandatory fields]
-```
-
-Offer to export as CSV, JSON, or to pass to `french_invoice_reminder` if the invoice is overdue.
+`ocr_confidence` measures OCR, not field accuracy. If confidence is missing or below the requested floor, report the error and obtain a clearer source or reviewed text; do not silently lower the threshold. For several invoices, process and identify each separately. Export only the returned fields and explicitly identified derived checks when requested.

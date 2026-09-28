@@ -1,440 +1,264 @@
-# mistral-mcp
+# Mistral MCP server for document extraction
 
-> **Mistral, wherever you run it.**
-> MCP server for the Mistral AI capabilities — chat, OCR, audio (Voxtral), code (Codestral), vision, agents, batch, durable workflows — against Mistral Cloud or your own infrastructure.
-> Plug into Claude Code, Cursor, Zed, Windsurf, or Claude Desktop in one command.
->
-> _Version française : [README.fr.md](./README.fr.md)_
-
-[![npm version](https://img.shields.io/npm/v/mistral-mcp?color=brightgreen)](https://www.npmjs.com/package/mistral-mcp)
+[![npm version](https://img.shields.io/npm/v/mistral-mcp)](https://www.npmjs.com/package/mistral-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/mistral-mcp)](https://www.npmjs.com/package/mistral-mcp)
 [![CI](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml)
-[![Glama MCP score](https://glama.ai/mcp/servers/Swih/mistral-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Swih/mistral-mcp)
-[![license](https://img.shields.io/badge/license-MIT-black)](./LICENSE)
-![MCP spec](https://img.shields.io/badge/MCP%20spec-2026--07--28-purple)
+[![MIT license](https://img.shields.io/npm/l/mistral-mcp)](https://github.com/Swih/mistral-mcp/blob/main/LICENSE)
 
----
+**Turn text or Markdown invoices into typed JSON through MCP.** `mistral-mcp`
+uses Mistral chat to extract vendors, totals, line items and due dates, then
+validates the response schema. Optional Mistral OCR handles PDF and image inputs.
+`process_document` also supports contracts, identity documents and automatic
+classification. Six tools are available by default, including chat, vision,
+transcription and code completion.
 
-## What this is
+[Français](./README.fr.md) · [Migration guide](./MIGRATION.md) · [Examples](./examples/README.md) · [Deployment](./deploy/README.md)
 
-`mistral-mcp` exposes the Mistral AI capabilities as a set of MCP tools, resources, and prompts. An MCP client (Claude Code, Cursor, etc.) can call `mistral_ocr` to extract text from a PDF, `voxtral_transcribe` to transcribe a meeting recording, or `workflow_execute` to start a durable multi-step process — all without leaving the agent loop.
+[npm package](https://www.npmjs.com/package/mistral-mcp) · [1.0.0 release notes](./CHANGELOG-v1.0.0.md) · [GitHub releases](https://github.com/Swih/mistral-mcp/releases) · [Mistral API docs](https://docs.mistral.ai/api/)
 
-**Selected Mistral capabilities exposed here:**
-- `mistral_ocr` — Mistral Document AI: structured text + bbox annotations from any PDF or image
-- `voxtral_transcribe` — Voxtral: transcription with optional speaker diarization
-- `codestral_fim` — Codestral fill-in-the-middle (FIM) for inline code completion
-- `workflow_*` (6 tools) — Temporal-backed durable execution: what is deployed and runnable, what is running, human-in-the-loop signals, and graceful or forced stop
-- French-optimized models (`mistral-large-latest`, `mistral-medium-latest`) and curated French prompts
+**Version 1.0.0 — breaking changes from 0.11.0:** `core` now exposes six tools;
+existing orchestration clients must choose an explicit profile. Document results
+require `extraction_source`, and `ocr_confidence` / `page_count` can be `null`.
+[Migration and rollback instructions](./MIGRATION.md).
 
-**What this server does not expose:** fine-tuning, user management, non-FR/EN prompts.
+## Install in an MCP client
 
----
+Requires Node.js 20+, npm and a Mistral API key with access and quota for the
+requested model. For clients using `mcpServers` JSON, configure the stdio server:
 
-## Why this matters for European teams
-
-`mistral-mcp` is designed for teams that want to use Mistral capabilities inside MCP clients (Claude Code, Cursor, Zed, Windsurf, Claude Desktop) while keeping control over deployment, API keys, cache behavior, and tool exposure.
-
-This can be useful for European organisations evaluating AI stacks under GDPR, DORA, sector-specific constraints (HDS, EBA), or internal sovereignty requirements.
-
-**What this project provides:**
-
-- self-hosted MCP server, no mandatory SaaS proxy
-- bring-your-own Mistral API key (BYOK) — Mistral states API data is not used to train its models
-- `MISTRAL_BASE_URL` routes every call to your own OpenAI-compatible endpoint (vLLM, TGI, LiteLLM, an internal gateway) — no traffic to `api.mistral.ai`
-- lean `core` profile and focused `metier-docs` profile to limit tool exposure
-- `process_document` cache configurable per-call and via `MISTRAL_MCP_CACHE_DIR`, with a retention window (`MISTRAL_MCP_CACHE_TTL_HOURS`, default 7 days, `0` to disable) with expired entries deleted opportunistically during later cache operations
-- ID document cache bypass enabled by default, even when `kind:"auto"` resolves to `id_document`
-- Streamable HTTP + bearer auth path for controlled / on-prem deployments
-- French-first prompts and skills (meeting minutes, legal summary, invoice reminder, commit message, email reply)
-- Mistral Free mode includes API usage for evaluation, subject to the model-specific limits shown in the Studio [Limits page](https://console.mistral.ai/limits)
-
-**What this project does NOT claim:**
-
-- it is not a GDPR, DORA, HDS, or ISO certification, and it does not replace a DPIA, vendor review, security audit, or legal assessment
-- Mistral provider terms, data residency, subprocessor list, retention settings, and incident handling must be reviewed separately at [mistral.ai/terms](https://mistral.ai/terms) and [legal.mistral.ai](https://legal.mistral.ai)
-- this repo is community-maintained, not an official Mistral integration; nothing here modifies Mistral's contractual data terms with you
-
-In practice, `mistral-mcp` reduces the integration surface you have to assess. It does not replace the legal/compliance work itself.
-
----
-
-## Quick start
-
-**Claude Code** (recommended — auto-installs, prompts for API key, ships 11 skills):
-```text
-/plugin install mistral-mcp@swih-plugins
-```
-
-**Cursor / Zed / Windsurf / Claude Desktop** — add to your MCP settings JSON:
 ```json
 {
   "mcpServers": {
     "mistral": {
       "command": "npx",
-      "args": ["-y", "mistral-mcp@latest"],
-      "env": { "MISTRAL_API_KEY": "your_key_here" }
+      "args": ["-y", "mistral-mcp@1.0.0"],
+      "env": {
+        "MISTRAL_API_KEY": "your_key_here",
+        "MISTRAL_DEFAULT_MODEL": "ministral-3b-latest",
+        "MISTRAL_MCP_PROFILE": "core"
+      }
     }
   }
 }
 ```
 
-**Manual Claude Code registration:**
+This runs `npx -y mistral-mcp@1.0.0`. Restart the client and refresh its tool
+catalog. The server reads the environment supplied by the client; it does not
+load `.env` automatically. Use your client's secret configuration for the key.
+`ministral-3b-latest` was verified on the test account; model access and free
+quota depend on your account. Check your [limits](https://console.mistral.ai/limits)
+before making calls. Local MCP hosting still sends extraction requests to Mistral.
+
+## Quick start: an existing text or Markdown invoice
+
+The invoice script and fixtures are **source examples, not included in the npm
+package**. Check out the release tag and build from the repository root:
+
 ```bash
-claude mcp add mistral -- npx -y mistral-mcp@latest
+git clone https://github.com/Swih/mistral-mcp.git
+cd mistral-mcp
+git checkout v1.0.0
+npm ci
+npm run build
 ```
 
----
+Set the key and chat model in your environment or in a local `.env` file:
+
+```dotenv
+MISTRAL_API_KEY=your_key_here
+MISTRAL_DEFAULT_MODEL=ministral-3b-latest
+```
+
+The example loads `.env` with `dotenv`. Keep the key out of version control.
+Choose a chat model with quota on your account; the default may have zero quota.
+
+```bash
+npm run example:invoice -- test/fixtures/invoice-text.md --output invoice-result.json
+```
+
+This uses the [synthetic Markdown invoice](./test/fixtures/invoice-text.md).
+For your own existing UTF-8 `.txt` or `.md` invoice, the command syntax is:
+
+```text
+node examples/invoice.mjs <local-file.txt|local-file.md> [--output result.json]
+```
+
+The script reads the text locally and calls `process_document` with
+`source: { type: "text", text: "..." }`, `kind: "invoice"` and
+`options.cache: "bypass"` through the local server's `core` profile. The text must
+contain non-whitespace content and fit within 60,000 UTF-16 code units (JavaScript
+string length). Markdown and whitespace are preserved unchanged. There is no
+Files upload or OCR call; **invoice extraction sends the text to Mistral chat**.
+The example uses Mistral Cloud only and still requires a key and chat quota;
+processing is not entirely local or guaranteed free. Check your account's
+[limits](https://console.mistral.ai/limits).
+
+Without `--output`, it prints validated JSON; with it, it writes to a new file and
+prints that path. Existing files are not overwritten. The output path is reserved
+before API calls and may remain empty after failure; remove it or choose a new
+path before retrying.
+
+On 2026-09-28, the [live text test](./test/live/docs-text.test.ts) and the CLI
+example succeeded with `ministral-3b-latest`, using chat only. The verified fields
+were vendor `ACME SAS`, total `12960` EUR, due date `2026-09-11` and the quantities,
+unit prices and amounts of all three invoice lines. This verifies one synthetic
+invoice, not a general accuracy or reliability score.
+
+For a PDF or image, the existing OCR route remains available:
+
+```bash
+npm run example:invoice -- test/fixtures/corpus/invoice-fr-table.pdf --output invoice-ocr-result.json
+```
+
+PDF, PNG, JPEG and WebP files up to 20 MiB require Files, OCR and chat access and
+quota. The script uploads the file, calls `process_document` and attempts to
+delete the upload in `finally`, including after extraction failure. There is no
+separate OCR readiness probe. Upload and cleanup use the Files API without
+exposing admin tools in `core`. **Known limitation:** the test account's HTTP 429
+/ zero OCR quota blocked live OCR validation. The successful text run does not
+validate OCR extraction.
+
+Compare any extracted result against its source. The
+[synthetic PDF](./test/fixtures/corpus/invoice-fr-table.pdf) and
+[fixture ground truth](./test/fixtures/corpus.json) describe expected document
+content, not captured live output. **Schema validation checks
+the shape and types of the response; it does not verify factual accuracy, invoice
+arithmetic, tax treatment or accounting correctness.** Review extracted fields
+against the source before using them.
 
 ## Profiles
 
-`MISTRAL_MCP_PROFILE` controls how many tools are exposed (default: `core`).
+`MISTRAL_MCP_PROFILE` selects one of five profiles. The default is `core` for
+Mistral Cloud; a custom `MISTRAL_BASE_URL` infers `self-hosted` unless you set a
+profile explicitly.
 
-| Profile | Tools | Use when |
-|---|---|---|
-| `core` (default) | 16 | Daily agentic use — lean context footprint |
-| `admin` | 46 | All tools implemented by this server — embeddings, streaming, batch, classify, files, agents, TTS, document extraction, stateful conversations, RAG libraries. Best for debug, CI, scripts. |
-| `workflows` | 11 | Pipeline orchestration + connectors only |
-| `metier-docs` | 17 | Documents vertical — core + `process_document` macro-tool |
-| `self-hosted` | 5 | Inference on your own OpenAI-compatible endpoint — inferred from `MISTRAL_BASE_URL` |
+| Profile | Tools | Scope in `1.0.0` |
+|---|---:|---|
+| `core` (default) | 6 | Documents, chat, vision, transcription and code completion |
+| `metier-docs` | 17 | Preserved legacy profile: the six core tools plus all 11 orchestration tools; a superset of the old 16-tool core |
+| `workflows` | 11 | Workflows, connectors and search-index discovery |
+| `admin` | 46 | All tools implemented by this server, including Files, Batch, Conversations and Libraries |
+| `self-hosted` | 5 | Chat, streaming chat, embeddings, function calling and vision on a compatible endpoint |
 
-> `full` is accepted as a deprecated alias of `admin` for backward compatibility.
+`full` remains a deprecated alias of `admin`, not a sixth profile. Set
+`MISTRAL_MCP_PROFILE=metier-docs` to preserve the old core tool set after upgrading;
+choose `workflows` for orchestration alone or `admin` for the complete tool set.
+Restart the server and refresh tool discovery after changing profiles.
 
-```bash
-MISTRAL_MCP_PROFILE=admin npx mistral-mcp
-```
+`npx -y mistral-mcp@1.0.0 --doctor` reports the local profile and tool list without API
+calls. The `mistral://capabilities` resource reports the active endpoint, tool
+families and reasons for omitted tools. Neither proves account access or quota.
 
-Read `mistral://capabilities` from any client to see which tool families are on,
-which are off, and why — no need to diff this table against your deployment.
+## Core tools and document behavior
 
----
-
-## Tools
-
-### Core profile (16 tools)
-
-| Tool | What it does |
+| Tool | Purpose |
 |---|---|
-| `mistral_chat` | Chat completion. Supports all Mistral models, `response_format`, `reasoning_effort` for Magistral. |
-| `mistral_vision` | Multimodal chat with images (URL or base64). |
-| `mistral_ocr` | Document AI — extract text, bbox, and JSON annotations from PDFs/images. Pass `includeBlocks: true` for OCR 4 paragraph-level blocks (text/title/table/image/equation/... with bounding boxes). |
-| `codestral_fim` | Fill-in-the-middle code completion (Codestral model). |
-| `voxtral_transcribe` | Audio → text. Pass `diarize: true` for speaker separation. |
-| `workflow_execute` | Start a Mistral Workflow (Temporal-backed durable execution). |
-| `workflow_status` | Poll a running workflow — returns `RUNNING \| COMPLETED \| FAILED \| ...`. |
-| `workflow_interact` | Signal / query a running workflow. Used for human-in-the-loop checkpoints. |
-| `workflow_deployments_list` | List workflow deployments and whether each has a live worker. Call it before `workflow_execute` — a listed workflow with no active deployment answers 404. |
-| `workflow_runs_list` | List workflow executions, filtered by workflow, status or deployment. |
-| `workflow_stop` | Stop an execution — `cancel` (graceful, runs cleanup handlers) or `terminate` (immediate). |
-| `connectors_list` | Discover Mistral Connectors (MCP/HTTP integrations) visible to the caller. |
-| `connectors_get` | Fetch one connector's public metadata (never credentials). |
-| `connectors_list_tools` | List the MCP tools a connector exposes, with their input schema. |
-| `connectors_call_tool` | Invoke a connector's tool — real MCP `CallToolResult` passthrough. |
-| `rag_indexes_list` | List the search-index deployments on your account, with backend and document counts. |
+| `process_document` | Supplied text/Markdown or OCR, optional classification and schema-validated extraction for invoices, contracts, identity documents or generic text |
+| `mistral_ocr` | Raw OCR text, tables, annotations and optional blocks from PDFs or images |
+| `mistral_vision` | Chat with images supplied by URL or base64 |
+| `mistral_chat` | Chat completion, including structured response formats |
+| `voxtral_transcribe` | Audio transcription with optional speaker diarization |
+| `codestral_fim` | Fill-in-the-middle code completion |
 
-### Documents vertical (`MISTRAL_MCP_PROFILE=metier-docs`)
+`process_document` accepts `source: { type: "text", text: string }`, a document
+URL, a base64 image or an uploaded file ID. Text may contain Markdown and is
+preserved unchanged; blank or whitespace-only strings and strings above 60,000
+UTF-16 code units are rejected for every `kind`, including `generic`.
+`kind` is `auto` (default), `invoice`, `contract`, `id_document` or `generic`.
+Successful calls return readable `content` and JSON `structuredContent`; failures
+return `isError: true`.
 
-| Tool | What it does |
-|---|---|
-| `process_document` | Single-call macro-tool: OCR → classify (kind=auto) → typed extraction → validation → cache. Kinds: `contract` / `invoice` / `id_document` / `generic`. Returns a discriminated union. PII-safe cache (id_document auto-bypass). Configurable `minOcrConfidence`. |
-
-### Admin profile only (+30 tools, set `MISTRAL_MCP_PROFILE=admin`)
-
-| Group | Tools |
-|---|---|
-| Generation | `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call` |
-| Agents | `agents_list`, `agents_get`, `mistral_agent` (legacy), `mistral_moderate`, `mistral_classify` |
-| Audio | `voxtral_speak` (TTS) |
-| Files | `files_upload`, `files_list`, `files_get`, `files_delete`, `files_signed_url` |
-| Batch | `batch_create`, `batch_get`, `batch_list`, `batch_cancel` |
-| Conversations | `conversation_start`, `conversation_append`, `conversation_get`, `conversation_list`, `conversation_history`, `conversation_delete` — stateful multi-turn agent loops with Mistral's built-in tools (web_search, code_interpreter, image_generation, document_library) |
-| Libraries (RAG) | `libraries_list`, `libraries_get`, `libraries_documents_list`, `libraries_documents_upload`, `libraries_documents_status` — discover and feed already-created Mistral Libraries; pair with `conversation_start`'s `documentLibraryIds` to search them |
-
----
-
-## Resources
-
-| URI | What it returns |
-|---|---|
-| `mistral://capabilities` | Which tool families are registered, which are not, and why — plus the active profile and endpoint |
-| `mistral://models` | Live model catalog, read from the endpoint actually in use |
-| `mistral://voices` | Live Voxtral TTS voice catalog — registered only when the `tts` family is on (`admin`) |
-| `mistral://workflows` | Live list of deployed workflows (use `name` as `workflowIdentifier`) — not registered under `self-hosted` |
-
----
-
-## Prompts
-
-Curated prompts with structured arguments and MCP completion support:
-
-| Prompt | Input | Output |
-|---|---|---|
-| `french_meeting_minutes` | transcript text | Structured French meeting minutes |
-| `french_email_reply` | received email + context | Polished French reply |
-| `french_commit_message` | git diff | Conventional Commits message in French |
-| `french_legal_summary` | legal document text | Plain-French summary + key clauses |
-| `french_invoice_reminder` | debtor, amount, days overdue, tone | B2B dunning letter in French |
-| `codestral_review` | git diff | Focused code review (security / logic / style) |
-
----
-
-## Claude Code skills (11)
-
-Install via the `swih-plugins` marketplace to get these namespaced skills:
-
-**Routing**
-- `/mistral-mcp:mistral-router` — picks the right Mistral model + tool for any task
-
-**Code**
-- `/mistral-mcp:codestral-review` — fetches the current diff, runs a focused review
-
-**French workflows**
-- `/mistral-mcp:french-commit-message` — Conventional Commits message in French
-- `/mistral-mcp:french-meeting-minutes` — audio or text → structured French minutes
-- `/mistral-mcp:french-invoice-reminder` — B2B dunning letter with controlled tone
-
-**Document & audio processing**
-- `/mistral-mcp:contract-analyzer` — OCR → risk-rated clause extraction (JSON)
-- `/mistral-mcp:pdf-invoice-extractor` — OCR → structured invoice fields for reconciliation
-- `/mistral-mcp:audio-dispatch` — transcribe + diarize → per-speaker action plan
-
-**Human-in-the-loop workflows**
-- `/mistral-mcp:contract-review-workflow` — durable contract review with approval gates
-- `/mistral-mcp:compliance-audit-workflow` — multi-step audit with mid-run findings + decisions
-- `/mistral-mcp:research-pipeline-workflow` — hypothesis-driven research with amendment injection
-
----
-
-## Install
-
-```bash
-# Run directly (no global install)
-npx mistral-mcp
-
-# Global install
-npm install -g mistral-mcp && mistral-mcp
-
-# Docker
-docker build -t mistral-mcp .
-docker run -i --rm -e MISTRAL_API_KEY=your_key mistral-mcp
-
-# From source
-git clone https://github.com/Swih/mistral-mcp.git
-cd mistral-mcp && npm install && npm run build
-node dist/index.js
-```
-
----
-
-## Document ingestion, evaluated
-
-`process_document` ships with a corpus and a harness, because "handles
-heterogeneous PDFs" is a claim, and a claim without a measurement is marketing.
-
-```bash
-npm run fixtures:generate   # rebuild the corpus from source (no key needed)
-npm run eval:docs           # score it against real OCR (needs MISTRAL_API_KEY)
-```
-
-The corpus is eight synthetic documents chosen for the cases that actually
-break ingestion pipelines, not for the ones that flatter them: a rotated
-landscape scan (`/Rotate 90`), ruled line-item tables, side-by-side address
-columns, a blank page in the middle of a document, mixed FR/EN, French accents
-and the euro sign, and one near-empty page. Ground truth for each document —
-expected kind, page count, and the strings that must survive OCR — lives in
-`test/fixtures/corpus.json`.
-
-Everything in it is invented: fictional companies, fictional people, fictional
-identifiers. **No real PII is in this repo, and none should be added** — the
-corpus is only useful if it can be published.
-
-`npm run eval:docs` reports, per document, whether `kind: "auto"` classified it
-correctly, whether the required fields survived, and the OCR confidence. It
-then derives a `minOcrConfidence` from the run: the midpoint between the worst
-document that extracted cleanly and the best document marked low-signal. When
-those two overlap, it says no threshold is defensible rather than inventing
-one.
-
-The shipped default of `0.3` is a conservative starting point, **not** a
-measured value. Run the harness on your own documents and set the number that
-run justifies.
-
----
-
-## Observability
-
-Every tool call emits one JSON line on stderr, and the caller's W3C trace
-context follows the request all the way to the inference endpoint.
+For example, these are tool arguments using synthetic input, not a live result:
 
 ```json
-{"ts":"2026-08-28T09:14:02.117Z","kind":"tool_call","tool":"mistral_ocr","outcome":"ok","duration_ms":1840,"trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
+{
+  "source": {
+    "type": "text",
+    "text": "# Invoice DEMO-001\nVendor: Example Studio\nService: 2 hours at EUR 50\nTotal due: EUR 100\nDue date: 2026-10-15\n"
+  },
+  "kind": "invoice",
+  "options": { "cache": "bypass" }
+}
 ```
 
-- **Trace continuity.** `traceparent`, `tracestate` and `baggage` arrive in the
-  MCP request's `_meta` and are stamped onto the outgoing HTTP call, so your
-  collector joins the MCP span to the Mistral (or vLLM) span it caused instead
-  of showing two unrelated traces. A malformed header is ignored, never fatal.
-- **No payloads, ever.** A line says what ran, how long it took and whether it
-  failed. Prompts, documents, transcripts, arguments and model output never
-  appear — those are your records, and this process has no business copying
-  them into a log it does not own. `test/stdio/observability.test.ts` asserts
-  that negative directly against the built binary.
-- **Nothing to enable, and one thing to disable.** It is on by default because
-  an audit trail you have to discover is one you will not have when you need
-  it. `MISTRAL_MCP_AUDIT=off` silences it. stderr is used because stdout
-  carries JSON-RPC, and because MCP's own `logging` capability is deprecated
-  in 2026-07-28 in favour of stderr and OpenTelemetry.
+On a cache miss or with `cache: "bypass"`, `auto` calls chat to classify even a
+text source; `invoice`, `contract` and `id_document` use chat for typed extraction.
+Explicit `kind: "generic"` with a text source makes **no API calls** and returns
+the supplied text as both `ocr_text` and `structured_text`.
 
-The instrumentation wraps `registerTool` rather than each handler, so a tool
-cannot be left out of the trail without being left out of the server.
+Every successful result includes these fields:
 
----
-
-## Self-hosted inference
-
-Point `MISTRAL_BASE_URL` at any OpenAI-compatible endpoint — vLLM, TGI, LiteLLM,
-an internal token factory — and every request goes there instead of
-`api.mistral.ai`:
-
-```bash
-MISTRAL_BASE_URL=http://vllm.internal:8000/v1 MISTRAL_DEFAULT_MODEL=my-org/mistral-small-3.2 npx mistral-mcp
-```
-
-Two things change when the endpoint is not Mistral's:
-
-1. **The profile becomes `self-hosted`.** Only the five tools such an endpoint
-   can actually serve stay registered — `mistral_chat`, `mistral_chat_stream`,
-   `mistral_embed`, `mistral_tool_call`, `mistral_vision`. OCR, Voxtral, Files,
-   Batch and Workflows are Mistral-platform endpoints; advertising them against
-   vLLM would only produce 404s the calling model has to guess its way out of.
-   Set `MISTRAL_MCP_PROFILE` explicitly if your gateway does proxy the full API.
-2. **Model ids are no longer checked against a list.** Any non-empty string is
-   forwarded as-is, because your endpoint's identifiers are yours.
-
-`mistral://capabilities` reports the active endpoint, the profile, whether it was
-inferred, and the reason each unavailable family is off.
-
-Compose and Kubernetes manifests, plus the full environment reference, are in
-[`deploy/README.md`](./deploy/README.md).
-
----
-
-## Protocol
-
-The server speaks **MCP 2026-07-28** and the 2025-era handshake, from the same
-tool registrations, on the same endpoint. That matters because practically
-every client shipping today still opens with the 2025 handshake: upgrading the
-server does not ask anyone to upgrade their client.
-
-| | 2025-era client | 2026-07-28 client |
+| Field | Provided text / Markdown | Successful OCR source |
 |---|---|---|
-| Handshake | `initialize` | `server/discover` |
-| Tools, resources, prompts | identical set | identical set |
-| `structuredContent` + `outputSchema` | yes | yes |
-| Cache hints (`ttlMs`/`cacheScope`) | not in the revision | yes |
+| `extraction_source` (required) | `"provided_text"` | `"mistral_ocr"` |
+| `ocr_text` (name retained) | Original input text, unchanged | OCR text |
+| `ocr_confidence` | `null` | Number from 0 to 1 |
+| `page_count` | `null` | Number of processed pages |
 
-`test/stdio/protocol-eras.test.ts` drives the built binary with a real 1.30.x
-client and a real 2026-07-28 client and asserts both see the same tools — the
-compatibility claim above is a test, not a promise.
+- `options.maxPages` and `options.minOcrConfidence` apply only to OCR sources.
+  They do not paginate or score supplied text. For OCR, missing, incomplete or
+  invalid confidence scores cause an error, as do scores below the requested
+  minimum. The default `0.3` is unmeasured; OCR confidence does not establish
+  extraction accuracy.
+- For OCR sources, `options.maxPages` defaults to 50 (maximum 200). Typed
+  extraction rejects OCR text above 60,000 UTF-16 code units: split the document
+  or use `generic` for OCR text. The text-source input limit still applies to
+  `generic`. `options.languageHints` guides typed extraction, not the OCR model.
+- `options.cache: "bypass"` skips cache reads and writes. Other modes are
+  `read_only` and `read_write`. Identity documents bypass the cache by default,
+  including after `auto` classification; explicit `read_write` opts them in.
+- Cache files contain extracted content. `MISTRAL_MCP_CACHE_DIR` sets the location;
+  `MISTRAL_MCP_CACHE_TTL_HOURS` defaults to 168 hours (`0` disables reuse and new
+  writes). Cleanup is opportunistic during cache operations. Bypass does not
+  erase older entries, and expiration does not guarantee deletion at a set time.
+  Pipeline version `v1.0.0-text.1` invalidates reuse of older cache entries; it
+  does not guarantee their immediate deletion.
 
-Built on `@modelcontextprotocol/server` 2.x. Sampling and elicitation tools are
-not exposed: sampling is deprecated in 2026-07-28, and the multi-round-trip
-replacement is a client capability this server has no use for.
+The [synthetic corpus](./test/fixtures/corpus.json) separates required OCR text
+from expected extracted invoice fields. `npm run eval:docs` evaluates these
+separately through real API calls. Fixture truth is not a live accuracy result;
+text-based synthetic PDFs do not establish accuracy on degraded scans.
+[Development and evaluation guidance](./CONTRIBUTING.md).
 
----
+## API and deployment references
 
-## Transport
+`mistral://capabilities` describes the active tool set. `mistral://models` reads the
+upstream catalog and reports fallback if the API call fails. `mistral://voices`
+is available in `admin`; `mistral://workflows` is available in `metier-docs`,
+`workflows` and `admin`. Catalog presence does not establish access or quota.
 
-| Mode | How to enable | Default |
-|---|---|---|
-| **stdio** | Default | `node dist/index.js` |
-| **Streamable HTTP** | `MCP_TRANSPORT=http` or `--http` flag | `127.0.0.1:3333/mcp` |
+You can host the MCP process and configure its upstream endpoint, credentials,
+tool exposure and cache policy. By default, requests go to Mistral Cloud: local
+MCP hosting does not make document inference local. These controls alone do not
+establish data residency or regulatory compliance.
 
-HTTP env vars: `MCP_HTTP_HOST`, `MCP_HTTP_PORT`, `MCP_HTTP_PATH`, `MCP_HTTP_TOKEN` (bearer auth), `MCP_HTTP_ALLOWED_ORIGINS`.
+A custom `MISTRAL_BASE_URL` infers `self-hosted`: chat, streaming chat, embeddings,
+function calling and vision, subject to endpoint/model support. It does not
+include OCR or `process_document`. An explicit profile overrides inference but
+does not add missing APIs to a backend.
 
-HTTP serving is stateless per request in both protocol eras, so `MCP_HTTP_STATELESS` no longer does anything and was removed in 0.10.0. Setting it is harmless.
-
-`/healthz` is public and does not touch the MCP server.
-
----
-
-## Use as a Mistral Connector (beta)
-
-`mistral-mcp` ships the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/) and bearer auth that [Mistral Connectors](https://docs.mistral.ai/agents/tools/mcp) require. Deployment guides for Cloudflare Tunnel, Fly.io, and Cloud Run are in [`deploy/connector-public.md`](./deploy/connector-public.md).
-
-| Surface | Status |
+| Reference | Contents |
 |---|---|
-| Local MCP clients (Claude Code, Cursor, Zed, Windsurf, Claude Desktop) | Stable |
-| Streamable HTTP transport + bearer auth | Tested locally (handshake + 401 + initialize verified) |
-| Mistral Connector registration via `POST /v1/connectors` | **Setup guide provided — Connectors are a beta feature, the API may change** |
-| Connector tool calls in Conversations/Agents | Untested end-to-end (requires public HTTPS deployment) |
-| OAuth 2.1 Connector auth | Pending — bearer-only today |
+| [Migration](./MIGRATION.md) | Removed core tools, explicit profiles, pinned `0.11.0` fallback |
+| [Examples](./examples/README.md) | Local invoices, transcription and library-backed conversations |
+| [Tool families](./src/profile.ts) and MCP tool input schemas | Complete tool membership and argument reference |
+| [Prompts](./src/prompts.ts) | Meeting minutes, email replies, commits, legal summaries, invoice reminders and code review |
+| [Deployment](./deploy/README.md) and [.env.example](./.env.example) | Docker, Compose, Kubernetes, custom endpoints, cache and HTTP settings |
+| [Public connector guide](./deploy/connector-public.md) | HTTPS deployment; public connector calls are not established as end-to-end validated here |
+| [Claude Code plugin](./claude-plugin/README.md) | Optional plugin with 11 skills, pinned to `mistral-mcp@1.0.0` |
+| [Contributing](./CONTRIBUTING.md) | Build, tests, evaluation and release checks |
+| [Changelog](./CHANGELOG.md) and [security policy](./SECURITY.md) | Changes and security reporting |
 
-```bash
-curl -X POST https://api.mistral.ai/v1/connectors \
-  -H "Authorization: Bearer $MISTRAL_API_KEY" \
-  -d '{"name":"mistral_self","server":"https://your-deploy/mcp","visibility":"private"}'
-```
+stdio is the default transport. `--http` or `MCP_TRANSPORT=http` enables
+Streamable HTTP at `127.0.0.1:3333/mcp` by default, with configurable bearer
+authentication and allowed origins. Integrated OAuth is not provided.
+Tool audit records go to stderr and omit arguments and result payloads;
+`MISTRAL_MCP_AUDIT=off` disables them.
 
-> Mistral Connectors expose **tools only** today. Resources and prompts remain available via local clients.
+The [protocol-era tests](./test/stdio/protocol-eras.test.ts) cover MCP 2026-07-28
+and the 2025 handshake using the same registrations. `npm run check:release`
+checks the build and local tests, including the installed package against an API
+stub. Live API validation is separate; skipped tests do not count as success.
+Package pinning does not guarantee future upstream availability or compatibility.
 
----
-
-## Comparison with other Mistral MCP servers
-
-| Project | Scope | Best for |
-|---|---|---|
-| **mistral-mcp** | Full Mistral API + Workflows + 11 Claude Code skills | All-in-one self-hosted |
-| `mcp-mistral-ocr` (community) | OCR only | Lightweight OCR-only setup |
-| Speakeasy `mistral-mcp-server-example` | Generated demo | Reference / SDK template |
-| Composio `mistral_ai` toolkit | SaaS-routed Mistral tools | Hosted, no infra |
-
-`mistral-mcp` differentiates by combining OCR, Voxtral diarization, Codestral FIM, and Temporal-backed Workflows in one server, with French-first prompts and a Claude Code plugin marketplace.
-
----
-
-## Development
-
-```bash
-npm run dev      # tsx watch
-npm run build    # tsc → dist/
-npm run lint     # tsc --noEmit
-npm test         # 190+ tests (unit + contract + stdio e2e + live API)
-npm run inspector
-```
-
-Test pyramid: unit → contract → stdio e2e → live API (requires `MISTRAL_API_KEY`).
-
----
-
-## License
-
-MIT — Copyright Dayan Decamp
-
-## Reliability and diagnostics
-
-`npx mistral-mcp --doctor` reports local configuration and exposed tools without
-calling an API. It does not infer account access, quota or free usage from a catalog.
-Actual requests are subject to your Mistral account limits; this server does not
-configure billing or automatic credit top-ups.
-
-- `agents_list` and `agents_get` discover modern agents. Use their IDs with
-  `conversation_start.agentId`. `mistral_agent` retains the deprecated legacy endpoint for compatibility.
-- Conversations preserve `text` and original JSON `content` blocks (SDK camelCase
-  fields), including source and generated-file references. References do not
-  automatically download files.
-- `mistral_tool_call` accepts assistant history containing `tool_calls` and
-  subsequent tool-role replies with `tool_call_id`.
-- `process_document` rejects missing, partial or invalid OCR confidence scores.
-  Use `mistral_ocr` for raw text without a confidence guarantee. Cache identity
-  includes page limit, endpoint and models; the quality floor is checked on every
-  read. URLs can change content: use `options.cache: "bypass"` to force reprocessing.
-- Cache cleanup is opportunistic on reads/writes, not a guaranteed timed deletion
-  while the server is stopped.
-
-[Reproducible examples](examples/README.md) cover invoices, transcription and
-documents with sources. Running them live is not evidence of free entitlement.
-Tests skipped because account resources are missing are reported separately.
-Before publishing, `npm run check:release` also tests the installed npm tarball
-against a local API stub; live provider validation is a separate step.
-
-Limitations: no realtime audio, full Mistral administration, integrated OAuth,
-or selection of connectors inside conversations.
+[MIT license](./LICENSE) — Copyright Dayan Decamp.

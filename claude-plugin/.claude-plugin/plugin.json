@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mistral-mcp",
-  "version": "0.11.0",
-  "description": "Mistral AI capabilities for Claude Code: chat, OCR, vision, audio (Voxtral), Codestral FIM, agents, and curated French workflows. Auto-installs the mistral-mcp server from npm.",
+  "version": "1.0.0",
+  "description": "Extract invoices and documents from text, Markdown or Mistral OCR into typed JSON. Six core MCP tools, chat, vision, transcription and 11 Claude Code skills.",
   "author": {
     "name": "Dayan Decamp",
     "email": "akaswitsh@gmail.com",
@@ -14,6 +14,9 @@
   "keywords": [
     "mistral",
     "mcp",
+    "document-extraction",
+    "invoice-extraction",
+    "structured-output",
     "ocr",
     "codestral",
     "voxtral",
@@ -26,7 +29,7 @@
     "mistral_api_key": {
       "type": "string",
       "title": "Mistral API key",
-      "description": "Your Mistral API key. Get one at https://console.mistral.ai/. Stored by Claude Code's secrets storage, never written to settings.json.",
+      "description": "Your Mistral API key from https://console.mistral.ai/. Configure it using your client's supported secret settings; access and quota depend on your account.",
       "sensitive": true,
       "required": true
     }

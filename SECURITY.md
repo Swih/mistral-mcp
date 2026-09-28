@@ -30,8 +30,7 @@ Out of scope:
 
 ## Handling secrets
 
-- The only secret read by the server is `MISTRAL_API_KEY`, taken from
-  `process.env` at startup
+- `MISTRAL_API_KEY` is taken from `process.env` at startup
 - API keys are never logged. Error logs do not include user payloads
 - For Streamable HTTP transport, an optional bearer token is read from env;
   it is compared in constant time and never logged
@@ -52,4 +51,5 @@ Only the latest minor receives security patches.
 | Version | Status                |
 | ------- | --------------------- |
 | 0.11.x  | Supported                  |
+| 1.0.0 prereleases | Candidate; report regressions before stable release |
 | < 0.11  | Best effort / not supported |

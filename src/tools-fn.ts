@@ -194,7 +194,9 @@ export function registerFunctionTools(
               prompt: z.string().min(1).describe("Code preceding the cursor."),
               suffix: z.string().describe("Code after the cursor. Can be empty string."),
               model: FimModelSchema.optional(),
-              stop: z.array(z.string()).optional(),
+              stop: z.array(z.string()).optional().describe(
+                "Stop generation when any of these text sequences is encountered."
+              ),
               ...ChatSamplingParams,
             }),
       outputSchema: FimOutputSchema,

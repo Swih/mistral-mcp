@@ -1,56 +1,17 @@
 ---
-description: Reviews a code diff through Codestral with an auto-detected focus (correctness, performance, security, or api_design). Auto-fetches the diff via git diff if no argument is provided. Use when the user asks for code review, PR review, security audit of a diff, or critique of recent changes.
+name: codestral-review
+description: Review a code diff with the codestral_review MCP prompt and mistral_chat, focusing on correctness, performance, security, or API design. Use for diff or PR review requests.
 ---
 
 # Codestral code review
 
-You drive a focused code review of a diff using the Mistral `codestral-latest` model.
+Use `mistral_chat` in `core`, `metier-docs`, `admin`, or a compatible `self-hosted` endpoint. Check `mistral://capabilities` for availability.
 
-## Workflow
+1. Use the supplied diff or requested Git range. Otherwise inspect `git diff --staged`, then `git diff` if nothing is staged. If both are empty, request a range rather than silently reviewing an unrelated commit.
+2. Honor the requested focus, or select `correctness`, `performance`, `security`, or `api_design` from the actual change. Default to `correctness` when no narrower lens applies.
+3. Retrieve the MCP prompt `codestral_review` with `diff` and `focus`. Prompts return messages; they do not run the review.
+4. Convert each text message from `{role, content: {type: "text", text: "..."}}` to `{role, content: "..."}` and call `mistral_chat` with that `messages` array. Optional sampling fields are `temperature` and `max_tokens`.
 
-### Step 1 — Fetch the diff
+Omit `model` to honor the configured chat default. For an explicit Codestral request, check `mistral://models` for an available identifier and confirm the endpoint supports chat with it. Report unavailable model selection instead of inventing an alias. `codestral_fim` requires `prompt` and `suffix` and is intended for code insertion.
 
-If `$ARGUMENTS` contains a unified diff, use it. Otherwise:
-
-1. Check `git diff --staged` first (most likely intent)
-2. If empty, fall back to `git diff HEAD~1..HEAD` (last commit)
-3. If still empty, ask the user which range to review
-
-### Step 2 — Auto-detect the review focus
-
-Inspect file paths and diff content to pick the most relevant lens:
-
-| Signal | Focus |
-|---|---|
-| Files touching `auth/`, `crypto/`, `secrets`, `.env`, JWT/OAuth code, SQL queries with string concat, `eval`, file uploads | `security` |
-| Hot loops, big-O changes, async/parallelism, caching layer, DB queries, benchmark files | `performance` |
-| Public API surface: exported symbols, route handlers, schemas/contracts, breaking signature changes | `api_design` |
-| Anything else (refactor, bug fix, feature work) | `correctness` |
-
-If multiple apply, ask the user which to prioritize, or run two passes with different focus values.
-
-### Step 3 — Run the review
-
-Call the MCP prompt `codestral_review` from the `mistral` server with:
-- `diff` : the diff from step 1
-- `focus` : the lens from step 2
-
-Pass the resulting messages to `mistral_chat`:
-- `model` : `codestral-latest`
-- `temperature` : `0.2` (deterministic critique)
-- `max_tokens` : `1500`
-
-## Output format
-
-The review must end with a verdict: **`ship`**, **`change-requested`**, or **`block`**.
-
-Findings should be:
-- **Concrete**: cite exact lines or token ranges from the diff
-- **High-signal**: prefer 3 strong findings over 10 shallow ones
-- **No invented issues**: only flag real risks visible in the diff
-
-## Examples
-
-- `/mistral-mcp:codestral-review` — auto-detect from `git diff --staged`
-- `/mistral-mcp:codestral-review security` — force the security lens
-- `/mistral-mcp:codestral-review <diff text>` — review a pasted diff
+Read `structuredContent.text` only after checking `isError`. Verify findings against the diff and relevant surrounding code. Report concrete defects with accurate file and line references, impact, and any uncertainty. End with `ship`, `change-requested`, or `block`, scoped to the code actually reviewed. Do not imply that tests ran unless they did.

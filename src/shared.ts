@@ -16,8 +16,10 @@ import type { Mistral } from "@mistralai/mistralai";
 
 /** Chat message (text-only). Used by mistral_chat / mistral_chat_stream. */
 export const TextMessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"]),
-  content: z.string(),
+  role: z.enum(["system", "user", "assistant"]).describe(
+    "Message author: system for instructions, user for requests, or assistant for prior replies."
+  ),
+  content: z.string().describe("Text of the message."),
 });
 
 /**
@@ -29,32 +31,38 @@ export const TextMessageSchema = z.object({
  */
 export const ContentPartSchema = z.union([
   z.object({
-    type: z.literal("text"),
-    text: z.string(),
+    type: z.literal("text").describe("Identifies a text content part."),
+    text: z.string().describe("Text to include in the message."),
   }),
   z.object({
-    type: z.literal("image_url"),
+    type: z.literal("image_url").describe("Identifies an image content part."),
     imageUrl: z.union([
       z
         .string()
         .describe("https URL or data:image/...;base64,... payload"),
       z.object({
-        url: z.string(),
-        detail: z.enum(["auto", "low", "high"]).optional(),
+        url: z.string().describe("HTTPS URL or data:image/...;base64,... payload."),
+        detail: z.enum(["auto", "low", "high"]).optional().describe(
+          "Image detail hint: automatic, low, or high."
+        ),
       }),
-    ]),
+    ]).describe("Image source as a URL or base64 data URI, optionally with a detail hint."),
   }),
   z.object({
-    type: z.literal("document_url"),
-    documentUrl: z.string(),
-    documentName: z.string().optional(),
+    type: z.literal("document_url").describe("Identifies a document content part."),
+    documentUrl: z.string().describe("URL of the PDF or document to include in the message."),
+    documentName: z.string().optional().describe("Filename of the referenced document."),
   }),
 ]);
 
 /** Multimodal chat message (text OR array of parts). */
 export const MultimodalMessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"]),
-  content: z.union([z.string(), z.array(ContentPartSchema).min(1)]),
+  role: z.enum(["system", "user", "assistant"]).describe(
+    "Message author: system for instructions, user for requests, or assistant for prior replies."
+  ),
+  content: z.union([z.string(), z.array(ContentPartSchema).min(1)]).describe(
+    "Message text or an ordered list of text, image, and document content parts."
+  ),
 });
 
 /** Tool-augmented message (chat with function calling). Supports the `tool` role. */
@@ -104,8 +112,85 @@ export function toTextBlock(payload: unknown) {
   };
 }
 
+function retryAfterAdvice(headers: Headers | undefined): string {
+  const value = headers?.get("retry-after")?.trim();
+  if (value && /^\d+$/.test(value) && Number.isSafeInteger(Number(value))) {
+    return `Retry after ${Number(value)} seconds.`;
+  }
+  if (value && /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(value)) {
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) {
+      return `Retry after ${new Date(timestamp).toUTCString()}.`;
+    }
+  }
+  return "Wait before retrying.";
+}
+
+const OcrFileNotReadySchema = z.union([
+  z.object({
+    code: z.literal("1901"),
+    message: z.enum(["Could not get file", "Could not get file."]),
+  }),
+  z.object({
+    type: z.literal("invalid_file"),
+    message: z.enum(["Could not get file", "Could not get file."]),
+  }),
+]);
+
+function isOcrFileNotReady(err: object): boolean {
+  if (!("body" in err) || typeof err.body !== "string") return false;
+  try {
+    return OcrFileNotReadySchema.safeParse(JSON.parse(err.body)).success;
+  } catch {
+    return false;
+  }
+}
+
+function apiErrorMessage(err: unknown): string | undefined {
+  if (!err || typeof err !== "object") return undefined;
+  const rawResponse = "rawResponse" in err ? err.rawResponse : undefined;
+  const response = rawResponse instanceof Response ? rawResponse : undefined;
+  const statusCode = "statusCode" in err ? err.statusCode : undefined;
+  const status = typeof statusCode === "number" && Number.isInteger(statusCode)
+    && statusCode >= 100 && statusCode <= 599 ? statusCode : response?.status;
+  const headers = response?.headers
+    ?? ("headers" in err && err.headers instanceof Headers ? err.headers : undefined);
+
+  // SDK HTTP error messages embed the response body, which may echo private input.
+  if (status === undefined && !("statusCode" in err) && !("rawResponse" in err) && !("body" in err)) {
+    return undefined;
+  }
+  if (status === 401) {
+    return "Authentication failed (HTTP 401). Check MISTRAL_API_KEY and the configured API endpoint.";
+  }
+  if (status === 403) {
+    return "Access denied (HTTP 403). Check the API key's permissions and account access to the requested model or endpoint.";
+  }
+  if (status === 422 && isOcrFileNotReady(err)) {
+    return "OCR file not ready (HTTP 422). Wait briefly, then retry with the same file ID using a bounded number of attempts. If it persists, verify that the uploaded file is available.";
+  }
+  if (status === 429) {
+    let zeroLimit = false;
+    headers?.forEach((value, name) => {
+      // A zero remaining balance is temporary exhaustion, not a zero allowance.
+      if (/^(?:x-)?ratelimit-limit(?:-[a-z]+)*$/.test(name) && /^0+(?:\.0+)?$/.test(value.trim())) {
+        zeroLimit = true;
+      }
+    });
+    if (zeroLimit) {
+      return "API quota limit is zero (HTTP 429). Check the account's configured limits and access to the requested model before retrying; waiting alone may not resolve this.";
+    }
+    return `Rate limit exceeded (HTTP 429). ${retryAfterAdvice(headers)} Reduce request frequency or size; if this persists, check account quota and limits.`;
+  }
+  if (status !== undefined && status >= 500 && status <= 599) {
+    return `API server error (HTTP ${status}). ${retryAfterAdvice(headers)} If it persists, check the provider's service status or the configured endpoint.`;
+  }
+  const statusText = status === undefined ? "" : ` (HTTP ${status})`;
+  return `API request or response failed${statusText}. Check the request parameters, model availability, and endpoint compatibility.`;
+}
+
 export function errorResult(tool: string, err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
+  const message = apiErrorMessage(err) ?? (err instanceof Error ? err.message : String(err));
   return {
     content: [toTextBlock(`[mistral-mcp:${tool}] ${message}`)],
     isError: true as const,
@@ -122,9 +207,15 @@ export function errorResult(tool: string, err: unknown) {
  * OpenAI's `seed`: deterministic sampling across calls when set.
  */
 export const ChatSamplingParams = {
-  temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().positive().optional(),
-  top_p: z.number().min(0).max(1).optional(),
+  temperature: z.number().min(0).max(2).optional().describe(
+    "Sampling temperature: higher values make output more random; lower values make it more focused. Prefer adjusting this or top_p, not both."
+  ),
+  max_tokens: z.number().int().positive().optional().describe(
+    "Maximum number of tokens to generate. Input tokens plus this limit must fit within the model's context length."
+  ),
+  top_p: z.number().min(0).max(1).optional().describe(
+    "Nucleus sampling probability mass: 0.1 considers tokens in the top 10% of probability mass. Prefer adjusting this or temperature, not both."
+  ),
   seed: z
     .number()
     .int()
@@ -153,17 +244,23 @@ export const ChatSamplingParams = {
  * `jsonSchema`, `schemaDefinition`). We translate at the call site.
  */
 export const ResponseFormatSchema = z.union([
-  z.object({ type: z.literal("text") }),
-  z.object({ type: z.literal("json_object") }),
   z.object({
-    type: z.literal("json_schema"),
+    type: z.literal("text").describe("Generate plain text without a JSON format constraint."),
+  }),
+  z.object({
+    type: z.literal("json_object").describe(
+      "Generate JSON. Also instruct the model to produce JSON in a system or user message."
+    ),
+  }),
+  z.object({
+    type: z.literal("json_schema").describe("Generate JSON conforming to the supplied json_schema."),
     json_schema: z.object({
       name: z
         .string()
         .min(1)
         .max(64)
         .describe("Identifier for the schema; surfaced in API errors."),
-      description: z.string().optional(),
+      description: z.string().optional().describe("Description of the response the schema defines."),
       schema: z
         .record(z.string(), z.unknown())
         .describe("JSON Schema object the response must conform to."),
@@ -173,7 +270,7 @@ export const ResponseFormatSchema = z.union([
         .describe(
           "If true, the API rejects responses that do not strictly match the schema."
         ),
-    }),
+    }).describe("Named JSON Schema and optional strictness for the generated response."),
   }),
 ]);
 
@@ -189,11 +286,15 @@ export const JsonSchemaResponseFormatSchema = z.object({
     .literal("json_schema")
     .describe("Only json_schema is accepted by OCR annotation formats."),
   json_schema: z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
-    schema: z.record(z.string(), z.unknown()),
-    strict: z.boolean().optional(),
-  }),
+    name: z.string().min(1).describe("Name identifying the annotation schema."),
+    description: z.string().optional().describe("Description of the annotation to extract."),
+    schema: z.record(z.string(), z.unknown()).describe(
+      "JSON Schema object defining the fields to extract into the annotation."
+    ),
+    strict: z.boolean().optional().describe(
+      "Whether the annotation must strictly follow the supplied JSON Schema."
+    ),
+  }).describe("Named JSON Schema and optional strictness for the extracted annotation."),
 });
 
 export type JsonSchemaResponseFormat = z.infer<typeof JsonSchemaResponseFormatSchema>;

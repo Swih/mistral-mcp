@@ -2,7 +2,7 @@
  * Unit tests for the documents vertical (process_document macro-tool).
  *
  * Verifies:
- * - input schema parsing for the three source variants and the kind enum
+ * - input schema parsing and the kind enum
  * - tool registration
  * - cache write/read roundtrip with a temp dir
  * - generic-kind happy path with mocked OCR (no extraction call)
@@ -155,7 +155,8 @@ describe("process_document — generic kind happy path", () => {
       const sc = res.structuredContent as Record<string, unknown>;
       expect(sc.kind).toBe("generic");
       expect(sc.cache_hit).toBe(false);
-      expect(sc.pipeline_version).toBe("v0.11.0");
+      expect(sc.pipeline_version).toBe("v1.0.0-text.1");
+      expect(sc.extraction_source).toBe("mistral_ocr");
       expect(typeof sc.ocr_text).toBe("string");
       expect(sc.page_count).toBe(1);
       // discriminated union validation
@@ -368,6 +369,7 @@ describe("process_document — schema permissiveness", () => {
     const validated = ProcessDocumentOutputSchema.safeParse({
       kind: "contract",
       source_id: "abc",
+      extraction_source: "mistral_ocr",
       ocr_text: "...",
       ocr_confidence: 0.9,
       page_count: 2,
@@ -387,6 +389,7 @@ describe("process_document — schema permissiveness", () => {
     const validated = ProcessDocumentOutputSchema.safeParse({
       kind: "invoice",
       source_id: "abc",
+      extraction_source: "mistral_ocr",
       ocr_text: "...",
       ocr_confidence: 0.9,
       page_count: 1,

@@ -10,8 +10,8 @@
     {
       "name": "mistral-mcp",
       "source": "./claude-plugin",
-      "description": "Mistral AI capabilities for Claude Code: chat, OCR, vision, audio (Voxtral), Codestral FIM, workflows, agents, and 11 curated skills (FR + EN).",
-      "version": "0.11.0",
+      "description": "Mistral MCP: typed invoice and document extraction from text, Markdown or OCR, plus chat, vision, audio and 11 Claude Code skills.",
+      "version": "1.0.0",
       "author": {
         "name": "Dayan Decamp",
         "email": "akaswitsh@gmail.com"
@@ -19,8 +19,29 @@
       "homepage": "https://github.com/Swih/mistral-mcp",
       "repository": "https://github.com/Swih/mistral-mcp",
       "license": "MIT",
-      "tags": ["mistral", "ocr", "french", "codestral", "voxtral", "vision", "audio"],
-      "keywords": ["mistral", "mcp", "ocr", "codestral", "voxtral", "french", "ai"]
+      "tags": [
+        "document-extraction",
+        "invoice-extraction",
+        "mistral",
+        "ocr",
+        "french",
+        "codestral",
+        "voxtral",
+        "vision",
+        "audio"
+      ],
+      "keywords": [
+        "document-extraction",
+        "invoice-extraction",
+        "structured-output",
+        "mistral",
+        "mcp",
+        "ocr",
+        "codestral",
+        "voxtral",
+        "french",
+        "ai"
+      ]
     }
   ]
 }

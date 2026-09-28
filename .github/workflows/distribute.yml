@@ -43,7 +43,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker build --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" --label org.opencontainers.image.version="$VERSION" -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          docker build --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" --label org.opencontainers.image.version="$VERSION" -t "$IMAGE:$VERSION" .
           docker run --rm "$IMAGE:$VERSION" node dist/index.js --doctor
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -53,4 +53,8 @@ jobs:
         run: |
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker push "$IMAGE:$VERSION"
-          docker push "$IMAGE:latest"
+          # A release candidate must never replace the stable installation.
+          if [[ "$VERSION" != *-* ]]; then
+            docker tag "$IMAGE:$VERSION" "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi

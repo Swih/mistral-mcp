@@ -67,13 +67,13 @@ export const SpeakOutputSchema = z.object(SpeakOutputShape);
 
 const AudioSourceSchema = z.union([
   z.object({
-    type: z.literal("file_url"),
+    type: z.literal("file_url").describe("Transcribe audio from the URL in fileUrl."),
     fileUrl: z
       .string()
       .describe("HTTPS URL to an audio file (mp3/wav/flac/ogg/webm/m4a)."),
   }),
   z.object({
-    type: z.literal("file"),
+    type: z.literal("file").describe("Transcribe an uploaded audio file identified by fileId."),
     fileId: z
       .string()
       .describe(
@@ -115,7 +115,7 @@ export function registerAudioTools(
         "Returns plain `text`, detected `language`, optional `segments[]`, and token usage.",
       ].join("\n"),
       inputSchema: z.object({
-              audio: AudioSourceSchema,
+              audio: AudioSourceSchema.describe("Audio to transcribe, supplied as a public URL or an uploaded file ID."),
               model: SttModelSchema.optional().describe(
                 `STT model. Default: ${DEFAULT_STT_MODEL}.`
               ),
@@ -123,13 +123,13 @@ export function registerAudioTools(
                 .string()
                 .optional()
                 .describe("ISO-639-1 language hint (e.g. 'fr', 'en')."),
-              temperature: z.number().min(0).max(2).optional(),
-              diarize: z.boolean().optional(),
+              temperature: z.number().min(0).max(2).optional().describe("Sampling temperature for transcription."),
+              diarize: z.boolean().optional().describe("Identify speakers in the returned transcription segments. Defaults to false."),
               timestampGranularities: z
                 .array(z.enum(["segment"]))
                 .optional()
                 .describe("Only 'segment' is currently supported."),
-              contextBias: z.array(z.string()).optional(),
+              contextBias: z.array(z.string()).optional().describe("Words or phrases to favor when decoding the audio."),
             }),
       outputSchema: TranscribeOutputSchema,
       annotations: {

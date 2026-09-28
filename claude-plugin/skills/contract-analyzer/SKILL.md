@@ -1,120 +1,43 @@
 ---
-description: OCR a contract PDF with mistral_ocr, then extract structured clauses and risk scores with mistral_chat + json_schema. Use when the user provides a contract document to analyze for risks, obligations, and key terms.
+name: contract-analyzer
+description: Extract contract parties, clauses, dates, and model-assessed risks using process_document. Use when the user supplies contract text, Markdown, or a PDF/image for analysis.
 ---
 
-# Contract analyzer
+# Contract analysis
 
-Extracts and risk-rates contract clauses from a PDF or scanned document using Mistral's native document AI. No third-party OCR dependency.
+Use `process_document` in `core`, `metier-docs`, or `admin`. Check `mistral://capabilities` for the current endpoint and tool availability.
 
-**Profile requirements**:
-- `mistral_ocr` + `mistral_chat` — available in **core** profile (default)
-- `files_upload` (to upload a local PDF) — requires `MISTRAL_MCP_PROFILE=full`
-- If the user provides a public URL, this skill runs entirely on the core profile
+## Process the source
 
-**EU data residency**: both `mistral_ocr` and `mistral_chat` stay within Mistral's EU infrastructure when the API key is an EU-region key.
-
-## Steps
-
-### Step 1 — Get the document
-
-Ask the user for one of:
-- A public URL (direct link to the PDF) — works with core profile
-- A local file path → upload with `files_upload` (requires `MISTRAL_MCP_PROFILE=full`), note the returned `file_id`
-
-### Step 2 — OCR the contract
-
-Call `mistral_ocr` with `document_annotation_format: "markdown"` for structured extraction:
+Prefer supplied contract text or Markdown:
 
 ```json
 {
-  "document": {
-    "type": "document_url",
-    "documentUrl": "<URL from step 1>"
-  },
-  "document_annotation_format": "markdown"
+  "source": { "type": "text", "text": "<contract text or Markdown>" },
+  "kind": "contract",
+  "options": { "cache": "bypass" }
 }
 ```
 
-If using a file upload: `"type": "document_id", "documentId": "<file_id>"` instead.
+For a PDF or image requiring OCR, replace `source` with `{ "type": "url", "url": "https://example.com/contract.pdf" }` or `{ "type": "file_id", "fileId": "<existing Mistral file ID>" }`.
 
-Concatenate `structuredContent.pages[*].markdown` across all pages.
+For local files, use an available converter to obtain text, or upload document bytes with `files_upload` in `admin`: `filename`, `content_base64`, `purpose: "ocr"`. Its `structuredContent.id` becomes `source.fileId`. Do not pass a filesystem path as a URL. If these routes are unavailable, request text or a provider-accessible source.
 
-### Step 3 — Extract structured clauses
+Text skips OCR and uploads, but contract extraction still sends text to the configured chat endpoint. OCR is optional and depends on account access and quota; no free-processing guarantee applies. The tool uses the configured chat default and has no `model` argument. Cache bypass affects the local extraction cache only; it does not establish provider retention or data residency.
 
-Pass the concatenated OCR text to `mistral_chat` with `mistral-large-latest` and a `json_schema` response format:
+## Review the extraction
 
-```json
-{
-  "model": "mistral-large-latest",
-  "temperature": 0,
-  "response_format": {
-    "type": "json_schema",
-    "json_schema": {
-      "name": "contract_analysis",
-      "strict": true,
-      "schema": {
-        "type": "object",
-        "properties": {
-          "parties": { "type": "array", "items": { "type": "string" } },
-          "effective_date": { "type": "string" },
-          "duration": { "type": "string" },
-          "governing_law": { "type": "string" },
-          "clauses": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": { "type": "string" },
-                "summary": { "type": "string" },
-                "risk_level": {
-                  "type": "string",
-                  "enum": ["low", "medium", "high", "critical"]
-                },
-                "risk_reason": { "type": "string" }
-              },
-              "required": ["title", "summary", "risk_level", "risk_reason"]
-            }
-          },
-          "overall_risk": {
-            "type": "string",
-            "enum": ["low", "medium", "high", "critical"]
-          },
-          "missing_protections": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
-        },
-        "required": ["parties", "clauses", "overall_risk"]
-      }
-    }
-  },
-  "messages": [
-    {
-      "role": "user",
-      "content": "<OCR text>\n\nExtract all clauses from the contract above. For each clause, provide a title, one-sentence summary, and risk level (low/medium/high/critical) with the reason. Apply these risk escalation rules: termination-for-convenience → at least medium; unlimited liability → critical; IP assignment to other party → high; non-compete > 12 months → high; automatic renewal without notice → medium; governing law in foreign jurisdiction → medium."
-    }
-  ]
-}
-```
+Check `isError` before consuming `structuredContent`. The contract payload contains:
 
-### Step 4 — Display results
+- `parties[]`: `name` and optional nullable `role`.
+- `clauses[]`: `heading`, `text`, and optional nullable `risk` (`low`, `medium`, or `high`).
+- `risk_score`: a nullable number from 0 to 1.
+- `key_dates[]`: `label` and `iso`.
+- `summary`: nullable text.
+- `ocr_text`, `extraction_source`, `ocr_confidence`, and `page_count` for provenance. The last two are null for supplied text.
 
-Present clauses sorted by risk level (critical → high → medium → low).
+Present the summary, parties, dates, and clauses with their returned risk labels. Put high-risk clauses first, then medium, low, and unassessed clauses. Ground each concern in the clause text and the user's context. Treat `risk_score` as a model assessment, not a calibrated legal probability. Do not add a `critical` level, invented missing-protection fields, or categorical rules about enforceability.
 
-Show a summary box for critical and high-risk clauses:
+Typed extraction accepts up to 60,000 UTF-16 code units. OCR selects the first 50 pages by default, adjustable with `options.maxPages` up to 200. State coverage limits, preserve clause context when splitting long documents, and do not present partial analysis as a complete review. An OCR confidence error requires a clearer source or reviewed text, not a silently weakened threshold.
 
-```
-⚠️  HIGH / CRITICAL CLAUSES
-──────────────────────────────
-[clause title] — [one-line risk reason]
-...
-
-FULL ANALYSIS
-─────────────
-[table or list of all clauses with risk level]
-
-OVERALL RISK: [level]
-MISSING PROTECTIONS: [list if any]
-```
-
-Offer to pass the full JSON to `mistral_chat` for negotiation suggestions, or to `french_legal_summary` for a plain-language summary.
+For a requested French summary, retrieve the MCP prompt `french_legal_summary` with `legal_text` and `audience` (`juriste`, `dirigeant`, or `grand_public`). Convert each returned text message to `{role, content: message.content.text}` before calling `mistral_chat`; omit `model` to honor the server default. Keep extracted facts distinct from interpretation and carry through any missing information.

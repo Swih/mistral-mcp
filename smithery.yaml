@@ -14,9 +14,23 @@ startCommand:
         description: >-
           Get one at https://console.mistral.ai/. Usage and model-specific
           limits depend on your Mistral organization tier.
+      defaultModel:
+        type: string
+        title: Chat and extraction model
+        description: Optional model identifier with access and quota on your Mistral account.
+      profile:
+        type: string
+        title: Tool profile
+        enum: [core, metier-docs, workflows, admin, self-hosted]
+        default: core
+        description: Six tools by default. Choose metier-docs to preserve the former core tool set.
   commandFunction: |-
     (config) => ({
       command: "npx",
-      args: ["-y", "mistral-mcp"],
-      env: { MISTRAL_API_KEY: config.mistralApiKey }
+      args: ["-y", "mistral-mcp@1.0.0"],
+      env: {
+        MISTRAL_API_KEY: config.mistralApiKey,
+        MISTRAL_MCP_PROFILE: config.profile || "core",
+        ...(config.defaultModel ? { MISTRAL_DEFAULT_MODEL: config.defaultModel } : {})
+      }
     })

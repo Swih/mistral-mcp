@@ -20,7 +20,7 @@ try {
   const prompts = (await client.listPrompts()).prompts;
   const serverCard = { serverInfo: client.getServerVersion(), tools, resources, prompts };
   manifest.tools = tools.map(({ name, description }) => ({ name, description }));
-  manifest.display_name = "Mistral MCP";
+  manifest.display_name = "Mistral MCP — Document Extraction";
   manifest.homepage = "https://github.com/Swih/mistral-mcp";
   manifest.documentation = `${manifest.homepage}#readme`;
   manifest.support = `${manifest.homepage}/issues`;

@@ -52,7 +52,7 @@ import {
  * server identity and the boot log can never disagree — they already drifted
  * twice (see "fix(release): align runtime log version to 0.7.0").
  */
-const SERVER_VERSION = "0.11.0";
+const SERVER_VERSION = "1.0.0";
 
 let runtime: RuntimeConfig;
 try {
@@ -83,8 +83,8 @@ if (!API_KEY) {
         "  → Then export it: MISTRAL_API_KEY=sk-... npx mistral-mcp\n" +
         "  → Or point the server at your own endpoint: MISTRAL_BASE_URL=http://...\n" +
         "  Server will start without auth so tools/list works for sandboxed\n" +
-        "  introspection (Glama, Smithery, etc.). Tool calls will fail with\n" +
-        "  a 401 from Mistral until a valid key is provided."
+          "  introspection (Glama, Smithery, etc.). Calls that use Mistral APIs\n" +
+          "  require a valid key; generic provided-text processing is local."
     );
   }
 }
@@ -114,7 +114,15 @@ function createServer(): McpServer {
   const server = new McpServer(
     {
       name: "mistral-mcp",
+      title: "Mistral MCP — Document Extraction",
       version: SERVER_VERSION,
+      description: "Mistral MCP server for invoice and document extraction. Turn text, Markdown or OCR into typed JSON; chat, vision and audio included.",
+      websiteUrl: "https://github.com/Swih/mistral-mcp",
+      icons: [{
+        src: "https://raw.githubusercontent.com/Swih/mistral-mcp/main/assets/icon.svg",
+        mimeType: "image/svg+xml",
+        sizes: ["any"],
+      }],
     },
     {
       // The catalogue is decided at boot by the profile and never changes for
