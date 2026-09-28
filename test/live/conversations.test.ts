@@ -17,6 +17,7 @@ import { Client } from "@modelcontextprotocol/client";
 import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import { Mistral } from "@mistralai/mistralai";
 import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "../../src/shared.js";
+import { defaultChatModel } from "../../src/models.js";
 import { registerConversationTools } from "../../src/tools-conversations.js";
 
 const envPath = resolve(process.cwd(), ".env");
@@ -58,12 +59,12 @@ describe.skipIf(!HAS_KEY)("live Mistral Conversations", () => {
     });
   });
 
-  it("conversation_start creates a conversation and returns a valid shape", async () => {
+  it("conversation_start creates a conversation and returns a valid shape", async (ctx) => {
     const res = await client.callTool({
       name: "conversation_start",
       arguments: {
         input: 'Reply with exactly the single word: "pong". No punctuation.',
-        model: "mistral-small-latest",
+        model: defaultChatModel(),
         temperature: 0,
         max_tokens: 16,
       },
@@ -83,9 +84,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Conversations", () => {
     conversationId = sc.conversation_id;
   });
 
-  it("conversation_get fetches the conversation's metadata", async () => {
+  it("conversation_get fetches the conversation's metadata", async (ctx) => {
     if (!conversationId) {
       console.warn("[skip] No conversation_id from previous test — skipping get test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -97,16 +99,17 @@ describe.skipIf(!HAS_KEY)("live Mistral Conversations", () => {
     expect(sc.conversation.id).toBe(conversationId);
   });
 
-  it("conversation_list includes the created conversation", async () => {
+  it("conversation_list includes the created conversation", async (ctx) => {
     const res = await client.callTool({ name: "conversation_list", arguments: { pageSize: 50 } });
     expect(res.isError).toBeFalsy();
     const sc = res.structuredContent as { conversations: Array<{ id: string }> };
     expect(Array.isArray(sc.conversations)).toBe(true);
   });
 
-  it("conversation_append continues the conversation", async () => {
+  it("conversation_append continues the conversation", async (ctx) => {
     if (!conversationId) {
       console.warn("[skip] No conversation_id from previous test — skipping append test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -118,9 +121,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Conversations", () => {
     expect(sc.conversation_id).toBe(conversationId);
   });
 
-  it("conversation_history returns the full entry log", async () => {
+  it("conversation_history returns the full entry log", async (ctx) => {
     if (!conversationId) {
       console.warn("[skip] No conversation_id from previous test — skipping history test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -132,7 +136,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Conversations", () => {
     expect(sc.entries.length).toBeGreaterThan(0);
   });
 
-  it("conversation_get with a bogus id returns isError:true (not a crash)", async () => {
+  it("conversation_get with a bogus id returns isError:true (not a crash)", async (ctx) => {
     const res = await client.callTool({
       name: "conversation_get",
       arguments: { conversationId: "non-existent-conversation-00000000" },

@@ -35,7 +35,7 @@ import { errorResult, toTextBlock } from "./shared.js";
 
 // ---------- pipeline version (bump on breaking schema/prompt changes) ----------
 
-const PIPELINE_VERSION = "v0.8.0";
+const PIPELINE_VERSION = "v0.11.0";
 
 // ---------- input schema ----------
 
@@ -462,9 +462,13 @@ function sourceHash(src: ProcessDocumentInput["source"]): string {
   return h.digest("hex");
 }
 
-function cacheKey(src: ProcessDocumentInput["source"], kind: string): string {
+function cacheKey(src: ProcessDocumentInput["source"], kind: string, maxPages: number): string {
   const id = sourceHash(src);
-  return `${id}.${kind}.${PIPELINE_VERSION}.json`;
+  const config = createHash("sha256").update(JSON.stringify({
+    maxPages, ocr: DEFAULT_OCR_MODEL, extraction: defaultChatModel(),
+    classification: pickModelForClassification(), endpoint: process.env.MISTRAL_BASE_URL ?? "https://api.mistral.ai",
+  })).digest("hex");
+  return `${id}.${kind}.${config}.${PIPELINE_VERSION}.json`;
 }
 
 function cachePath(key: string): string {
@@ -564,7 +568,7 @@ function writeCache(key: string, payload: unknown): void {
 
 type OcrRes = {
   text: string;
-  confidence: number;
+  confidence: number | undefined;
   pages: number;
 };
 
@@ -610,8 +614,9 @@ async function runOcr(
   const text = pages.map((p) => p.markdown ?? "").join("\n\n").trim();
   const scores = pages
     .map((p) => p.confidenceScores?.averagePageConfidenceScore)
-    .filter((v): v is number => typeof v === "number");
-  const confidence = scores.length === 0 ? 1 : scores.reduce((a, b) => a + b, 0) / scores.length;
+    .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1);
+  const confidence = pages.length > 0 && scores.length === pages.length
+    ? scores.reduce((a, b) => a + b, 0) / scores.length : undefined;
   return { text, confidence, pages: pages.length };
 }
 
@@ -684,13 +689,14 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "Kinds: contract | invoice | id_document | generic. Use kind=auto to let the server classify.",
         "Returns a discriminated union — switch on `kind` to access typed fields.",
         "",
-        "Cache: results are cached on disk by sha256(source) + kind + pipeline_version.",
+        "Cache keys include source, kind, page limit, endpoint, models and pipeline version.",
         "Override location with MISTRAL_MCP_CACHE_DIR. Override mode with options.cache.",
         "Default cache mode is 'read_write' EXCEPT for kind=id_document (auto-bypass to avoid",
         "persisting PII). Set options.cache='read_write' explicitly to opt in for id documents.",
         "",
         "OCR confidence floor is options.minOcrConfidence (default 0.3). Below the floor the",
-        "tool returns isError rather than risking extraction from text OCR is unsure about.",
+        "tool returns isError. Missing or partial confidence scores also return isError;",
+        "use mistral_ocr directly if you need raw OCR without a confidence guarantee.",
         "0.3 is a conservative starting point, not a measured one: calibrate it for your",
         "corpus with `npm run eval:docs`.",
       ].join("\n"),
@@ -724,26 +730,23 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         // 1. cache check (we cache final payload by source+kind)
         const sourceId = sourceHash(source);
         const cacheLookupKind = requestedKind === "auto" ? "auto" : requestedKind;
-        const key = cacheKey(source, cacheLookupKind);
+        const key = cacheKey(source, cacheLookupKind, maxPages);
         if (cacheModeInitial !== "bypass") {
-          const cached = readCache(key) as Record<string, unknown> | undefined;
+          const parsedCache = ProcessDocumentOutputSchema.safeParse(readCache(key));
+          const cached = parsedCache.success ? parsedCache.data : undefined;
           if (cached) {
             // PII safety: never serve cached id_document payloads unless the
             // caller explicitly set cache='read_write'. Catches the case where
             // a previous kind='auto' call cached an id_document under the auto key.
             const isCachedId = cached.kind === "id_document";
             if (!isCachedId || opts.cache === "read_write") {
+              if (cached.ocr_confidence < minConfidence) {
+                return errorResult("process_document", `Cached OCR confidence ${cached.ocr_confidence} is below the requested minimum ${minConfidence}. Use cache=bypass to process again.`);
+              }
+              const payload = { ...cached, cache_hit: true, total_duration_ms: Date.now() - start };
               return {
-                content: [
-                  toTextBlock(
-                    `[process_document] cache hit (kind=${cached.kind}, source_id=${sourceId.slice(0, 12)}…)`
-                  ),
-                ],
-                structuredContent: {
-                  ...cached,
-                  cache_hit: true,
-                  total_duration_ms: Date.now() - start,
-                },
+                content: [toTextBlock(payload)],
+                structuredContent: payload,
               };
             }
           }
@@ -751,6 +754,9 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
 
         // 2. OCR
         const ocr = await runOcr(mistral, source, maxPages);
+        if (ocr.confidence === undefined) {
+          return errorResult("process_document", "OCR confidence is unavailable or incomplete; cannot verify the requested quality floor. Use mistral_ocr for raw OCR.");
+        }
         if (ocr.pages === 0 || ocr.confidence < minConfidence) {
           return errorResult(
             "process_document",
@@ -813,16 +819,12 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
             : cacheModeInitial;
 
         if (cacheMode === "read_write") {
-          writeCache(cacheKey(source, kind), validated.data);
+          writeCache(cacheKey(source, kind, maxPages), validated.data);
           if (requestedKind === "auto") writeCache(key, validated.data);
         }
 
         return {
-          content: [
-            toTextBlock(
-              `[process_document] kind=${kind}, ${ocr.pages} page(s), confidence=${ocr.confidence.toFixed(2)}, ${Date.now() - start}ms`
-            ),
-          ],
+          content: [toTextBlock(validated.data)],
           structuredContent: validated.data as Record<string, unknown>,
         };
       } catch (err) {

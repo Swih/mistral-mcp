@@ -53,6 +53,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
   let mistral: Mistral;
   let availableWorkflows: Array<{ name: string; id: string }> = [];
   let executionId: string | null = null;
+  let discoveryAvailable = true;
 
   beforeAll(async () => {
     ({ client, mistral } = await bootWorkflowServer());
@@ -65,12 +66,14 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
           availableWorkflows.push({ name: w.name, id: w.id });
         }
       }
-    } catch {
-      // If the API returns 404 / no workflows, we proceed with the empty list
+    } catch (error) {
+      if (!(error && typeof error === "object" && "statusCode" in error && error.statusCode === 404)) throw error;
+      discoveryAvailable = false;
     }
   });
 
-  it("lists deployed workflows without throwing", async () => {
+  it("lists deployed workflows without throwing", async (ctx) => {
+    if (!discoveryAvailable) { ctx.skip(); return; }
     // This is a pure connectivity + auth test
     expect(Array.isArray(availableWorkflows)).toBe(true);
     // All entries have name and id
@@ -80,9 +83,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     }
   });
 
-  it("workflow_execute returns a valid execution shape (async)", async () => {
+  it("workflow_execute returns a valid execution shape (async)", async (ctx) => {
     if (availableWorkflows.length === 0) {
       console.warn("[skip] No deployed workflows found — skipping execute test.");
+      ctx.skip();
       return;
     }
 
@@ -122,9 +126,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     executionId = sc.execution_id as string;
   });
 
-  it("workflow_status returns a valid status shape", async () => {
+  it("workflow_status returns a valid status shape", async (ctx) => {
     if (!executionId) {
       console.warn("[skip] No execution_id from previous test — skipping status test.");
+      ctx.skip();
       return;
     }
 
@@ -143,7 +148,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
       .toContain(sc.status);
   });
 
-  it("workflow_deployments_list reports what can actually run", async () => {
+  it("workflow_deployments_list reports what can actually run", async (ctx) => {
     const res = await client.callTool({ name: "workflow_deployments_list", arguments: {} });
     expect(res.isError).toBeFalsy();
     const sc = res.structuredContent as {
@@ -164,7 +169,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     }
   });
 
-  it("workflow_deployments_list explains the 404 that workflow_execute would raise", async () => {
+  it("workflow_deployments_list explains the 404 that workflow_execute would raise", async (ctx) => {
     // The two tools have to agree: if nothing is runnable, executing a listed
     // workflow must fail, and the deployments tool is where the reason lives.
     const dep = await client.callTool({ name: "workflow_deployments_list", arguments: {} });
@@ -183,7 +188,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     expect((exec.content as Array<{ text: string }>)[0]?.text ?? "").toMatch(/deployment/i);
   });
 
-  it("workflow_runs_list returns a well-formed execution list", async () => {
+  it("workflow_runs_list returns a well-formed execution list", async (ctx) => {
     const res = await client.callTool({ name: "workflow_runs_list", arguments: { limit: 5 } });
     expect(res.isError).toBeFalsy();
     const sc = res.structuredContent as {
@@ -203,7 +208,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     }
   });
 
-  it("workflow_stop on a bogus executionId returns isError:true (not a crash)", async () => {
+  it("workflow_stop on a bogus executionId returns isError:true (not a crash)", async (ctx) => {
     const res = await client.callTool({
       name: "workflow_stop",
       arguments: { executionId: "non-existent-execution-id-00000000" },
@@ -213,7 +218,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     expect(text).toContain("workflow_stop");
   });
 
-  it("workflow_status with bogus executionId returns isError:true (not a crash)", async () => {
+  it("workflow_status with bogus executionId returns isError:true (not a crash)", async (ctx) => {
     const res = await client.callTool({
       name: "workflow_status",
       arguments: { executionId: "non-existent-execution-id-00000000" },
@@ -226,9 +231,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Workflows", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("workflow_interact (query) on running execution returns result or graceful error", async () => {
+  it("workflow_interact (query) on running execution returns result or graceful error", async (ctx) => {
     if (!executionId) {
       console.warn("[skip] No execution_id — skipping interact test.");
+      ctx.skip();
       return;
     }
 

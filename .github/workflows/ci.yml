@@ -26,4 +26,5 @@ jobs:
       - run: npm run test:unit
       - run: npm run test:contract
       - run: npm run test:stdio
+      - run: npm run test:package
       - run: npm audit --omit=dev --audit-level=high

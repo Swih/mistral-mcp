@@ -52,7 +52,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Libraries", () => {
     ({ client } = await bootLibraryServer());
   });
 
-  it("libraries_list returns a valid (possibly empty) library summary list", async () => {
+  it("libraries_list returns a valid (possibly empty) library summary list", async (ctx) => {
     const res = await client.callTool({ name: "libraries_list", arguments: {} });
     expect(res.isError).toBeFalsy();
     const sc = res.structuredContent as { libraries: Array<{ id: string; name: string }> };
@@ -66,9 +66,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Libraries", () => {
     }
   });
 
-  it("libraries_get fetches a library's metadata", async () => {
+  it("libraries_get fetches a library's metadata", async (ctx) => {
     if (!firstLibraryId) {
       console.warn("[skip] No library visible on this account — skipping get test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -80,9 +81,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Libraries", () => {
     expect(sc.library.id).toBe(firstLibraryId);
   });
 
-  it("libraries_documents_list lists documents in the library", async () => {
+  it("libraries_documents_list lists documents in the library", async (ctx) => {
     if (!firstLibraryId) {
       console.warn("[skip] No library visible on this account — skipping documents_list test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -94,9 +96,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Libraries", () => {
     expect(Array.isArray(sc.documents)).toBe(true);
   });
 
-  it("libraries_documents_upload uploads a small text document", async () => {
+  it("libraries_documents_upload uploads a small text document", async (ctx) => {
     if (!firstLibraryId) {
       console.warn("[skip] No library visible on this account — skipping upload test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -113,9 +116,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Libraries", () => {
     uploadedDocumentId = sc.document.id;
   });
 
-  it("libraries_documents_status reports the uploaded document's status", async () => {
+  it("libraries_documents_status reports the uploaded document's status", async (ctx) => {
     if (!firstLibraryId || !uploadedDocumentId) {
       console.warn("[skip] No uploaded document — skipping status test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -128,7 +132,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Libraries", () => {
     expect(typeof sc.process_status).toBe("string");
   });
 
-  it("libraries_get with a bogus id returns isError:true (not a crash)", async () => {
+  it("libraries_get with a bogus id returns isError:true (not a crash)", async (ctx) => {
     const res = await client.callTool({
       name: "libraries_get",
       arguments: { libraryId: "non-existent-library-00000000" },

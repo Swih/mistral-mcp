@@ -26,6 +26,7 @@ import { registerFunctionTools } from "./tools-fn.js";
 import { registerVisionTools } from "./tools-vision.js";
 import { registerAudioTools } from "./tools-audio.js";
 import { registerAgentTools } from "./tools-agents.js";
+import { registerAgentCatalogTools } from "./tools-agent-catalog.js";
 import { registerFileTools } from "./tools-files.js";
 import { registerBatchTools } from "./tools-batch.js";
 import { registerWorkflowTools } from "./tools-workflows.js";
@@ -39,6 +40,7 @@ import { registerMistralPrompts } from "./prompts.js";
 import { connectTransport, resolveTransportOptions } from "./transport.js";
 import { isEnabled, resolveRuntime, type RuntimeConfig } from "./profile.js";
 import { MISTRAL_RETRY_CONFIG, MISTRAL_TIMEOUT_MS } from "./shared.js";
+import { configurationReport } from "./diagnostics.js";
 import {
   configureAudit,
   instrumentTools,
@@ -50,7 +52,7 @@ import {
  * server identity and the boot log can never disagree — they already drifted
  * twice (see "fix(release): align runtime log version to 0.7.0").
  */
-const SERVER_VERSION = "0.10.1";
+const SERVER_VERSION = "0.11.0";
 
 let runtime: RuntimeConfig;
 try {
@@ -61,6 +63,11 @@ try {
 }
 
 const API_KEY = process.env.MISTRAL_API_KEY;
+if (process.argv.includes("--doctor")) {
+  // This explicit CLI command does not start a JSON-RPC transport.
+  process.stdout.write(JSON.stringify(configurationReport(runtime, Boolean(API_KEY)), null, 2) + "\n");
+  process.exit(0);
+}
 if (!API_KEY) {
   if (runtime.customEndpoint) {
     // A local vLLM usually has no auth at all, so this is routine, not a fault.
@@ -139,6 +146,7 @@ function createServer(): McpServer {
   registerAudioTools(server, mistral, profile);
 
   if (isEnabled("agents", profile)) registerAgentTools(server, mistral);
+  if (isEnabled("agent_catalog", profile)) registerAgentCatalogTools(server, mistral);
   if (isEnabled("files", profile)) registerFileTools(server, mistral);
   if (isEnabled("batch", profile)) registerBatchTools(server, mistral);
   if (isEnabled("conversations", profile)) registerConversationTools(server, mistral);

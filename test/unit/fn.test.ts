@@ -57,6 +57,28 @@ async function bootPair(mock = makeMock(), profile: MistralProfile = "admin") {
 }
 
 describe("mistral_tool_call", () => {
+  it("replays assistant calls and maps tool result IDs to the SDK", async () => {
+    const { client, mock } = await bootPair();
+    const result = await client.callTool({ name: "mistral_tool_call", arguments: {
+      messages: [
+        { role: "user", content: "Weather?" },
+        { role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name: "weather", arguments: "{}" } }] },
+        { role: "tool", content: "Sunny", tool_call_id: "call_1" },
+      ],
+      tools: [{ type: "function", function: { name: "weather", parameters: { type: "object" } } }],
+      reasoning_effort: "medium",
+    } });
+    expect(result.isError).toBeFalsy();
+    expect(mock.chat.complete).toHaveBeenCalledWith(expect.objectContaining({
+      reasoningEffort: "medium",
+      messages: [
+        { role: "user", content: "Weather?" },
+        { role: "assistant", content: null, toolCalls: [{ id: "call_1", type: "function", function: { name: "weather", arguments: "{}" } }] },
+        { role: "tool", content: "Sunny", toolCallId: "call_1", name: undefined },
+      ],
+    }));
+    await client.close();
+  });
   it("returns parsed tool_calls in structuredContent", async () => {
     const { client } = await bootPair();
     const tools = [

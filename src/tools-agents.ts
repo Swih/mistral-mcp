@@ -76,7 +76,8 @@ export function registerAgentTools(server: McpServer, mistral: Mistral) {
     {
       title: "Mistral Agents completion",
       description: [
-        "Run a completion against a pre-configured Mistral agent.",
+        "Legacy agents completion endpoint, retained for compatibility. For modern",
+        "agents, use agents_list/agents_get then conversation_start with agentId.",
         "",
         "Unlike `mistral_chat`, this tool requires an `agentId` pointing to an",
         "agent you've created in the Mistral dashboard. The agent carries its own",

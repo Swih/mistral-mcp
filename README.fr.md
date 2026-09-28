@@ -16,9 +16,9 @@
 
 ## Ce que c'est
 
-`mistral-mcp` expose l'API Mistral AI complète sous forme de tools, resources et prompts MCP. Un client MCP (Claude Code, Cursor, etc.) peut appeler `mistral_ocr` pour extraire le texte d'un PDF, `voxtral_transcribe` pour transcrire un enregistrement de réunion, ou `workflow_execute` pour démarrer un processus multi-étapes durable — sans quitter la boucle agent.
+`mistral-mcp` expose l'principales capacités de l'API Mistral AI sous forme de tools, resources et prompts MCP. Un client MCP (Claude Code, Cursor, etc.) peut appeler `mistral_ocr` pour extraire le texte d'un PDF, `voxtral_transcribe` pour transcrire un enregistrement de réunion, ou `workflow_execute` pour démarrer un processus multi-étapes durable — sans quitter la boucle agent.
 
-**Unique à Mistral, non disponible dans d'autres serveurs MCP :**
+**Quelques capacités Mistral exposées ici :**
 - `mistral_ocr` — Mistral Document AI : texte structuré + annotations bbox depuis n'importe quel PDF ou image
 - `voxtral_transcribe` — Voxtral : transcription avec diarisation optionnelle par locuteur
 - `codestral_fim` — Codestral fill-in-the-middle (FIM) pour la complétion de code inline
@@ -41,7 +41,7 @@ Cela peut être utile pour les organisations européennes qui évaluent une stac
 - bring-your-own Mistral API key (BYOK) — Mistral déclare ne pas utiliser les données API pour entraîner ses modèles
 - `MISTRAL_BASE_URL` route tous les appels vers votre propre endpoint OpenAI-compatible (vLLM, TGI, LiteLLM, une gateway interne) — aucun trafic vers `api.mistral.ai`
 - profil `core` léger et profil `metier-docs` ciblé pour limiter l'exposition de tools
-- cache `process_document` configurable par appel et via `MISTRAL_MCP_CACHE_DIR`, avec une durée de rétention (`MISTRAL_MCP_CACHE_TTL_HOURS`, 7 jours par défaut, `0` pour désactiver) au terme de laquelle les entrées sont supprimées, pas seulement ignorées
+- cache `process_document` configurable par appel et via `MISTRAL_MCP_CACHE_DIR`, avec une durée de rétention (`MISTRAL_MCP_CACHE_TTL_HOURS`, 7 jours par défaut, `0` pour désactiver) avec suppression des entrées expirées lors des opérations de cache suivantes
 - bypass du cache pour les documents d'identité activé par défaut, même quand `kind:"auto"` résout en `id_document`
 - transport Streamable HTTP + bearer pour déploiements contrôlés / on-premise
 - prompts et skills français de série (compte-rendu de réunion, résumé juridique, relance facture, message de commit, réponse email)
@@ -90,10 +90,10 @@ claude mcp add mistral -- npx -y mistral-mcp@latest
 
 | Profil | Tools | Quand l'utiliser |
 |---|---|---|
-| `core` (défaut) | 13 | Usage agentique quotidien — contexte minimal |
-| `admin` | 41 | Surface API complète — embeddings, streaming, batch, classify, files, agents, TTS, extraction documentaire, conversations stateful, libraries RAG. Pour debug, CI, scripts. |
-| `workflows` | 8 | Orchestration de pipeline + connecteurs uniquement |
-| `metier-docs` | 14 | Vertical documents — core + macro-tool `process_document` |
+| `core` (défaut) | 16 | Usage agentique quotidien — contexte minimal |
+| `admin` | 46 | Tous les outils implémentés par ce serveur — embeddings, streaming, batch, classify, files, agents, TTS, extraction documentaire, conversations stateful, libraries RAG. Pour debug, CI, scripts. |
+| `workflows` | 11 | Orchestration de pipeline + connecteurs uniquement |
+| `metier-docs` | 17 | Vertical documents — core + macro-tool `process_document` |
 | `self-hosted` | 5 | Inférence sur votre propre endpoint OpenAI-compatible — déduit de `MISTRAL_BASE_URL` |
 
 > `full` est accepté comme alias déprécié de `admin` pour rétro-compatibilité.
@@ -110,7 +110,7 @@ besoin de comparer ce tableau à votre déploiement.
 
 ## Tools
 
-### Profil core (16 tools — toujours disponibles)
+### Profil core (16 tools)
 
 | Tool | Ce qu'il fait |
 |---|---|
@@ -137,12 +137,12 @@ besoin de comparer ce tableau à votre déploiement.
 |---|---|
 | `process_document` | Macro-tool en un appel : OCR → classification (kind=auto) → extraction typée → validation → cache. Kinds : `contract` / `invoice` / `id_document` / `generic`. Retourne une union discriminée. Cache PII-safe (auto-bypass id_document). `minOcrConfidence` configurable. |
 
-### Profil admin uniquement (+28 tools, `MISTRAL_MCP_PROFILE=admin`)
+### Profil admin uniquement (+30 tools, `MISTRAL_MCP_PROFILE=admin`)
 
 | Groupe | Tools |
 |---|---|
 | Génération | `mistral_chat_stream`, `mistral_embed`, `mistral_tool_call` |
-| Agents | `mistral_agent`, `mistral_moderate`, `mistral_classify` |
+| Agents | `agents_list`, `agents_get`, `mistral_agent` (legacy), `mistral_moderate`, `mistral_classify` |
 | Audio | `voxtral_speak` (TTS) |
 | Fichiers | `files_upload`, `files_list`, `files_get`, `files_delete`, `files_signed_url` |
 | Batch | `batch_create`, `batch_get`, `batch_list`, `batch_cancel` |
@@ -389,7 +389,7 @@ curl -X POST https://api.mistral.ai/v1/connectors \
 
 | Projet | Périmètre | Idéal pour |
 |---|---|---|
-| **mistral-mcp** | API Mistral complète + Workflows + 11 skills Claude Code | Tout-en-un auto-hébergé |
+| **mistral-mcp** | Capacités Mistral + Workflows + 11 skills Claude Code | Tout-en-un auto-hébergé |
 | `mcp-mistral-ocr` (communauté) | OCR uniquement | Setup OCR léger |
 | Speakeasy `mistral-mcp-server-example` | Démo générée | Référence / template SDK |
 | Composio `mistral_ai` toolkit | Tools Mistral routés en SaaS | Hébergé, sans infra |
@@ -415,3 +415,34 @@ Pyramide de tests : unit → contract → stdio e2e → live API (nécessite `MI
 ## Licence
 
 MIT — Copyright Dayan Decamp
+
+## Fiabilité et diagnostic
+
+`npx mistral-mcp --doctor` affiche la configuration locale et les outils exposés,
+sans appel API. Aucun quota ni accès gratuit n'est déduit du catalogue.
+Les appels réels dépendent des limites du compte Mistral ; ce serveur ne configure
+ni facturation ni recharge automatique.
+
+- `agents_list` et `agents_get` découvrent les agents modernes. Utilisez ensuite
+  `conversation_start` avec `agentId`. `mistral_agent` conserve l'ancien endpoint déprécié pour compatibilité.
+- Les conversations conservent `text` et les blocs JSON `content` (champs camelCase
+  du SDK), notamment les références de sources et de fichiers. Ces références ne
+  téléchargent pas automatiquement les fichiers.
+- `mistral_tool_call` accepte l'historique assistant avec `tool_calls`, puis les
+  réponses de rôle `tool` avec `tool_call_id`.
+- `process_document` refuse les scores OCR absents, incomplets ou invalides.
+  Utilisez `mistral_ocr` pour obtenir du texte brut sans garantie de confiance.
+  Le cache distingue limite de pages, endpoint et modèles ; le seuil de qualité
+  est revérifié à chaque lecture. Les URL peuvent changer de contenu : utilisez
+  `options.cache: "bypass"` pour forcer une nouvelle extraction.
+- Le nettoyage du cache est opportuniste lors des lectures/écritures, pas un
+  effacement garanti à une heure précise lorsque le serveur est arrêté.
+
+Les [parcours reproductibles](examples/README.md) couvrent facture, transcription
+et documents avec sources. Leur exécution live n'est pas une preuve de gratuité.
+Les tests ignorés faute de ressources sont comptés séparément des succès.
+Avant publication : `npm run check:release` teste aussi le paquet npm installé,
+avec une API locale simulée ; les tests live restent une validation séparée.
+
+Limites : pas d'audio temps réel, pas d'administration complète de Mistral, pas
+d'OAuth intégré ni de sélection de connecteurs dans les conversations.

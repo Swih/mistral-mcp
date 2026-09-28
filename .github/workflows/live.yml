@@ -26,9 +26,17 @@ jobs:
             echo "::error::MISTRAL_API_KEY repository secret is not set. The live suite would skip all tests and still pass."
             exit 1
           fi
-      - run: npm run test:live
+      - run: npm run test:live -- --reporter=default --reporter=json --outputFile=live-results.json
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           # Small and Medium can have a zero request limit on Free-mode orgs.
           # This model exercises the same Chat, tool-calling and JSON-schema paths.
           MISTRAL_DEFAULT_MODEL: ministral-3b-latest
+      - name: Preserve live test results, including skipped tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-test-results
+          path: live-results.json
+          retention-days: 7
+          if-no-files-found: warn

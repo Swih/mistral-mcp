@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/client";
 import { McpServer, InMemoryTransport } from "@modelcontextprotocol/server";
 import type { Mistral } from "@mistralai/mistralai";
+import { registerAgentCatalogTools, AgentsListOutputSchema, AgentsGetOutputSchema } from "../../src/tools-agent-catalog.js";
 
 import {
   registerMistralTools,
@@ -420,6 +421,10 @@ function makeMock(): Mistral {
       },
     },
     beta: {
+      agents: {
+        list: vi.fn(async () => [{ id: "a1", name: "Agent", model: "m", version: 1 }]),
+        get: vi.fn(async () => ({ id: "a1", name: "Agent", model: "m", version: 1 })),
+      },
       rag: {
         searchIndexes: {
           getDeploymentSummaries: vi.fn(async () => ({
@@ -623,6 +628,7 @@ async function boot(mock: Mistral = makeMock()) {
   registerVisionTools(server, mock, "admin");
   registerAudioTools(server, mock, "admin");
   registerAgentTools(server, mock);
+  registerAgentCatalogTools(server, mock);
   registerFileTools(server, mock);
   registerBatchTools(server, mock);
   registerWorkflowTools(server, mock);
@@ -637,6 +643,18 @@ async function boot(mock: Mistral = makeMock()) {
 }
 
 describe("contract: structuredContent matches outputSchema", () => {
+  it.each([
+    { name: "agents_list", arguments: {}, schema: AgentsListOutputSchema },
+    { name: "agents_get", arguments: { agentId: "a1" }, schema: AgentsGetOutputSchema },
+  ])("$name", async ({ name, arguments: args, schema }) => {
+    const { client } = await boot();
+    try {
+      const result = await client.callTool({ name, arguments: args });
+      expect(result.isError).toBeFalsy();
+      expect(schema.safeParse(result.structuredContent).success).toBe(true);
+      expect(result.content).toEqual([{ type: "text", text: JSON.stringify(result.structuredContent) }]);
+    } finally { await client.close(); }
+  });
   it("mistral_chat", async () => {
     const { client } = await boot();
     const res = await client.callTool({
@@ -1402,7 +1420,7 @@ describe("contract: every tool declares required spec-compliance hooks", () => {
     const { tools } = await client.listTools();
     // Canary against accidental additions/removals. Bump deliberately, with a
     // CHANGELOG entry — never to make a red build green.
-    expect(tools.length).toBe(43);
+    expect(tools.length).toBe(45);
     for (const t of tools) {
       expect(t.outputSchema, `${t.name} missing outputSchema`).toBeTruthy();
       expect(t.annotations, `${t.name} missing annotations`).toBeTruthy();
