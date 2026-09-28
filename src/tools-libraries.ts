@@ -189,7 +189,7 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
           pagination: toPagination(res.pagination),
         };
         return {
-          content: [toTextBlock(`Found ${structured.libraries.length} librar${structured.libraries.length === 1 ? "y" : "ies"}.`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -221,7 +221,7 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
         const res = await mistral.beta.libraries.get({ libraryId: input.libraryId });
         const structured = { library: toLibrarySummary(res) };
         return {
-          content: [toTextBlock(`Library ${structured.library.name} (${structured.library.nb_documents} docs).`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -264,7 +264,7 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
           pagination: toPagination(res.pagination),
         };
         return {
-          content: [toTextBlock(`Found ${structured.documents.length} document(s).`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -312,7 +312,7 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
         });
         const structured = { document: toDocumentSummary(res) };
         return {
-          content: [toTextBlock(`Uploaded ${structured.document.name} as ${structured.document.id} (status: ${structured.document.process_status}).`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -351,7 +351,7 @@ export function registerLibraryTools(server: McpServer, mistral: Mistral) {
           process_status: String(res.processStatus),
         };
         return {
-          content: [toTextBlock(`Document ${structured.document_id}: ${structured.process_status}.`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {

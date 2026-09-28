@@ -119,6 +119,12 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolFamily>> = {
     openaiCompatible: false,
     summary: "Mistral Agents, moderation, and classification.",
   },
+  agent_catalog: {
+    tools: ["agents_list", "agents_get"],
+    profiles: ["admin"],
+    openaiCompatible: false,
+    summary: "Discover modern agents to use with conversation_start.",
+  },
   files: {
     tools: [
       "files_upload",

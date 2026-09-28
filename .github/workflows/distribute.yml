@@ -1,0 +1,56 @@
+name: Distribute release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Verify npm release matches manifest
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test "$(npm view mistral-mcp@$VERSION version)" = "$VERSION"
+      - name: Install pinned publisher and verify checksum
+        run: |
+          curl -fsSL -o publisher.tar.gz https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
+          curl -fsSL -o checksums.txt https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/registry_1.8.1_checksums.txt
+          mv publisher.tar.gz mcp-publisher_linux_amd64.tar.gz
+          grep ' mcp-publisher_linux_amd64.tar.gz$' checksums.txt | sha256sum --check --strict
+          tar -xzf mcp-publisher_linux_amd64.tar.gz
+      - run: ./mcp-publisher validate server.json
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish server.json
+
+  container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and smoke-test image
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker build --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" --label org.opencontainers.image.version="$VERSION" -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          docker run --rm "$IMAGE:$VERSION" node dist/index.js --doctor
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Publish image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:latest"

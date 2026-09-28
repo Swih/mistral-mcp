@@ -1,32 +1,11 @@
-/**
- * End-to-end test — spawns the built server as a child process over stdio
- * and verifies the full MCP protocol handshake with the official Client.
- *
- * This catches wiring bugs that InMemoryTransport can't:
- *   - missing shebang / broken bin
- *   - env var propagation
- *   - transport wire format
- *
- * Split in two suites on purpose:
- *   - "protocol surface" needs no API key. Since 0.8.2 the server boots without
- *     one, so CI can and must exercise the built binary on every push.
- *   - "live calls" needs MISTRAL_API_KEY and is skipped without it.
- *
- * Before that split the whole file was gated on the key, so `npm run test:stdio`
- * silently ran zero tests in CI while still reporting success.
- */
+/** Built-server protocol checks. Real provider calls live in test/live/stdio-live.test.ts. */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { Client } from "@modelcontextprotocol/client";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { config as loadEnv } from "dotenv";
 
-const envPath = resolve(process.cwd(), ".env");
-if (existsSync(envPath)) loadEnv({ path: envPath });
-
-const HAS_KEY = Boolean(process.env.MISTRAL_API_KEY);
 const DIST_PATH = resolve(process.cwd(), "dist/index.js");
 const DIST_EXISTS = existsSync(DIST_PATH);
 
@@ -83,6 +62,8 @@ describe.skipIf(!DIST_EXISTS)("stdio e2e (built server) — protocol surface", (
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      "agents_get",
+      "agents_list",
       "batch_cancel",
       "batch_create",
       "batch_get",
@@ -193,75 +174,4 @@ describe.skipIf(!DIST_EXISTS)("stdio e2e (built server) — protocol surface", (
     });
     expect(completion.completion.values).toContain("security");
   });
-});
-
-describe.skipIf(!HAS_KEY || !DIST_EXISTS)("stdio e2e (built server) — live calls", () => {
-  let client: Client;
-  let close: () => Promise<void>;
-
-  beforeAll(async () => {
-    ({ client, close } = await connectToBuiltServer());
-  });
-
-  afterAll(async () => {
-    await close?.();
-  });
-
-  it("reads the voices resource through stdio", async () => {
-    const result = await client.readResource({ uri: "mistral://voices" });
-    expect(result.contents.length).toBeGreaterThan(0);
-    const parsed = JSON.parse(firstTextContent(result));
-    expect(typeof parsed.fallback).toBe("boolean");
-    expect(Array.isArray(parsed.items)).toBe(true);
-    expect(typeof parsed.count).toBe("number");
-  }, 30_000);
-
-  it("performs a real mistral_chat call through the built server", async () => {
-    const result = await client.callTool({
-      name: "mistral_chat",
-      arguments: {
-        messages: [
-          {
-            role: "user",
-            content:
-              'Reply with exactly the single word: "pong". No punctuation.',
-          },
-        ],
-        model: "mistral-small-latest",
-        temperature: 0,
-        max_tokens: 8,
-      },
-    });
-
-    expect(result.isError).toBeFalsy();
-    const sc = result.structuredContent as { text: string; model: string };
-    expect(sc.text.toLowerCase()).toContain("pong");
-    expect(sc.model).toBe("mistral-small-latest");
-  }, 30_000);
-
-  it("performs a real mistral_moderate call through the built server", async () => {
-    const result = await client.callTool({
-      name: "mistral_moderate",
-      arguments: {
-        inputs: "Bonjour, tout va bien.",
-      },
-    });
-
-    expect(result.isError).toBeFalsy();
-    const sc = result.structuredContent as {
-      id: string;
-      model: string;
-      results: Array<{
-        categories?: Record<string, boolean>;
-        category_scores?: Record<string, number>;
-      }>;
-    };
-    expect(sc.id.length).toBeGreaterThan(0);
-    // The API resolves the "-latest" alias to the dated build that actually
-    // served the request (observed: mistral-moderation-2603). Asserting the
-    // alias came back verbatim pinned a behaviour the API does not promise.
-    expect(sc.model).toMatch(/^mistral-moderation/);
-    expect(Array.isArray(sc.results)).toBe(true);
-    expect(sc.results.length).toBeGreaterThan(0);
-  }, 30_000);
 });

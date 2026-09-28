@@ -27,6 +27,7 @@ const transport = new StdioClientTransport({
 });
 
 const client = new Client({ name: "try-it", version: "0.0.0" });
+try {
 await client.connect(transport);
 console.log("✓ MCP handshake OK");
 
@@ -38,12 +39,13 @@ const result = await client.callTool({
   name: "mistral_chat",
   arguments: {
     messages: [{ role: "user", content: "cc le chat" }],
-    model: "mistral-small-latest",
+    model: process.env.MISTRAL_DEFAULT_MODEL || "ministral-3b-latest",
     max_tokens: 100,
   },
 });
 
 const sc = result.structuredContent;
+if (result.isError || !sc) throw new Error(JSON.stringify(result.content));
 console.log("\n=== Mistral a répondu ===");
 console.log(sc.text);
 console.log("\n=== Meta ===");
@@ -51,4 +53,6 @@ console.log("  model         :", sc.model);
 console.log("  finish_reason :", sc.finish_reason);
 console.log("  tokens        :", JSON.stringify(sc.usage));
 
-await client.close();
+} finally {
+  await client.close();
+}

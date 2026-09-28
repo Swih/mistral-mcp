@@ -56,7 +56,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Connectors", () => {
     ({ client } = await bootConnectorServer());
   });
 
-  it("connectors_list returns a valid (possibly empty) connector summary list", async () => {
+  it("connectors_list returns a valid (possibly empty) connector summary list", async (ctx) => {
     const res = await client.callTool({ name: "connectors_list", arguments: {} });
     expect(res.isError).toBeFalsy();
     const sc = res.structuredContent as { connectors: Array<{ id: string; name: string }> };
@@ -70,9 +70,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Connectors", () => {
     }
   });
 
-  it("connectors_get fetches public metadata without leaking credentials", async () => {
+  it("connectors_get fetches public metadata without leaking credentials", async (ctx) => {
     if (!firstConnectorId) {
       console.warn("[skip] No connector visible on this account — skipping get test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -87,7 +88,7 @@ describe.skipIf(!HAS_KEY)("live Mistral Connectors", () => {
     expect(connector).not.toHaveProperty("connection_credentials");
   });
 
-  it("connectors_get with a bogus id returns isError:true (not a crash)", async () => {
+  it("connectors_get with a bogus id returns isError:true (not a crash)", async (ctx) => {
     const res = await client.callTool({
       name: "connectors_get",
       arguments: { connectorIdOrName: "non-existent-connector-00000000" },
@@ -98,9 +99,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Connectors", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it("connectors_list_tools returns the connector's tool catalog", async () => {
+  it("connectors_list_tools returns the connector's tool catalog", async (ctx) => {
     if (!firstConnectorId) {
       console.warn("[skip] No connector visible on this account — skipping list_tools test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({
@@ -128,9 +130,10 @@ describe.skipIf(!HAS_KEY)("live Mistral Connectors", () => {
     }
   });
 
-  it("connectors_call_tool either returns a result or a graceful error", async () => {
+  it("connectors_call_tool either returns a result or a graceful error", async (ctx) => {
     if (!firstConnectorId || !firstToolName) {
       console.warn("[skip] No callable connector tool found — skipping call_tool test.");
+      ctx.skip();
       return;
     }
     const res = await client.callTool({

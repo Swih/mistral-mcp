@@ -22,6 +22,7 @@ import { isEnabled, type MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
+  ReasoningEffortSchema,
   ToolMessageSchema,
   UsageSchema,
   errorResult,
@@ -104,6 +105,7 @@ export function registerFunctionTools(
               response_format: ResponseFormatSchema.optional().describe(
                 'Force structured output for the assistant text payload (json_object or json_schema). Tool-call arguments are independent and remain JSON per the function-calling spec.'
               ),
+              reasoning_effort: ReasoningEffortSchema.optional(),
               ...ChatSamplingParams,
             }),
       outputSchema: ToolCallOutputSchema,
@@ -120,7 +122,12 @@ export function registerFunctionTools(
         const model = input.model ?? defaultChatModel();
         const request: ChatCompletionRequest = {
           model,
-          messages: input.messages,
+          messages: input.messages.map((m) => {
+            if (m.role === "assistant") return { role: m.role, content: m.content ?? null, toolCalls: m.tool_calls };
+            if (m.role === "tool") return { role: m.role, content: m.content ?? "", toolCallId: m.tool_call_id, name: m.name };
+            return { role: m.role, content: m.content ?? "" };
+          }),
+          reasoningEffort: input.reasoning_effort,
           tools: input.tools,
           toolChoice: input.tool_choice,
           parallelToolCalls: input.parallel_tool_calls,

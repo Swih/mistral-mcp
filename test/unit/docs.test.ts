@@ -107,6 +107,21 @@ describe("process_document — input validation", () => {
 });
 
 describe("process_document — registration", () => {
+  it.each([undefined, -0.1, 1.1, NaN])("does not invent confidence for an invalid score: %s", async (score) => {
+    const mistral = mockMistral();
+    vi.mocked(mistral.ocr.process).mockResolvedValueOnce({ pages: [
+      { index: 0, markdown: "Unscored text", confidenceScores: { averagePageConfidenceScore: score } },
+    ] } as unknown as Awaited<ReturnType<typeof mistral.ocr.process>>);
+    const { client, cacheDir } = await bootClient(mistral);
+    try {
+      const result = await client.callTool({ name: "process_document", arguments: {
+        source: { type: "url", url: "https://example.test/unscored.pdf" }, kind: "generic",
+      } });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain("confidence is unavailable");
+      expect(mistral.chat.complete).not.toHaveBeenCalled();
+    } finally { await client.close(); rmSync(cacheDir, { recursive: true, force: true }); }
+  });
   it("registers exactly one tool named process_document", async () => {
     const { client, cacheDir } = await bootClient();
     try {
@@ -140,7 +155,7 @@ describe("process_document — generic kind happy path", () => {
       const sc = res.structuredContent as Record<string, unknown>;
       expect(sc.kind).toBe("generic");
       expect(sc.cache_hit).toBe(false);
-      expect(sc.pipeline_version).toBe("v0.8.0");
+      expect(sc.pipeline_version).toBe("v0.11.0");
       expect(typeof sc.ocr_text).toBe("string");
       expect(sc.page_count).toBe(1);
       // discriminated union validation

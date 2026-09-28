@@ -26,6 +26,7 @@ import { isEnabled, type MistralProfile } from "./profile.js";
 import {
   ChatSamplingParams,
   ResponseFormatSchema,
+  ReasoningEffortSchema,
   TextMessageSchema,
   UsageSchema,
   errorResult,
@@ -104,12 +105,7 @@ export function registerMistralTools(
               response_format: ResponseFormatSchema.optional().describe(
                 'Force a structured output: `{type:"json_object"}` for JSON mode, `{type:"json_schema", json_schema:{...}}` for strict schema mode.'
               ),
-              reasoning_effort: z
-                .enum(["none", "high"])
-                .optional()
-                .describe(
-                  "Controls reasoning depth for Magistral models. 'high' enables full chain-of-thought; 'none' disables it. Ignored on non-reasoning models."
-                ),
+              reasoning_effort: ReasoningEffortSchema.optional(),
               ...ChatSamplingParams,
             }),
       outputSchema: ChatOutputSchema,
@@ -178,6 +174,7 @@ export function registerMistralTools(
               messages: z.array(TextMessageSchema).min(1),
               model: ChatModelSchema.optional(),
               response_format: ResponseFormatSchema.optional(),
+              reasoning_effort: ReasoningEffortSchema.optional(),
               ...ChatSamplingParams,
             }),
       outputSchema: ChatStreamOutputSchema,
@@ -194,6 +191,7 @@ export function registerMistralTools(
         const model = input.model ?? defaultChatModel();
         const stream = await mistral.chat.stream({
           model,
+          reasoningEffort: input.reasoning_effort,
           messages: input.messages,
           temperature: input.temperature,
           maxTokens: input.max_tokens,

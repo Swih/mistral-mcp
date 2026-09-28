@@ -47,7 +47,7 @@ function mistralMock(counter: { ocr: number }) {
       process: vi.fn(async () => {
         counter.ocr += 1;
         return {
-          pages: [{ index: 0, markdown: "FACTURE 2026-0001 Total 100,00 EUR ACME" }],
+          pages: [{ index: 0, markdown: "FACTURE 2026-0001 Total 100,00 EUR ACME", confidenceScores: { averagePageConfidenceScore: 0.8 } }],
           usageInfo: { pagesProcessed: 1 },
         };
       }),
@@ -104,6 +104,56 @@ function cacheFiles(): string[] {
 }
 
 describe("cache retention", () => {
+  it("does not reuse a shorter extraction when the page limit changes", async () => {
+    const counter = { ocr: 0 };
+    const client = await boot(counter);
+    for (const maxPages of [1, 50]) {
+      const result = await client.callTool({ name: "process_document", arguments: {
+        source: SOURCE, kind: "generic", options: { maxPages },
+      } });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({ cache_hit: false });
+    }
+    expect(counter.ocr).toBe(2);
+  });
+
+  it("checks a stricter quality floor on cache hits", async () => {
+    const counter = { ocr: 0 };
+    const client = await boot(counter);
+    await client.callTool({ name: "process_document", arguments: { source: SOURCE, kind: "generic" } });
+    const result = await client.callTool({ name: "process_document", arguments: {
+      source: SOURCE, kind: "generic", options: { minOcrConfidence: 0.9 },
+    } });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("below the requested minimum");
+    expect(counter.ocr).toBe(1);
+  });
+
+  it("does not reuse results after the extraction model changes", async () => {
+    const counter = { ocr: 0 };
+    const client = await boot(counter);
+    const args = { source: SOURCE, kind: "generic" };
+    await client.callTool({ name: "process_document", arguments: args });
+    process.env.MISTRAL_DEFAULT_MODEL = "another-model";
+    const result = await client.callTool({ name: "process_document", arguments: args });
+    expect(result.structuredContent).toMatchObject({ cache_hit: false });
+    expect(counter.ocr).toBe(2);
+  });
+
+  it("rejects malformed cached output and recomputes it", async () => {
+    const counter = { ocr: 0 };
+    const client = await boot(counter);
+    const args = { source: SOURCE, kind: "generic" };
+    await client.callTool({ name: "process_document", arguments: args });
+    const [file] = cacheFiles();
+    const body = JSON.parse(readFileSync(file!, "utf8"));
+    body.payload = { kind: "generic", ocr_confidence: 1 };
+    writeFileSync(file!, JSON.stringify(body));
+    const result = await client.callTool({ name: "process_document", arguments: args });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ cache_hit: false });
+    expect(counter.ocr).toBe(2);
+  });
   it("serves a second identical call from cache", async () => {
     const counter = { ocr: 0 };
     const client = await boot(counter);

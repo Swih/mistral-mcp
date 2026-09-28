@@ -56,6 +56,8 @@ const ConversationEntrySummaryShape = {
   id: z.string().optional(),
   role: z.string().optional(),
   text: z.string().optional(),
+  content: z.union([z.string(), z.array(z.json())]).optional()
+    .describe("Original JSON content blocks, including citations and generated file references. SDK camelCase field names are preserved."),
   tool_name: z.string().optional(),
   tool_call_id: z.string().optional(),
   arguments: z.string().optional(),
@@ -95,6 +97,7 @@ function toEntrySummary(raw: unknown): z.infer<typeof ConversationEntrySummarySc
         id,
         role: typeof entry.role === "string" ? entry.role : undefined,
         text: entryText(entry.content),
+        content: z.union([z.string(), z.array(z.json())]).parse(entry.content),
         created_at,
       };
     case "function.call":
@@ -316,11 +319,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         };
 
         return {
-          content: [
-            toTextBlock(
-              `Conversation ${structured.conversation_id} started — ${structured.outputs.length} new entr${structured.outputs.length === 1 ? "y" : "ies"}.`
-            ),
-          ],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -382,11 +381,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         };
 
         return {
-          content: [
-            toTextBlock(
-              `Conversation ${structured.conversation_id}: ${structured.outputs.length} new entr${structured.outputs.length === 1 ? "y" : "ies"}.`
-            ),
-          ],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -418,7 +413,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         const res = await mistral.beta.conversations.get({ conversationId: input.conversationId });
         const structured = { conversation: toConversationSummary(res) };
         return {
-          content: [toTextBlock(`Conversation ${structured.conversation.id}.`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -454,7 +449,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
         });
         const structured = { conversations: res.map(toConversationSummary) };
         return {
-          content: [toTextBlock(`Found ${structured.conversations.length} conversation(s).`)],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {
@@ -493,9 +488,7 @@ export function registerConversationTools(server: McpServer, mistral: Mistral) {
           entries: res.entries.map(toEntrySummary),
         };
         return {
-          content: [
-            toTextBlock(`Conversation ${structured.conversation_id}: ${structured.entries.length} entries.`),
-          ],
+          content: [toTextBlock(structured)],
           structuredContent: structured,
         };
       } catch (err) {

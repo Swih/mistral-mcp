@@ -115,6 +115,23 @@ describe("tool listing (conversations)", () => {
 });
 
 describe("conversation_start", () => {
+  it("preserves citations and generated files in structured and text output", async () => {
+    const blocks = [
+      { type: "text", text: "Sources and attachment" },
+      { type: "tool_reference", title: "Source", url: "https://example.test/source", referenceIds: ["1"] },
+      { type: "tool_file", fileId: "file-1", fileName: "plot.png", fileType: "png" },
+    ];
+    const mock = makeMock({ conversations: { start: vi.fn(async () => ({
+      ...SAMPLE_RESPONSE, outputs: [{ ...SAMPLE_RESPONSE.outputs[0], content: blocks }],
+    })) } });
+    const { client } = await boot(mock);
+    const result = await client.callTool({ name: "conversation_start", arguments: { input: "Research" } });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ outputs: [{ text: "Sources and attachment", content: blocks }] });
+    expect(JSON.stringify(result.content)).toContain("file-1");
+    expect(JSON.stringify(result.content)).toContain("https://example.test/source");
+    await client.close();
+  });
   it("defaults to model when agentId is absent, builds tools + completionArgs, maps output", async () => {
     const { client, mock } = await boot();
     const result = await client.callTool({

@@ -4,7 +4,7 @@ Mistral AI capabilities for Claude Code, packaged as a one-click plugin. Auto-in
 
 ## What you get
 
-- **Auto-installed MCP server** (`mistral`) exposing 25 Mistral tools, 3 resources, and 6 prompts (chat, OCR, vision, Voxtral audio, Codestral, agents, moderation, files, batch, workflows). See the [main README](../README.md) for the full surface.
+- **Auto-installed MCP server** (`mistral`) exposing the core profile by default, with additional tools available through profiles (chat, OCR, vision, Voxtral audio, Codestral, agents, moderation, files, batch, workflows). See the [main README](../README.md) for the full surface.
 - **Five curated skills** that orchestrate the underlying tools/prompts with smart defaults:
 
 | Skill | What it does |
@@ -46,7 +46,7 @@ The plugin's `.mcp.json` declares one MCP server:
   "mcpServers": {
     "mistral": {
       "command": "npx",
-      "args": ["-y", "mistral-mcp@^0.6.0"],
+      "args": ["-y", "mistral-mcp@^0.11.0"],
       "env": {
         "MISTRAL_API_KEY": "${user_config.mistral_api_key}"
       }
@@ -55,16 +55,16 @@ The plugin's `.mcp.json` declares one MCP server:
 }
 ```
 
-When the plugin is enabled, Claude Code spawns `npx -y mistral-mcp@^0.5.0` and connects to it over stdio. The skill files in `skills/` are loaded as namespaced commands (`/mistral-mcp:*`).
+When the plugin is enabled, Claude Code spawns `npx -y mistral-mcp@^0.11.0` and connects to it over stdio. The skill files in `skills/` are loaded as namespaced commands (`/mistral-mcp:*`).
 
 ## Versioning
 
-This plugin tracks the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) npm package version. Plugin `0.6.x` pulls `mistral-mcp@^0.6.0` (any `0.6.x` patch, no minor bump). When `mistral-mcp@0.7.0` ships, this plugin will be bumped to `0.7.x` and `.mcp.json` updated in the same release.
+This plugin tracks the [`mistral-mcp`](https://www.npmjs.com/package/mistral-mcp) npm package version. Plugin `0.11.0` pulls `mistral-mcp@^0.11.0`. The plugin manifest, marketplace entry and `.mcp.json` are updated together.
 
 ## Security
 
 - The API key is stored in the system keychain (or `~/.claude/.credentials.json` as fallback) — never written to settings.json.
-- The plugin runs `npx` with `-y` to auto-install `mistral-mcp@^0.5.0` from npm. If you'd rather pin to an exact version, edit `.mcp.json` and replace the spec with `mistral-mcp@0.5.0` (no caret).
+- The plugin runs `npx` with `-y` to auto-install `mistral-mcp@^0.11.0` from npm. If you'd rather pin to an exact version, edit `.mcp.json` and replace the spec with `mistral-mcp@0.11.0` (no caret).
 
 ## Links
 

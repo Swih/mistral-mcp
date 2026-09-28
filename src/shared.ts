@@ -60,10 +60,18 @@ export const MultimodalMessageSchema = z.object({
 /** Tool-augmented message (chat with function calling). Supports the `tool` role. */
 export const ToolMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant", "tool"]),
-  content: z.string(),
+  content: z.string().nullable().optional(),
   tool_call_id: z.string().optional(),
   name: z.string().optional(),
+  tool_calls: z.array(z.object({
+    id: z.string().min(1),
+    type: z.literal("function").default("function"),
+    function: z.object({ name: z.string().min(1), arguments: z.string() }),
+  })).optional().describe("Assistant tool calls to replay before their tool-role results."),
 });
+
+export const ReasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh"])
+  .describe("Reasoning effort; supported values depend on the selected model.");
 
 // ---------- Usage ----------
 
