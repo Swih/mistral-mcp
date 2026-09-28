@@ -26,7 +26,7 @@
     "mistral_api_key": {
       "type": "string",
       "title": "Mistral API key",
-      "description": "Your Mistral API key. Get one at https://console.mistral.ai/. Stored by Claude Code's secrets storage, never written to settings.json.",
+      "description": "Your Mistral API key from https://console.mistral.ai/. Configure it using your client's supported secret settings; access and quota depend on your account.",
       "sensitive": true,
       "required": true
     }
