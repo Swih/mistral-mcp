@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mistral-mcp",
-  "version": "1.0.0-rc.1",
-  "description": "Document processing with Mistral: OCR, typed extraction, transcription and 11 skills. Advanced orchestration requires an explicit profile.",
+  "version": "1.0.0",
+  "description": "Extract invoices and documents from text, Markdown or Mistral OCR into typed JSON. Six core MCP tools, chat, vision, transcription and 11 Claude Code skills.",
   "author": {
     "name": "Dayan Decamp",
     "email": "akaswitsh@gmail.com",
@@ -14,6 +14,9 @@
   "keywords": [
     "mistral",
     "mcp",
+    "document-extraction",
+    "invoice-extraction",
+    "structured-output",
     "ocr",
     "codestral",
     "voxtral",

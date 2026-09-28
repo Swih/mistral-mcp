@@ -52,7 +52,7 @@ import {
  * server identity and the boot log can never disagree — they already drifted
  * twice (see "fix(release): align runtime log version to 0.7.0").
  */
-const SERVER_VERSION = "1.0.0-rc.1";
+const SERVER_VERSION = "1.0.0";
 
 let runtime: RuntimeConfig;
 try {
@@ -114,7 +114,15 @@ function createServer(): McpServer {
   const server = new McpServer(
     {
       name: "mistral-mcp",
+      title: "Mistral MCP — Document Extraction",
       version: SERVER_VERSION,
+      description: "Mistral MCP server for invoice and document extraction. Turn text, Markdown or OCR into typed JSON; chat, vision and audio included.",
+      websiteUrl: "https://github.com/Swih/mistral-mcp",
+      icons: [{
+        src: "https://raw.githubusercontent.com/Swih/mistral-mcp/main/assets/icon.svg",
+        mimeType: "image/svg+xml",
+        sizes: ["any"],
+      }],
     },
     {
       // The catalogue is decided at boot by the profile and never changes for

@@ -1,50 +1,30 @@
 ---
-description: Génère un compte-rendu de réunion structuré en français à partir d'une transcription brute ou d'un fichier audio. Utilise voxtral_transcribe pour l'audio puis le prompt mistral french_meeting_minutes. À utiliser quand l'utilisateur demande un compte-rendu, un CR, des minutes de réunion, ou résumé de meeting en français.
+name: french-meeting-minutes
+description: Transforme des notes, une transcription ou un enregistrement accessible en compte-rendu de réunion en français, avec décisions, actions et points ouverts.
 ---
 
-# Compte-rendu de réunion (FR)
+# Compte-rendu de réunion en français
 
-Tu transformes des notes ou un fichier audio de réunion en compte-rendu structuré professionnel en français.
+Pour du texte, utilise directement le prompt `french_meeting_minutes`, puis `mistral_chat`. Pour un enregistrement, commence par `voxtral_transcribe`. Ces deux outils sont disponibles dans `core`, `metier-docs` et `admin` ; le chat seul est aussi exposé dans `self-hosted`. Consulte `mistral://capabilities` en cas d'outil absent.
 
-## Inputs
+## Transcrire si nécessaire
 
-L'utilisateur fournit `$ARGUMENTS`. Plusieurs formats acceptés :
+Appelle `voxtral_transcribe` avec une URL audio accessible au fournisseur :
 
-1. **Texte brut** : transcription déjà tapée → passe directement à l'étape 2.
-2. **Chemin de fichier audio** (`.mp3`, `.wav`, `.m4a`, `.webm`, `.ogg`, `.flac`) ou URL audio → étape 1 puis étape 2.
-3. **Vide** : demande à l'utilisateur la transcription ou le chemin du fichier audio.
+```json
+{
+  "audio": { "type": "file_url", "fileUrl": "https://example.com/reunion.mp3" },
+  "diarize": true,
+  "timestampGranularities": ["segment"]
+}
+```
 
-## Workflow
+Pour un fichier audio déjà téléversé, utilise `audio: {type: "file", fileId: "<identifiant audio>"}`. Ajoute `language: "fr"` seulement si la langue est connue ; sinon omets cette option. Un chemin local ne remplace pas `fileUrl`. Si aucune route de téléversement audio n'est disponible, demande une URL accessible, un identifiant audio existant ou une transcription. `files_upload` n'accepte pas `purpose: "audio"` dans son schéma actuel.
 
-### Étape 1 — Transcription (uniquement si audio)
+Après vérification de `isError`, récupère `structuredContent.text`. Les segments facultatifs contiennent `speaker_id`, `text`, `start` et `end` ; conserve ces repères si l'attribution des actions en dépend. Un identifiant de locuteur n'établit pas son identité.
 
-Appelle l'outil MCP `voxtral_transcribe` :
-- `audio_url` : chemin local ou URL de l'audio
-- `language` : `fr` (par défaut)
+## Produire le compte-rendu
 
-Récupère le `text` du résultat. C'est ta transcription.
+Récupère le prompt MCP `french_meeting_minutes` avec `transcript` et `length` : `courte`, `moyenne` par défaut, ou `detaillee`. Convertis chaque message texte retourné en `{role, content: message.content.text}` et fournis ces messages à `mistral_chat`. Omet `model` pour respecter le modèle configuré ; ne change pas de modèle sur un seuil de longueur supposé.
 
-### Étape 2 — Compte-rendu structuré
-
-Appelle le prompt MCP `french_meeting_minutes` exposé par le serveur `mistral` :
-- `transcript` : la transcription (étape 1 ou input direct)
-- `length` : `moyenne` par défaut. Demande `courte` ou `detaillee` si l'utilisateur le précise.
-
-Le prompt génère des messages prêts à passer à `mistral_chat`. Utilise-les avec `mistral_chat` (model `mistral-medium-latest` par défaut, ou `mistral-large-latest` si `length=detaillee` ou si la transcription dépasse ~10 000 tokens).
-
-## Output attendu
-
-Un compte-rendu en français avec sections obligatoires :
-1. **Contexte** (1-2 phrases)
-2. **Participants**
-3. **Décisions prises**
-4. **Actions à mener** (format `[Responsable] Action — échéance`)
-5. **Points ouverts**
-
-Reste factuel, n'invente pas de participant/date/chiffre. Si une info manque, écris « non précisé ».
-
-## Exemples d'invocation
-
-- `/mistral-mcp:french-meeting-minutes /tmp/standup.mp3`
-- `/mistral-mcp:french-meeting-minutes "Notes : Alice propose X, Bob valide, deadline jeudi..."`
-- `/mistral-mcp:french-meeting-minutes` → l'utilisateur fournit ensuite l'input
+Vérifie `isError`, puis relis `structuredContent.text` contre la transcription. Le compte-rendu comporte : contexte, participants, décisions prises, actions à mener au format `[Responsable] Action — échéance`, et points ouverts. Conserve « non précisé » pour les éléments absents et distingue une proposition d'une décision prise. Si la transcription est partielle, indique la couverture réelle.

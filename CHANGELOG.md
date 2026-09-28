@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-The source version is `1.0.0-rc.1`; npm `latest` remains `0.11.0` until a separate release.
+## [1.0.0] - 2026-09-28
 
 ### Changed
 
@@ -52,6 +52,9 @@ The source version is `1.0.0-rc.1`; npm `latest` remains `0.11.0` until a separa
   This is one synthetic invoice result, not an accuracy or reliability score.
 - Built-binary tests for all five profiles, default-profile migration and
   capability/resource consistency. Document contract tests cover all four kinds.
+- `npm run build:bundles -- <new-output-directory>` creates and validates the MCPB,
+  exports the actual tool catalog and packages the Claude Code plugin. Runtime
+  dependencies are locked; the artifacts include SHA-256 checksums.
 
 ### Fixed
 
@@ -67,10 +70,12 @@ The source version is `1.0.0-rc.1`; npm `latest` remains `0.11.0` until a separa
   identity. Core input parameters now include usage descriptions.
 - API errors distinguish authentication, quota and provider failures without
   copying provider HTTP bodies into tool results.
+- All 11 Claude Code skills use current tool arguments and profile requirements.
+  Invoice and contract guides use `process_document`, including supplied text.
 
 ### Known limitations
 
-- Live OCR and OCR-based extraction accuracy remain unverified for this candidate while the
+- Live OCR and OCR-based extraction accuracy remain unverified for this release while the
   CI account's effective OCR request quota is zero (HTTP 429). The text route
   avoids OCR but does not resolve that blocker or make chat processing local or
   free. No paid plan was activated.

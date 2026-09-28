@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "mistral-mcp@1.0.0-rc.1"
+        "mistral-mcp@1.0.0"
       ],
       "env": {
         "MISTRAL_API_KEY": "${user_config.mistral_api_key}"

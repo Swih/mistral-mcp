@@ -1,15 +1,15 @@
-# Migration: 0.11.0 → 1.0.0-rc.1
+# Migration: 0.11.0 → 1.0.0
 
 [English README](./README.md) · [README français](./README.fr.md) · [Français ci-dessous](#migration-en-français)
 
-`1.0.0-rc.1` is a **source prerelease, not yet published to npm**. npm `latest`
-is `0.11.0`. Build the source prerelease to try the new behavior; an unversioned
-`npx mistral-mcp` or `mistral-mcp@latest` does not select this source checkout.
+`1.0.0` changes the default tool set and document result schema. Pin
+`mistral-mcp@1.0.0` in your MCP client and apply both migrations below. Use an
+explicit version instead of `latest` to control when your integration upgrades.
 
 ## Breaking change: the default tool set
 
 With no custom endpoint or explicit profile, the server uses `core`. Its tool
-set changes from 16 tools in `0.11.0` to six in `1.0.0-rc.1`:
+set changes from 16 tools in `0.11.0` to six in `1.0.0`:
 
 ```text
 codestral_fim
@@ -33,7 +33,7 @@ The `mistral://workflows` resource follows the workflow family: it is no longer
 registered in `core`, and remains in those three profiles. Clients that call
 these tools or read this resource must select an appropriate profile.
 
-| Profile | 0.11.0 tools | 1.0.0-rc.1 tools | Action |
+| Profile | 0.11.0 tools | 1.0.0 tools | Action |
 |---|---:|---:|---|
 | `core` | 16 | 6 | Migrate orchestration clients explicitly |
 | `metier-docs` | 17 | 17 | Preserved legacy profile: the entire old core plus `process_document` |
@@ -92,14 +92,14 @@ Use `MISTRAL_MCP_PROFILE=workflows` for orchestration alone, or
 `MISTRAL_MCP_PROFILE=admin` for all 46 tools. A profile selects exposed tools;
 it does not grant provider permissions, quota, deployments or connectors.
 
-Example client configuration for a built source checkout:
+Client configuration pinned to version `1.0.0`:
 
 ```json
 {
   "mcpServers": {
     "mistral": {
-      "command": "node",
-      "args": ["/absolute/path/to/mistral-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "mistral-mcp@1.0.0"],
       "env": {
         "MISTRAL_API_KEY": "your_key_here",
         "MISTRAL_MCP_PROFILE": "metier-docs"
@@ -109,22 +109,22 @@ Example client configuration for a built source checkout:
 }
 ```
 
-Replace the path with your local checkout. Run `npm ci` and `npm run build`
-before starting it. A `.env` file alone does not configure the server: set the
-environment through your client or service manager. The invoice example has its
-own `dotenv` loader.
+This runs `npx -y mistral-mcp@1.0.0`; no source build is needed for the MCP
+server. A `.env` file alone does not configure it: set the environment through
+your client or service manager. The source invoice example has its own `dotenv`
+loader and requires a checkout and build, as shown below.
 
 To inspect this profile without API calls:
 
 ```bash
 # POSIX shell
-MISTRAL_MCP_PROFILE=metier-docs node dist/index.js --doctor
+MISTRAL_MCP_PROFILE=metier-docs npx -y mistral-mcp@1.0.0 --doctor
 ```
 
 ```powershell
 # PowerShell
 $env:MISTRAL_MCP_PROFILE = "metier-docs"
-node dist/index.js --doctor
+npx -y mistral-mcp@1.0.0 --doctor
 ```
 
 Restart the MCP process, refresh the client's tool catalog, and read
@@ -135,9 +135,8 @@ An explicit profile overrides the `self-hosted` inference from
 `MISTRAL_BASE_URL`. Only enable Mistral-specific tools on a custom endpoint if it
 implements their APIs; selecting a profile does not supply an OCR backend.
 
-The [Claude Code plugin](./claude-plugin/README.md) pins the exact RC npm version.
-Until that version is published, use the local build configuration above. Review
-the profile used by skills that need workflow or connector tools.
+The [Claude Code plugin](./claude-plugin/README.md) pins `mistral-mcp@1.0.0`.
+Review the profile used by skills that need workflow or connector tools.
 
 ## Stay on or return to 0.11.0
 
@@ -158,7 +157,7 @@ Pin the exact published version instead of `latest` or a version range:
 }
 ```
 
-This restores the published 16-tool core. Use `metier-docs` instead of `core` in
+This restores the previous 16-tool core. Use `metier-docs` instead of `core` in
 that configuration if you also need `process_document` on `0.11.0`. That version
 does not accept `source.type: "text"` or return the new `extraction_source` field;
 use the previous OCR input and output contract when rolling back. Restart and
@@ -168,9 +167,21 @@ future availability.
 
 ## Document example and validation
 
-After installation and build, with `MISTRAL_API_KEY` in the environment or `.env`:
+The script and fixtures are not included in the npm package. Check out the
+release tag and build from the repository root:
+
+```bash
+git clone https://github.com/Swih/mistral-mcp.git
+cd mistral-mcp
+git checkout v1.0.0
+npm ci
+npm run build
+```
+
+Set the key and model in your environment or local `.env`:
 
 ```dotenv
+MISTRAL_API_KEY=your_key_here
 MISTRAL_DEFAULT_MODEL=ministral-3b-latest
 ```
 
@@ -218,9 +229,9 @@ File management uses the Files API without adding admin tools to core. See the
 [examples guide](./examples/README.md) for file limits, bounded file-readiness
 retries and cleanup behavior.
 
-The known **HTTP 429 / zero OCR quota blocker is unresolved**. Avoiding OCR with
-supplied text does not establish a successful live OCR invoice run for this
-prerelease. Compare results against their source; the
+**Known limitation:** the test account's HTTP 429 / zero OCR quota blocked live
+OCR validation. The text run does not validate OCR extraction. Compare results
+against their source; the
 [synthetic PDF](./test/fixtures/corpus/invoice-fr-table.pdf) and
 [fixture ground truth](./test/fixtures/corpus.json) describe expected content,
 not a captured API response. Schema validation checks structure and types, not factual
@@ -233,17 +244,12 @@ text. Supplied text retains its 60,000-unit input limit for every kind.
 reports OCR text checks separately from expected extracted invoice fields;
 fixture expectations alone establish no measured live accuracy.
 
-If you already convert documents locally with
-[Docling](https://github.com/docling-project/docling), pass its Markdown output
-as a text source. Docling is optional and upstream: this repository provides no
-integration, dependency or automatic fallback. Chat classification and typed
-extraction still use the configured provider.
-
 ## Migration en français
 
-`1.0.0-rc.1` est une **préversion source non publiée** ; npm `latest` reste
-`0.11.0`. Les commandes `npx` sans version ou avec `@latest` ne lancent pas votre
-copie locale de la préversion.
+`1.0.0` change les outils par défaut et le schéma des résultats documentaires.
+Épinglez `mistral-mcp@1.0.0` dans le client MCP et appliquez les deux migrations
+ci-dessous. Une version explicite permet de choisir quand mettre à jour votre
+intégration.
 
 La rupture concerne `core`, qui passe de 16 à six outils : `codestral_fim`,
 `mistral_chat`, `mistral_ocr`, `mistral_vision`, `process_document` et
@@ -298,15 +304,14 @@ les 11 outils d'orchestration. Pour l'orchestration seule, choisissez
 Il n'y a pas de sixième profil : `full` est un alias déprécié de `admin`.
 
 Les configurations JSON et commandes POSIX/PowerShell ci-dessus s'appliquent aussi
-en français. Compilez les sources, configurez l'environnement du client ou du
-service, redémarrez le serveur et actualisez sa liste d'outils. `--doctor` et
+en français. Le client lance `npx -y mistral-mcp@1.0.0`, sans compilation locale.
+Configurez son environnement, redémarrez le serveur et actualisez sa liste d'outils. `--doctor` et
 `mistral://capabilities` permettent de contrôler le profil, sans prouver l'accès
 API ou les quotas. Un profil explicite remplace celui déduit de
 `MISTRAL_BASE_URL`, mais ne rend pas un backend compatible avec les API manquantes.
-Le plugin Claude Code épingle la RC npm exacte : utilisez la compilation locale
-tant qu'elle n'est pas publiée.
+Le plugin Claude Code épingle lui aussi `mistral-mcp@1.0.0`.
 
-Pour rester sur la version publiée ou y revenir, épinglez exactement
+Pour rester sur l'ancienne version ou y revenir, épinglez exactement
 `mistral-mcp@0.11.0` dans les arguments `npx` du client, comme dans le JSON
 ci-dessus. Son profil `core` garde 16 outils ; choisissez `metier-docs` pour y
 ajouter `process_document`. Cette version n'accepte pas `source.type: "text"` et
@@ -314,7 +319,9 @@ ne renvoie pas `extraction_source` : rétablissez l'ancien contrat d'entrée OCR
 de sortie en cas de retour arrière. L'épinglage ne garantit pas la pérennité de
 l'API Mistral sous-jacente.
 
-L'exemple facture exige installation, build, clé API et quota de chat. Définissez
+Le script facture et ses fixtures sont absents du paquet npm. Récupérez le tag
+`v1.0.0` avec les commandes Git ci-dessus, puis lancez `npm ci` et `npm run build`
+depuis la racine du dépôt. L'exemple exige une clé API et du quota de chat. Définissez
 `MISTRAL_DEFAULT_MODEL=ministral-3b-latest` dans l'environnement ou `.env`, comme
 ci-dessus. Ce modèle a été vérifié sur le compte de test ; choisissez un modèle
 avec quota sur le vôtre. Le modèle par défaut peut avoir un quota nul ; ce réglage
@@ -342,8 +349,8 @@ supprimer le fichier dans `finally`, même après un échec d'extraction.
 fichiers sans ajouter d'outils admin dans core. Le
 [guide des exemples](./examples/README.md) détaille les limites, les reprises
 bornées en cas de fichier indisponible pour l'OCR et le nettoyage.
-**Le blocage HTTP 429 / quota OCR nul reste non résolu** ; le parcours texte
-n'établit pas le succès du parcours facture OCR live pour cette préversion.
+**Limite connue :** l'erreur HTTP 429 / quota OCR nul du compte de test a bloqué
+la validation OCR live. Le succès du parcours texte ne valide pas l'extraction OCR.
 
 La [vérité terrain](./test/fixtures/corpus.json) décrit le corpus synthétique,
 pas une sortie réelle capturée. La validation du schéma vérifie structure et
@@ -354,9 +361,3 @@ refusées, sans troncature silencieuse ; découpez le document ou utilisez `gene
 pour le texte OCR. La limite d'entrée de 60 000 unités du texte fourni reste
 valable pour tous les types.
 `options.languageHints` s'applique à l'extraction typée.
-
-Si vous convertissez déjà vos documents localement avec
-[Docling](https://github.com/docling-project/docling), transmettez le Markdown
-produit comme source texte. Docling est optionnel et en amont : ce dépôt ne
-fournit ni intégration, ni dépendance, ni repli automatique. Classification par
-chat et extraction typée utilisent toujours le fournisseur configuré.

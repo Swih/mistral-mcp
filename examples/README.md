@@ -1,15 +1,31 @@
 # Examples / Exemples
 
-These examples use the **unpublished source prerelease `1.0.0-rc.1`**; npm
-`latest` remains `0.11.0`. Ces exemples utilisent la **préversion source
-`1.0.0-rc.1` non publiée** ; npm `latest` reste à `0.11.0`.
+These examples target **mistral-mcp 1.0.0**. The scripts and fixtures are **not
+included in the npm package**. Check out the release tag, install development
+dependencies and build from the repository root:
 
-Run from the repository root after `npm ci` and `npm run build`.
+Ces exemples ciblent **mistral-mcp 1.0.0**. Les scripts et fixtures sont **absents
+du paquet npm**. Récupérez le tag de release, installez les dépendances de
+développement et compilez depuis la racine du dépôt :
+
+```bash
+git clone https://github.com/Swih/mistral-mcp.git
+cd mistral-mcp
+git checkout v1.0.0
+npm ci
+npm run build
+```
+
+To connect an MCP client with `npx -y mistral-mcp@1.0.0`, use the
+[installation guide](../README.md#install-in-an-mcp-client).
+Pour connecter un client MCP, consultez le
+[guide d'installation](../README.fr.md#installer-dans-un-client-mcp).
+
 Real examples require `MISTRAL_API_KEY` in the environment or `.env`. Check your
 account allowance first: these scripts do not guarantee free provider access.
 
-Depuis la racine, après `npm ci` et `npm run build`. Les exemples réels requièrent
-`MISTRAL_API_KEY` dans l'environnement ou `.env`. Vérifiez les quotas de votre
+Les exemples réels requièrent `MISTRAL_API_KEY` dans l'environnement ou `.env`.
+Vérifiez les quotas de votre
 compte ; ces scripts ne garantissent pas d'accès gratuit au fournisseur.
 
 ## Offline verification / Vérification sans appel API
@@ -80,11 +96,6 @@ extraction also uses chat. Explicit `kind: "generic"` with a text source makes
 no API calls and preserves the input in both `ocr_text` and `structured_text`;
 the invoice script always requests `invoice`.
 
-If you already use [Docling](https://github.com/docling-project/docling) for local
-conversion, you can supply its Markdown output as the input above. Docling is
-an optional upstream step: this repository has no Docling integration,
-dependency or automatic fallback. It does not make chat processing local or free.
-
 The existing PDF/image route is also available:
 
 ```bash
@@ -106,8 +117,9 @@ use the SDK retry policy; the example adds no manual 429 or other 422 retries.
 The OCR route defaults to 50 pages; split longer invoices beforehand. Missing,
 incomplete, invalid or low OCR confidence causes an error. Successful OCR results
 have `extraction_source: "mistral_ocr"`, numeric `ocr_confidence` and `page_count`,
-and OCR text in `ocr_text`. **The HTTP 429 / zero OCR quota blocker remains
-unresolved.** The text route does not establish OCR availability. The
+and OCR text in `ocr_text`. **Known limitation:** the test account's HTTP 429 /
+zero OCR quota blocked live OCR validation. The text run does not validate OCR
+extraction. The
 [synthetic PDF](../test/fixtures/corpus/invoice-fr-table.pdf) and
 [fixture ground truth](../test/fixtures/corpus.json) describe test input and
 expected content, not a captured live result or measured extraction accuracy.
@@ -165,11 +177,6 @@ L'extraction typée utilise aussi le chat. Un `kind: "generic"` explicite avec u
 source texte ne fait aucun appel API et conserve l'entrée dans `ocr_text` et
 `structured_text` ; le script facture demande toujours `invoice`.
 
-Si vous utilisez déjà [Docling](https://github.com/docling-project/docling) pour
-une conversion locale, vous pouvez fournir le Markdown produit comme entrée.
-C'est une étape optionnelle en amont : ce dépôt n'a ni intégration Docling,
-ni dépendance, ni repli automatique. Elle ne rend pas le chat local ou gratuit.
-
 Le parcours PDF/image des commandes ci-dessus reste disponible : PDF, PNG, JPEG
 (`.jpg`/`.jpeg`) et WebP, fichiers réguliers non vides de **20 Mio** maximum, avec
 extension et signature concordantes. Cette vérification ne garantit pas la
@@ -186,8 +193,9 @@ Le parcours OCR se limite à 50 pages par défaut ; découpez les factures plus
 longues. Une confiance OCR absente, incomplète, invalide ou trop faible provoque
 un échec. Un résultat OCR réussi contient `extraction_source: "mistral_ocr"`,
 une confiance `ocr_confidence` et un nombre de pages `page_count` numériques, et
-le texte OCR dans `ocr_text`. **Le blocage HTTP 429 / quota OCR nul reste non
-résolu.** Le parcours texte ne démontre pas la disponibilité OCR. Le
+le texte OCR dans `ocr_text`. **Limite connue :** l'erreur HTTP 429 / quota OCR nul
+du compte de test a bloqué la validation OCR live. Le succès du parcours texte ne
+valide pas l'extraction OCR. Le
 [PDF synthétique](../test/fixtures/corpus/invoice-fr-table.pdf) et sa
 [vérité terrain](../test/fixtures/corpus.json) décrivent l'entrée et le contenu
 attendu, pas un résultat réel capturé ni une précision mesurée.
@@ -235,6 +243,10 @@ node examples/try-it.mjs --local
 node examples/try-it.mjs
 ```
 
-`--local` uses the local build; the default uses the published npm package.
-Both make a real chat call. Set `MISTRAL_DEFAULT_MODEL` to an available model.
-Les deux variantes font un appel réel ; choisissez un modèle accessible à votre compte.
+`--local` uses the release checkout's build; the default uses the unpinned npm
+package (`latest`). Use `--local` to test this checkout's version. Both make a
+real chat call. Set `MISTRAL_DEFAULT_MODEL` to an available model.
+`--local` utilise le build du tag de release ; sans cette option, le paquet npm
+n'est pas épinglé (`latest`). Utilisez `--local` pour tester la version de votre
+copie du dépôt. Les deux variantes font un appel réel ; choisissez un modèle
+accessible à votre compte.

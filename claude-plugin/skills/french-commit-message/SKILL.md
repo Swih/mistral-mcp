@@ -1,65 +1,24 @@
 ---
-description: Génère un message de commit git en français au format Conventional Commits à partir des changements stagés. Récupère automatiquement le diff via git diff --staged. À utiliser quand l'utilisateur demande un commit message, message de commit, ou résumé de diff en français.
+name: french-commit-message
+description: Rédige un message Conventional Commits en français à partir d'un diff fourni ou des changements Git indexés. À utiliser pour une demande de message de commit ou de résumé de diff en français.
 ---
 
-# Message de commit (FR, Conventional Commits)
+# Message de commit en français
 
-Tu génères un message de commit Conventional Commits propre en français à partir du diff git.
+Utilise le prompt MCP `french_commit_message`, puis `mistral_chat`. Le chat est disponible dans `core`, `metier-docs`, `admin` et sur un endpoint compatible avec `self-hosted`. Vérifie `mistral://capabilities` si nécessaire.
 
-## Workflow
+1. Utilise le diff fourni ou exécute `git diff --staged`. Si l'index est vide, consulte `git diff` et précise que le message proposé décrit des changements non indexés. S'il n'y a aucun diff, demande la plage à résumer.
+2. Choisis le type selon le changement principal : `feat`, `fix`, `refactor`, `docs`, `test`, `chore` ou `perf`. Ne déduis pas une fonctionnalité du seul nom d'un fichier.
+3. Récupère le prompt `french_commit_message` avec `diff` et `scope`. Malgré son nom, `scope` attend le **type** ci-dessus, pas le nom d'un module.
+4. Convertis chaque message texte du prompt en `{role, content: message.content.text}`, puis appelle `mistral_chat` avec `messages`. Omet `model` pour respecter le modèle configuré. `temperature: 0.3` est facultatif et ne garantit pas une sortie déterministe.
+5. Vérifie `isError`, puis lis `structuredContent.text` et confronte le message au diff.
 
-### Étape 1 — Récupérer le diff
+Rends un message prêt à copier :
 
-Sauf si l'utilisateur fournit un diff dans `$ARGUMENTS`, exécute :
+```text
+<type>(<portée>): <sujet français à l'impératif, 72 caractères maximum>
 
-```bash
-git diff --staged
+<corps facultatif expliquant la raison du changement>
 ```
 
-Si le résultat est vide :
-1. Vérifie s'il y a des changements non-stagés : `git status`
-2. Demande à l'utilisateur de stage les fichiers (`git add`) ou propose-lui d'inclure les changements unstaged via `git diff` simple.
-
-### Étape 2 — Détecter le scope Conventional Commits
-
-Inspecte les fichiers touchés et déduis le type :
-
-| Patterns de fichiers | Type probable |
-|---|---|
-| `*.test.*`, `**/__tests__/**`, `test/**` | `test` |
-| `README*`, `*.md`, `docs/**` | `docs` |
-| `package.json`, `package-lock.json`, `Dockerfile`, `.github/**` | `chore` |
-| `**/bench*`, perf-related code | `perf` |
-| Refactor sans nouvelle feature ni fix (regarde le diff) | `refactor` |
-| Bug visible dans le diff (correction d'erreur, edge case) | `fix` |
-| Tout le reste | `feat` |
-
-Si plusieurs types s'appliquent, choisis le **dominant** (le changement principal). Demande à l'utilisateur en cas d'ambiguïté forte.
-
-### Étape 3 — Générer le message
-
-Appelle le prompt MCP `french_commit_message` exposé par le serveur `mistral` :
-- `diff` : le diff récupéré à l'étape 1
-- `scope` : le type détecté à l'étape 2
-
-Utilise `mistral_chat` avec :
-- `model` : `codestral-latest` (spécialisé code, comprend bien les diffs)
-- `temperature` : `0.3` (peu de variabilité, on veut du déterministe)
-
-## Format de sortie
-
-```
-<type>(<portée>): <sujet 72 char max, impératif présent>
-
-<corps optionnel : pourquoi, pas quoi>
-```
-
-Règles :
-- Sujet en impératif présent, **sans point final**
-- Pas d'émoji, pas de majuscule au début du sujet
-- Corps uniquement si le « pourquoi » n'est pas trivial
-
-## Exemples
-
-- `/mistral-mcp:french-commit-message` → utilise `git diff --staged`
-- `/mistral-mcp:french-commit-message <diff>` → utilise le diff fourni
+Le sujet commence par une minuscule, sans émoji ni point final. N'invente pas de motivation ni de tests exécutés. Cette demande produit un message ; elle n'autorise pas à indexer des fichiers, créer un commit ou pousser une branche.

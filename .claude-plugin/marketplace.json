@@ -10,8 +10,8 @@
     {
       "name": "mistral-mcp",
       "source": "./claude-plugin",
-      "description": "Mistral document extraction, OCR and audio for Claude Code, with optional advanced profiles and 11 skills.",
-      "version": "1.0.0-rc.1",
+      "description": "Mistral MCP: typed invoice and document extraction from text, Markdown or OCR, plus chat, vision, audio and 11 Claude Code skills.",
+      "version": "1.0.0",
       "author": {
         "name": "Dayan Decamp",
         "email": "akaswitsh@gmail.com"
@@ -20,6 +20,8 @@
       "repository": "https://github.com/Swih/mistral-mcp",
       "license": "MIT",
       "tags": [
+        "document-extraction",
+        "invoice-extraction",
         "mistral",
         "ocr",
         "french",
@@ -29,6 +31,9 @@
         "audio"
       ],
       "keywords": [
+        "document-extraction",
+        "invoice-extraction",
+        "structured-output",
         "mistral",
         "mcp",
         "ocr",

@@ -1,26 +1,63 @@
-# mistral-mcp
+# Mistral MCP server for document extraction
 
-Extract structured data from invoices, contracts and other documents through MCP.
-`process_document` accepts existing plain text or Markdown for typed extraction,
-or uses Mistral OCR for PDFs and images. It can also classify the document in the
-same tool call. The default profile includes chat, vision, transcription and code
-completion.
+[![npm version](https://img.shields.io/npm/v/mistral-mcp)](https://www.npmjs.com/package/mistral-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/mistral-mcp)](https://www.npmjs.com/package/mistral-mcp)
+[![CI](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Swih/mistral-mcp/actions/workflows/ci.yml)
+[![MIT license](https://img.shields.io/npm/l/mistral-mcp)](https://github.com/Swih/mistral-mcp/blob/main/LICENSE)
+
+**Turn text or Markdown invoices into typed JSON through MCP.** `mistral-mcp`
+uses Mistral chat to extract vendors, totals, line items and due dates, then
+validates the response schema. Optional Mistral OCR handles PDF and image inputs.
+`process_document` also supports contracts, identity documents and automatic
+classification. Six tools are available by default, including chat, vision,
+transcription and code completion.
 
 [Français](./README.fr.md) · [Migration guide](./MIGRATION.md) · [Examples](./examples/README.md) · [Deployment](./deploy/README.md)
 
-**Source prerelease: `1.0.0-rc.1`, not yet published.** npm `latest` is `0.11.0`.
-The instructions below use the local source build. **Breaking change:** `core`
-now exposes six tools; existing orchestration clients must choose an explicit
-profile. Document results add a required `extraction_source` field and nullable
-OCR metadata. [Migration and rollback instructions](./MIGRATION.md).
+[npm package](https://www.npmjs.com/package/mistral-mcp) · [1.0.0 release notes](./CHANGELOG-v1.0.0.md) · [GitHub releases](https://github.com/Swih/mistral-mcp/releases) · [Mistral API docs](https://docs.mistral.ai/api/)
+
+**Version 1.0.0 — breaking changes from 0.11.0:** `core` now exposes six tools;
+existing orchestration clients must choose an explicit profile. Document results
+require `extraction_source`, and `ocr_confidence` / `page_count` can be `null`.
+[Migration and rollback instructions](./MIGRATION.md).
+
+## Install in an MCP client
+
+Requires Node.js 20+, npm and a Mistral API key with access and quota for the
+requested model. For clients using `mcpServers` JSON, configure the stdio server:
+
+```json
+{
+  "mcpServers": {
+    "mistral": {
+      "command": "npx",
+      "args": ["-y", "mistral-mcp@1.0.0"],
+      "env": {
+        "MISTRAL_API_KEY": "your_key_here",
+        "MISTRAL_DEFAULT_MODEL": "ministral-3b-latest",
+        "MISTRAL_MCP_PROFILE": "core"
+      }
+    }
+  }
+}
+```
+
+This runs `npx -y mistral-mcp@1.0.0`. Restart the client and refresh its tool
+catalog. The server reads the environment supplied by the client; it does not
+load `.env` automatically. Use your client's secret configuration for the key.
+`ministral-3b-latest` was verified on the test account; model access and free
+quota depend on your account. Check your [limits](https://console.mistral.ai/limits)
+before making calls. Local MCP hosting still sends extraction requests to Mistral.
 
 ## Quick start: an existing text or Markdown invoice
 
-Requires Node.js 20+, npm, and a Mistral API key with chat access and quota.
-The text route needs no Files upload or OCR call. From a checkout of the source
-prerelease branch `codex/document-first-v1`, run at the repository root:
+The invoice script and fixtures are **source examples, not included in the npm
+package**. Check out the release tag and build from the repository root:
 
 ```bash
+git clone https://github.com/Swih/mistral-mcp.git
+cd mistral-mcp
+git checkout v1.0.0
 npm ci
 npm run build
 ```
@@ -33,9 +70,7 @@ MISTRAL_DEFAULT_MODEL=ministral-3b-latest
 ```
 
 The example loads `.env` with `dotenv`. Keep the key out of version control.
-`ministral-3b-latest` was verified for this walkthrough on the test account;
-choose a model with quota on your account. The default model may have no quota,
-and this override does not guarantee access or free usage on other accounts.
+Choose a chat model with quota on your account; the default may have zero quota.
 
 ```bash
 npm run example:invoice -- test/fixtures/invoice-text.md --output invoice-result.json
@@ -79,9 +114,9 @@ PDF, PNG, JPEG and WebP files up to 20 MiB require Files, OCR and chat access an
 quota. The script uploads the file, calls `process_document` and attempts to
 delete the upload in `finally`, including after extraction failure. There is no
 separate OCR readiness probe. Upload and cleanup use the Files API without
-exposing admin tools in `core`. **The known HTTP 429 / zero OCR quota blocker
-remains unresolved.** The text route avoids OCR but does not resolve that blocker
-or establish successful live OCR extraction for this prerelease.
+exposing admin tools in `core`. **Known limitation:** the test account's HTTP 429
+/ zero OCR quota blocked live OCR validation. The successful text run does not
+validate OCR extraction.
 
 Compare any extracted result against its source. The
 [synthetic PDF](./test/fixtures/corpus/invoice-fr-table.pdf) and
@@ -91,46 +126,13 @@ the shape and types of the response; it does not verify factual accuracy, invoic
 arithmetic, tax treatment or accounting correctness.** Review extracted fields
 against the source before using them.
 
-### Connect an MCP client to the source build
-
-Use the client's stdio server configuration. For clients using `mcpServers` JSON:
-
-```json
-{
-  "mcpServers": {
-    "mistral": {
-      "command": "node",
-      "args": ["/absolute/path/to/mistral-mcp/dist/index.js"],
-      "env": {
-        "MISTRAL_API_KEY": "your_key_here",
-        "MISTRAL_DEFAULT_MODEL": "ministral-3b-latest",
-        "MISTRAL_MCP_PROFILE": "core"
-      }
-    }
-  }
-}
-```
-
-Replace the path with your checkout's absolute path (forward slashes also work
-on Windows). The server itself reads its environment; the example's `.env` loader
-does not configure your MCP client.
-
-To use the **published `0.11.0` release**, with its previous profile definitions:
-
-```bash
-npx -y mistral-mcp@0.11.0
-```
-
-That command does not run this prerelease or provide the new local invoice
-example. Use the [migration guide](./MIGRATION.md) to pin an MCP configuration.
-
 ## Profiles
 
 `MISTRAL_MCP_PROFILE` selects one of five profiles. The default is `core` for
 Mistral Cloud; a custom `MISTRAL_BASE_URL` infers `self-hosted` unless you set a
 profile explicitly.
 
-| Profile | Tools | Scope in `1.0.0-rc.1` |
+| Profile | Tools | Scope in `1.0.0` |
 |---|---:|---|
 | `core` (default) | 6 | Documents, chat, vision, transcription and code completion |
 | `metier-docs` | 17 | Preserved legacy profile: the six core tools plus all 11 orchestration tools; a superset of the old 16-tool core |
@@ -143,7 +145,7 @@ profile explicitly.
 choose `workflows` for orchestration alone or `admin` for the complete tool set.
 Restart the server and refresh tool discovery after changing profiles.
 
-`node dist/index.js --doctor` reports the local profile and tool list without API
+`npx -y mistral-mcp@1.0.0 --doctor` reports the local profile and tool list without API
 calls. The `mistral://capabilities` resource reports the active endpoint, tool
 families and reasons for omitted tools. Neither proves account access or quota.
 
@@ -212,12 +214,6 @@ Every successful result includes these fields:
   Pipeline version `v1.0.0-text.1` invalidates reuse of older cache entries; it
   does not guarantee their immediate deletion.
 
-If you already use [Docling](https://github.com/docling-project/docling), it can
-serve as an optional upstream local converter that produces Markdown. Pass that
-Markdown as a text source. This repository provides no Docling integration,
-dependency or automatic fallback. Local conversion does not make subsequent
-chat classification or typed extraction local or free.
-
 The [synthetic corpus](./test/fixtures/corpus.json) separates required OCR text
 from expected extracted invoice fields. `npm run eval:docs` evaluates these
 separately through real API calls. Fixture truth is not a live accuracy result;
@@ -249,7 +245,7 @@ does not add missing APIs to a backend.
 | [Prompts](./src/prompts.ts) | Meeting minutes, email replies, commits, legal summaries, invoice reminders and code review |
 | [Deployment](./deploy/README.md) and [.env.example](./.env.example) | Docker, Compose, Kubernetes, custom endpoints, cache and HTTP settings |
 | [Public connector guide](./deploy/connector-public.md) | HTTPS deployment; public connector calls are not established as end-to-end validated here |
-| [Claude Code plugin](./claude-plugin/README.md) | Optional plugin with 11 skills; its exact RC npm pin requires publication and does not run the local checkout |
+| [Claude Code plugin](./claude-plugin/README.md) | Optional plugin with 11 skills, pinned to `mistral-mcp@1.0.0` |
 | [Contributing](./CONTRIBUTING.md) | Build, tests, evaluation and release checks |
 | [Changelog](./CHANGELOG.md) and [security policy](./SECURITY.md) | Changes and security reporting |
 
