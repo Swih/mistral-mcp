@@ -26,6 +26,7 @@ import { registerVisionTools } from "../../src/tools-vision.js";
 import { registerAudioTools } from "../../src/tools-audio.js";
 import { registerMistralResources } from "../../src/resources.js";
 import { registerWorkflowTools } from "../../src/tools-workflows.js";
+import { registerDocsTools } from "../../src/tools-docs.js";
 
 function makeMock(): Mistral {
   return {
@@ -155,11 +156,14 @@ async function bootSurface(profile: MistralProfile) {
   registerFunctionTools(server, mock, profile);
   registerVisionTools(server, mock, profile);
   registerAudioTools(server, mock, profile);
+  if (isEnabled("documents", profile)) registerDocsTools(server, mock);
   const client = new Client({ name: "c", version: "0.0.0" });
   const [st, ct] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(st), client.connect(ct)]);
-  const { tools } = await client.listTools();
-  return tools.map((t) => t.name).sort();
+  try {
+    const { tools } = await client.listTools();
+    return tools.map((t) => t.name).sort();
+  } finally { await client.close(); }
 }
 
 describe("registered surface matches the table", () => {
@@ -205,12 +209,13 @@ describe("registered surface matches the table", () => {
     ]);
   });
 
-  it("core keeps its lean generation surface", async () => {
+  it("core exposes documents and five everyday tools", async () => {
     expect(await bootSurface("core")).toEqual([
       "codestral_fim",
       "mistral_chat",
       "mistral_ocr",
       "mistral_vision",
+      "process_document",
       "voxtral_transcribe",
     ]);
   });

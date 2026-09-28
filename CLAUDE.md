@@ -1,7 +1,9 @@
 # CLAUDE.md — mistral-mcp
 
 > Instructions de travail pour Claude (Opus 4.7) sur ce repo.
-> Objectif : produire un MCP server Mistral **feature-complete** et **spec-compliant** qui peut dormir 6–12 mois sans régression.
+> Objectif : un serveur MCP centré sur les documents, avec un profil `core` de six outils et une couverture avancée explicite. La compatibilité est testée ; la disponibilité de l'API Mistral n'est pas garantie par ce dépôt.
+
+Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les validations et [MIGRATION.md](MIGRATION.md) pour la version candidate 1.0.0-rc.1.
 
 ---
 

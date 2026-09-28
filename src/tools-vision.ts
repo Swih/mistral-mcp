@@ -188,18 +188,18 @@ export const OcrOutputSchema = z.object(OcrOutputShape);
 
 const OcrDocumentSchema = z.union([
   z.object({
-    type: z.literal("document_url"),
+    type: z.literal("document_url").describe("Read the document from documentUrl."),
     documentUrl: z.string().describe("HTTPS URL to a PDF or image."),
-    documentName: z.string().optional(),
+    documentName: z.string().optional().describe("Filename of the referenced document."),
   }),
   z.object({
-    type: z.literal("image_url"),
+    type: z.literal("image_url").describe("Read the image from the URL or data URI in imageUrl."),
     imageUrl: z
       .string()
       .describe("HTTPS URL or data:image/...;base64,... payload."),
   }),
   z.object({
-    type: z.literal("file"),
+    type: z.literal("file").describe("Read a previously uploaded file identified by fileId."),
     fileId: z
       .string()
       .describe("ID of a file previously uploaded via the Files API."),
@@ -320,22 +320,43 @@ export function registerVisionTools(
         "`images` bounding boxes, `blocks`, annotations, confidence scores, and `dimensions`.",
       ].join("\n"),
       inputSchema: z.object({
-              document: OcrDocumentSchema,
+              document: OcrDocumentSchema.describe(
+                "Document to process, supplied as a document URL, an image URL or data URI, or an uploaded file ID."
+              ),
               model: OcrModelSchema.optional().describe(
                 `OCR model. Default: ${DEFAULT_OCR_MODEL}.`
               ),
               pages: z
                 .union([z.string(), z.array(z.number().int().nonnegative())])
-                .optional(),
-              tableFormat: z.enum(["markdown", "html"]).optional(),
-              extractHeader: z.boolean().optional(),
-              extractFooter: z.boolean().optional(),
-              includeImageBase64: z.boolean().optional(),
-              imageLimit: z.number().int().positive().optional(),
-              imageMinSize: z.number().int().positive().optional(),
-              bbox_annotation_format: JsonSchemaResponseFormatSchema.optional(),
-              document_annotation_format: JsonSchemaResponseFormatSchema.optional(),
-              document_annotation_prompt: z.string().optional(),
+                .optional()
+                .describe('Zero-based page numbers to process, as an array or comma-separated numbers and ranges such as "0-5,7".'),
+              tableFormat: z.enum(["markdown", "html"]).optional().describe(
+                "Format for extracted tables: Markdown or HTML."
+              ),
+              extractHeader: z.boolean().optional().describe(
+                "Extract each page header into its header field and remove it from the page markdown."
+              ),
+              extractFooter: z.boolean().optional().describe(
+                "Extract each page footer into its footer field and remove it from the page markdown."
+              ),
+              includeImageBase64: z.boolean().optional().describe(
+                "Include base64-encoded data for extracted images in the response."
+              ),
+              imageLimit: z.number().int().positive().optional().describe(
+                "Maximum number of images to extract from the document."
+              ),
+              imageMinSize: z.number().int().positive().optional().describe(
+                "Minimum height and width of an image to extract."
+              ),
+              bbox_annotation_format: JsonSchemaResponseFormatSchema.optional().describe(
+                "JSON Schema for structured annotations of each extracted bounding box or image."
+              ),
+              document_annotation_format: JsonSchemaResponseFormatSchema.optional().describe(
+                "JSON Schema for a structured annotation extracted from the entire document."
+              ),
+              document_annotation_prompt: z.string().optional().describe(
+                "Instructions for whole-document structured extraction. Requires document_annotation_format."
+              ),
               confidence_scores_granularity: z
                 .enum(["page", "word", "block"])
                 .optional()

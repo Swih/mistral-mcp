@@ -52,7 +52,7 @@ import {
  * server identity and the boot log can never disagree — they already drifted
  * twice (see "fix(release): align runtime log version to 0.7.0").
  */
-const SERVER_VERSION = "0.11.0";
+const SERVER_VERSION = "1.0.0-rc.1";
 
 let runtime: RuntimeConfig;
 try {

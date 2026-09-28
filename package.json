@@ -1,8 +1,8 @@
 {
   "name": "mistral-mcp",
-  "version": "0.11.0",
+  "version": "1.0.0-rc.1",
   "mcpName": "io.github.Swih/mistral-mcp",
-  "description": "Mistral capabilities through MCP: chat, documents, audio, code, agents and workflows, with structured results and self-hosted endpoint support.",
+  "description": "Document processing with Mistral through MCP: OCR, typed extraction, audio and a six-tool default profile.",
   "type": "module",
   "bin": {
     "mistral-mcp": "dist/index.js"
@@ -13,7 +13,8 @@
     "README.md",
     "README.fr.md",
     "LICENSE",
-    "SECURITY.md"
+    "SECURITY.md",
+    "MIGRATION.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -31,7 +32,8 @@
     "test:watch": "vitest",
     "prepublishOnly": "npm run check:release",
     "test:package": "node scripts/test-package.mjs",
-    "check:release": "npm run lint && npm run build && npm run test:unit && npm run test:contract && npm run test:stdio && npm run test:package"
+    "check:release": "npm run lint && npm run build && npm run test:unit && npm run test:contract && npm run test:stdio && npm run test:package",
+    "example:invoice": "node examples/invoice.mjs"
   },
   "keywords": [
     "mcp",

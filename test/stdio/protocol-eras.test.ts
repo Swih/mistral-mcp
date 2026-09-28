@@ -34,6 +34,7 @@ function cleanEnv(): Record<string, string> {
   const env = { ...(process.env as Record<string, string>) };
   delete env.MISTRAL_BASE_URL;
   delete env.MISTRAL_MCP_PROFILE;
+  delete env.MISTRAL_API_KEY;
   return env;
 }
 
@@ -47,6 +48,8 @@ describe.skipIf(!DIST_EXISTS)("protocol eras served from one registration", () =
       const { tools } = await client.listTools();
       expect(tools.length).toBeGreaterThan(0);
       expect(tools.map((t) => t.name)).toContain("mistral_chat");
+      expect(tools.map((t) => t.name)).toContain("process_document");
+      expect(tools).toHaveLength(6);
 
       // The 2025-era surface must keep everything it had: a tool without
       // annotations or an outputSchema is a regression for those clients.

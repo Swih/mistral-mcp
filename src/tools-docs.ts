@@ -1,5 +1,5 @@
 /**
- * v0.8 tools — documents vertical.
+ * Document pipeline shared by the default and advanced profiles.
  *
  * `process_document` is a macro-tool that chains OCR + kind-specific structured
  * extraction in one call. Replaces the typical mistral_ocr → mistral_chat →
@@ -35,17 +35,17 @@ import { errorResult, toTextBlock } from "./shared.js";
 
 // ---------- pipeline version (bump on breaking schema/prompt changes) ----------
 
-const PIPELINE_VERSION = "v0.11.0";
+const PIPELINE_VERSION = "v1.0.0";
 
 // ---------- input schema ----------
 
 const DocumentSourceSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("url"),
+    type: z.literal("url").describe("Fetch a document from a provider-accessible URL."),
     url: z.string().url().describe("HTTPS URL to a PDF or image."),
   }),
   z.object({
-    type: z.literal("image_base64"),
+    type: z.literal("image_base64").describe("Send inline image bytes; PDFs must use file_id or url."),
     data: z
       .string()
       .describe("Base64-encoded image bytes (no data: prefix). For PDFs, upload via the Files API and use type:file_id instead."),
@@ -55,7 +55,7 @@ const DocumentSourceSchema = z.discriminatedUnion("type", [
       .describe("e.g. image/png, image/jpeg."),
   }),
   z.object({
-    type: z.literal("file_id"),
+    type: z.literal("file_id").describe("Use an existing Mistral Files API upload."),
     fileId: z.string().describe("ID of a file previously uploaded via files_upload."),
   }),
 ]);
@@ -69,12 +69,12 @@ const DocumentKindSchema = z.enum([
 ]);
 
 export const ProcessDocumentInputShape = {
-  source: DocumentSourceSchema,
-  kind: DocumentKindSchema.default("auto"),
+  source: DocumentSourceSchema.describe("Document location: remote URL, uploaded file ID, or inline image."),
+  kind: DocumentKindSchema.default("auto").describe("Extraction task. auto classifies the document; generic returns OCR text without typed extraction."),
   options: z
     .object({
-      languageHints: z.array(z.string().length(2)).optional(),
-      maxPages: z.number().int().positive().max(200).optional().default(50),
+      languageHints: z.array(z.string().regex(/^[a-z]{2}$/i)).optional().describe("Optional two-letter language hints for typed extraction; they do not select an OCR model."),
+      maxPages: z.number().int().positive().max(200).optional().default(50).describe("Maximum number of pages to send to OCR, from the start of the document. The result covers only this selection."),
       minOcrConfidence: z
         .number()
         .min(0)
@@ -97,7 +97,8 @@ export const ProcessDocumentInputShape = {
     .optional()
     // prefault, not default: zod 4 applies default() to the *output* type, so
     // `{}` would no longer flow through the inner field defaults.
-    .prefault({}),
+    .prefault({})
+    .describe("Page selection, OCR confidence floor and local cache policy."),
 };
 
 type ProcessDocumentInput = {
@@ -195,32 +196,26 @@ export const ProcessDocumentOutputSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const ProcessDocumentOutputShape = {
-  kind: z.enum(["contract", "invoice", "id_document", "generic"]),
-  source_id: z.string(),
-  ocr_text: z.string(),
-  ocr_confidence: z.number(),
-  page_count: z.number().int(),
-  total_duration_ms: z.number().int(),
-  cache_hit: z.boolean(),
-  pipeline_version: z.string(),
-  // Optional kind-specific fields (validated via union at runtime)
-  parties: z.array(z.unknown()).optional(),
-  clauses: z.array(z.unknown()).optional(),
-  risk_score: z.number().nullable().optional(),
-  key_dates: z.array(z.unknown()).optional(),
-  summary: z.string().nullable().optional(),
-  vendor: z.unknown().optional(),
-  total: z.number().nullable().optional(),
-  currency: z.string().nullable().optional(),
-  line_items: z.array(z.unknown()).optional(),
-  due_date: z.string().nullable().optional(),
-  anomalies: z.array(z.string()).optional(),
-  document_type: z.string().optional(),
-  name: z.string().optional(),
-  dob: z.string().nullable().optional(),
-  expiry: z.string().nullable().optional(),
-  country: z.string().nullable().optional(),
-  structured_text: z.string().optional(),
+  ...CommonShape,
+  // Keep an object root for legacy clients while exposing the actual nested
+  // types. The union additionally enforces which fields each kind requires.
+  parties: ContractPayloadSchema.shape.parties.optional(),
+  clauses: ContractPayloadSchema.shape.clauses.optional(),
+  risk_score: ContractPayloadSchema.shape.risk_score.optional(),
+  key_dates: ContractPayloadSchema.shape.key_dates.optional(),
+  summary: ContractPayloadSchema.shape.summary.optional(),
+  vendor: InvoicePayloadSchema.shape.vendor.optional(),
+  total: InvoicePayloadSchema.shape.total.optional(),
+  currency: InvoicePayloadSchema.shape.currency.optional(),
+  line_items: InvoicePayloadSchema.shape.line_items.optional(),
+  due_date: InvoicePayloadSchema.shape.due_date.optional(),
+  anomalies: InvoicePayloadSchema.shape.anomalies.optional(),
+  document_type: IdDocPayloadSchema.shape.document_type.optional(),
+  name: IdDocPayloadSchema.shape.name.optional(),
+  dob: IdDocPayloadSchema.shape.dob.optional(),
+  expiry: IdDocPayloadSchema.shape.expiry.optional(),
+  country: IdDocPayloadSchema.shape.country.optional(),
+  structured_text: GenericPayloadSchema.shape.structured_text.optional(),
 };
 
 // ---------- built-in JSON schemas for response_format (one per typed kind) ----------
@@ -462,10 +457,10 @@ function sourceHash(src: ProcessDocumentInput["source"]): string {
   return h.digest("hex");
 }
 
-function cacheKey(src: ProcessDocumentInput["source"], kind: string, maxPages: number): string {
+function cacheKey(src: ProcessDocumentInput["source"], kind: string, maxPages: number, languageHints?: string[]): string {
   const id = sourceHash(src);
   const config = createHash("sha256").update(JSON.stringify({
-    maxPages, ocr: DEFAULT_OCR_MODEL, extraction: defaultChatModel(),
+    maxPages, languageHints, ocr: DEFAULT_OCR_MODEL, extraction: defaultChatModel(),
     classification: pickModelForClassification(), endpoint: process.env.MISTRAL_BASE_URL ?? "https://api.mistral.ai",
   })).digest("hex");
   return `${id}.${kind}.${config}.${PIPELINE_VERSION}.json`;
@@ -653,8 +648,14 @@ async function classifyKind(
 async function extractTyped(
   mistral: Mistral,
   kind: "contract" | "invoice" | "id_document",
-  ocrText: string
+  ocrText: string,
+  languageHints?: string[]
 ): Promise<Record<string, unknown>> {
+  // A partial invoice can still produce valid JSON with incorrect totals.
+  // Reject beyond the supported extraction size instead of silently slicing it.
+  if (ocrText.length > 60_000) {
+    throw new Error("Document exceeds the 60000-character extraction limit. Split it into smaller documents or use kind=generic for OCR text.");
+  }
   const schema =
     kind === "contract"
       ? CONTRACT_JSON_SCHEMA
@@ -664,15 +665,20 @@ async function extractTyped(
   const res = await mistral.chat.complete({
     model: pickModelForExtraction(),
     messages: [
-      { role: "system", content: EXTRACTION_PROMPTS[kind] },
-      { role: "user", content: ocrText.slice(0, 60_000) },
+      { role: "system", content: EXTRACTION_PROMPTS[kind] + (languageHints?.length ? `\nDocument language hints: ${languageHints.join(", ")}.` : "") },
+      { role: "user", content: ocrText },
     ],
     responseFormat: { type: "json_schema", jsonSchema: schema } as never,
     temperature: 0,
   });
   const raw = res.choices?.[0]?.message?.content;
   const text = typeof raw === "string" ? raw : Array.isArray(raw) ? raw.map((c) => ("text" in c ? c.text : "")).join("") : "";
-  return JSON.parse(text);
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); }
+  catch { throw new Error("Extraction returned invalid JSON. No document content is included in this error."); }
+  const object = z.record(z.string(), z.unknown()).safeParse(parsed);
+  if (!object.success) throw new Error("Extraction must return a JSON object.");
+  return object.data;
 }
 
 // ---------- registration ----------
@@ -688,6 +694,8 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         "",
         "Kinds: contract | invoice | id_document | generic. Use kind=auto to let the server classify.",
         "Returns a discriminated union — switch on `kind` to access typed fields.",
+        "Validation checks schema and OCR confidence, not factual or accounting accuracy.",
+        "Typed extraction rejects text longer than 60000 characters rather than truncating it.",
         "",
         "Cache keys include source, kind, page limit, endpoint, models and pipeline version.",
         "Override location with MISTRAL_MCP_CACHE_DIR. Override mode with options.cache.",
@@ -730,7 +738,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         // 1. cache check (we cache final payload by source+kind)
         const sourceId = sourceHash(source);
         const cacheLookupKind = requestedKind === "auto" ? "auto" : requestedKind;
-        const key = cacheKey(source, cacheLookupKind, maxPages);
+        const key = cacheKey(source, cacheLookupKind, maxPages, opts.languageHints);
         if (cacheModeInitial !== "bypass") {
           const parsedCache = ProcessDocumentOutputSchema.safeParse(readCache(key));
           const cached = parsedCache.success ? parsedCache.data : undefined;
@@ -775,14 +783,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         // 4. Typed extraction (skip for generic)
         let typed: Record<string, unknown> = {};
         if (kind !== "generic") {
-          try {
-            typed = await extractTyped(mistral, kind, ocr.text);
-          } catch (err) {
-            return errorResult(
-              "process_document",
-              `Typed extraction failed for kind=${kind}: ${err instanceof Error ? err.message : String(err)}`
-            );
-          }
+          typed = await extractTyped(mistral, kind, ocr.text, opts.languageHints);
         }
 
         // 5. Compose payload
@@ -799,7 +800,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
         const payload =
           kind === "generic"
             ? { ...common, structured_text: ocr.text }
-            : { ...common, ...typed };
+            : { ...typed, ...common };
 
         // 6. Validate via discriminated union
         const validated = ProcessDocumentOutputSchema.safeParse(payload);
@@ -819,7 +820,7 @@ export function registerDocsTools(server: McpServer, mistral: Mistral) {
             : cacheModeInitial;
 
         if (cacheMode === "read_write") {
-          writeCache(cacheKey(source, kind, maxPages), validated.data);
+          writeCache(cacheKey(source, kind, maxPages, opts.languageHints), validated.data);
           if (requestedKind === "auto") writeCache(key, validated.data);
         }
 

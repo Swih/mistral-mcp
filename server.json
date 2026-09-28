@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Swih/mistral-mcp",
-  "description": "Mistral chat, OCR, audio, code, agents and workflows via MCP, with self-hosted endpoint support.",
+  "description": "Mistral document processing via MCP: OCR, typed extraction, audio and optional advanced tools.",
   "repository": {
     "url": "https://github.com/Swih/mistral-mcp",
     "source": "github"
   },
-  "version": "0.11.0",
+  "version": "1.0.0-rc.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "mistral-mcp",
-      "version": "0.11.0",
+      "version": "1.0.0-rc.1",
       "transport": {
         "type": "stdio"
       },

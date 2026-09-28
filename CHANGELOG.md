@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The source version is `1.0.0-rc.1`; npm `latest` remains `0.11.0` until a separate release.
+
+### Changed
+
+- **Breaking:** the default `core` profile now exposes six tools: `process_document`,
+  `mistral_ocr`, `mistral_chat`, `mistral_vision`, `codestral_fim` and `voxtral_transcribe`.
+  Workflows, connectors and RAG index discovery require an explicit profile.
+  `metier-docs` preserves its 17-tool surface, including every former core tool;
+  `workflows` and `admin` remain unchanged. See [MIGRATION.md](MIGRATION.md).
+- Document processing is the primary README walkthrough, with a local invoice
+  example and explicit separation between schema validation and extraction accuracy.
+- The evaluation harness checks synthetic invoice field values separately from
+  OCR text retention. Reports identify checks that have not been measured.
+
+### Added
+
+- `npm run example:invoice -- <file> [--output result.json]` uploads one local
+  document, extracts a typed invoice through MCP, bypasses the document cache and
+  attempts to delete the uploaded file on success or failure. Existing output
+  files are not overwritten.
+- Built-binary tests for all five profiles, default-profile migration and
+  capability/resource consistency. Document contract tests cover all four kinds.
+
+### Fixed
+
+- Document output schemas expose nested invoice, contract and identity fields
+  rather than untyped JSON. Generated fields cannot overwrite OCR provenance.
+- Typed extraction rejects text beyond its 60,000-character limit instead of
+  silently dropping the rest. `kind=generic` remains available for OCR text.
+- Language hints are described, applied during extraction and included in cache
+  identity. Core input parameters now include usage descriptions.
+- API errors distinguish authentication, quota and provider failures without
+  copying provider HTTP bodies into tool results.
+
+### Known limitations
+
+- Live OCR and document accuracy remain unverified for this candidate while the
+  CI account's effective OCR request quota is zero. No paid plan was activated.
+  Offline checks do not establish provider availability or extraction accuracy.
+
 ## [0.11.0] - 2026-09-28
 
 ### Known limitations

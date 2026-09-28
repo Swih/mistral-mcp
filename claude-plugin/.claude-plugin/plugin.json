@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "mistral-mcp",
-  "version": "0.11.0",
-  "description": "Mistral AI capabilities for Claude Code: chat, OCR, vision, audio (Voxtral), Codestral FIM, agents, and curated French workflows. Auto-installs the mistral-mcp server from npm.",
+  "version": "1.0.0-rc.1",
+  "description": "Document processing with Mistral: OCR, typed extraction, transcription and 11 skills. Advanced orchestration requires an explicit profile.",
   "author": {
     "name": "Dayan Decamp",
     "email": "akaswitsh@gmail.com",

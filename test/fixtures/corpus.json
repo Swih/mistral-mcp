@@ -29,6 +29,22 @@
         "BetaCorp",
         "TVA"
       ],
+      "expected_fields": {
+        "vendor.name": "ACME SAS",
+        "total": 12960,
+        "currency": "EUR",
+        "due_date": "2026-09-11",
+        "line_items.length": 3,
+        "line_items.0.qty": 12,
+        "line_items.0.unit_price": 650,
+        "line_items.0.amount": 7800,
+        "line_items.1.qty": 1,
+        "line_items.1.unit_price": 1200,
+        "line_items.1.amount": 1200,
+        "line_items.2.qty": 2,
+        "line_items.2.unit_price": 900,
+        "line_items.2.amount": 1800
+      },
       "notes": "Ruled line-item table. OCR either reconstructs the columns or smears them."
     },
     {
@@ -42,6 +58,19 @@
         "Northwind",
         "2,897.00"
       ],
+      "expected_fields": {
+        "vendor.name": "Northwind Logistics Ltd",
+        "total": 2897,
+        "currency": "GBP",
+        "due_date": "2026-09-02",
+        "line_items.length": 2,
+        "line_items.0.qty": 38.5,
+        "line_items.0.unit_price": 62,
+        "line_items.0.amount": 2387,
+        "line_items.1.qty": 6,
+        "line_items.1.unit_price": 85,
+        "line_items.1.amount": 510
+      },
       "notes": "English invoice, side-by-side address blocks. Tests reading order and non-EUR currency."
     },
     {

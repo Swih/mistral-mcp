@@ -155,7 +155,7 @@ describe("process_document — generic kind happy path", () => {
       const sc = res.structuredContent as Record<string, unknown>;
       expect(sc.kind).toBe("generic");
       expect(sc.cache_hit).toBe(false);
-      expect(sc.pipeline_version).toBe("v0.11.0");
+      expect(sc.pipeline_version).toBe("v1.0.0");
       expect(typeof sc.ocr_text).toBe("string");
       expect(sc.page_count).toBe(1);
       // discriminated union validation
