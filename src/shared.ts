@@ -146,6 +146,59 @@ function isOcrFileNotReady(err: object): boolean {
   }
 }
 
+function parsedBody(err: object): Record<string, unknown> | undefined {
+  if (!("body" in err) || typeof err.body !== "string") return undefined;
+  try {
+    const parsed: unknown = JSON.parse(err.body);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Provider messages can quote request content, so they are matched against
+// known states and never forwarded.
+function providerSays(body: Record<string, unknown> | undefined, pattern: RegExp): boolean {
+  const message = body?.message;
+  return typeof message === "string" && pattern.test(message);
+}
+
+function hasErrorCode(body: Record<string, unknown> | undefined, code: string): boolean {
+  return body?.type === code || body?.code === code || providerSays(body, new RegExp(`\\b${code}\\b`));
+}
+
+const SAFE_FIELD_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
+const SAFE_ERROR_TYPE = /^[a-z][a-z0-9_]{0,63}$/;
+
+/**
+ * Field paths and error types from a validation response. `input` and `msg`
+ * are dropped: the former echoes the request, the latter can interpolate it.
+ */
+function invalidFields(body: Record<string, unknown> | undefined): string[] {
+  const message = body?.message;
+  const detail = typeof message === "object" && message !== null && "detail" in message
+    ? (message as { detail: unknown }).detail
+    : body?.detail;
+  if (!Array.isArray(detail)) return [];
+  const fields: string[] = [];
+  for (const item of detail) {
+    if (typeof item !== "object" || item === null) continue;
+    const { loc, type } = item as { loc?: unknown; type?: unknown };
+    if (!Array.isArray(loc) || typeof type !== "string" || !SAFE_ERROR_TYPE.test(type)) continue;
+    const segments = loc.map(String);
+    if (segments[0] === "body") segments.shift();
+    if (!segments.length || !segments.every((s) => SAFE_FIELD_SEGMENT.test(s))) continue;
+    fields.push(`${segments.join(".")} (${type})`);
+    if (fields.length === 5) break;
+  }
+  return fields;
+}
+
+const FREE_PLAN_NOTE =
+  "On the Mistral free plan, model capacity is not guaranteed and paid access is prioritized.";
+
 function apiErrorMessage(err: unknown): string | undefined {
   if (!err || typeof err !== "object") return undefined;
   const rawResponse = "rawResponse" in err ? err.rawResponse : undefined;
@@ -160,14 +213,28 @@ function apiErrorMessage(err: unknown): string | undefined {
   if (status === undefined && !("statusCode" in err) && !("rawResponse" in err) && !("body" in err)) {
     return undefined;
   }
+  const body = parsedBody(err);
+  if (status === 401 && providerSays(body, /no credentials found/i)) {
+    return "Connector not authenticated (HTTP 401). Authenticate this connector in the Mistral console; MISTRAL_API_KEY itself was accepted.";
+  }
   if (status === 401) {
     return "Authentication failed (HTTP 401). Check MISTRAL_API_KEY and the configured API endpoint.";
+  }
+  if (status === 403 && hasErrorCode(body, "tier_not_allowed")) {
+    return "Model not available on the Mistral free plan (HTTP 403 tier_not_allowed). Choose another model or enable pay-as-you-go access.";
   }
   if (status === 403) {
     return "Access denied (HTTP 403). Check the API key's permissions and account access to the requested model or endpoint.";
   }
+  if (status === 404 && providerSays(body, /no active deployment/i)) {
+    return "No active deployment for this workflow (HTTP 404). Call workflow_deployments_list to find a runnable deployment, or start one in Mistral.";
+  }
   if (status === 422 && isOcrFileNotReady(err)) {
     return "OCR file not ready (HTTP 422). Wait briefly, then retry with the same file ID using a bounded number of attempts. If it persists, verify that the uploaded file is available.";
+  }
+  const fields = status === 400 || status === 422 ? invalidFields(body) : [];
+  if (fields.length) {
+    return `Invalid request (HTTP ${status}): ${fields.join("; ")}. Correct these fields and retry.`;
   }
   if (status === 429) {
     let zeroLimit = false;
@@ -178,9 +245,9 @@ function apiErrorMessage(err: unknown): string | undefined {
       }
     });
     if (zeroLimit) {
-      return "API quota limit is zero (HTTP 429). Check the account's configured limits and access to the requested model before retrying; waiting alone may not resolve this.";
+      return `API quota limit is zero (HTTP 429). Check the account's configured limits and access to the requested model before retrying; waiting alone may not resolve this. ${FREE_PLAN_NOTE}`;
     }
-    return `Rate limit exceeded (HTTP 429). ${retryAfterAdvice(headers)} Reduce request frequency or size; if this persists, check account quota and limits.`;
+    return `Rate limit exceeded (HTTP 429). ${retryAfterAdvice(headers)} Reduce request frequency or size; if this persists, check account quota and limits. ${FREE_PLAN_NOTE}`;
   }
   if (status !== undefined && status >= 500 && status <= 599) {
     return `API server error (HTTP ${status}). ${retryAfterAdvice(headers)} If it persists, check the provider's service status or the configured endpoint.`;

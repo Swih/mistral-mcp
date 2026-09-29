@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- API errors again name known provider states instead of a generic failure,
+  without forwarding provider text: an unauthenticated connector (401) is no
+  longer reported as a rejected `MISTRAL_API_KEY`, a workflow without an active
+  deployment (404) points to `workflow_deployments_list`, and a model outside the
+  free plan (403 `tier_not_allowed`) is named as such. Found by the scheduled live
+  run after 1.0.0.
+- Validation errors (400/422) list the invalid field paths and error types so
+  the calling model can correct them; submitted values and messages are omitted.
+- Throttling messages state Mistral's free-plan policy: capacity is not
+  guaranteed and paid access is prioritized.
+
 ## [1.0.0] - 2026-09-28
 
 ### Changed

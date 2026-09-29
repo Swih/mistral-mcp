@@ -116,6 +116,54 @@ describe("actionable API errors", () => {
   });
 });
 
+describe("known provider states", () => {
+  it("tells a connector 401 apart from a rejected API key", () => {
+    const text = message(apiError(401, {}, JSON.stringify({
+      message: `No credentials found for connector. Please authenticate. ${PRIVATE_INPUT}`,
+    })));
+    expect(text).toContain("Connector not authenticated (HTTP 401)");
+    expect(text).toMatch(/authenticate/i);
+    expect(text).not.toContain(PRIVATE_INPUT);
+  });
+
+  it("names a model that the free plan does not serve", () => {
+    for (const body of [{ type: "tier_not_allowed" }, { code: "tier_not_allowed" }, { message: "tier_not_allowed" }]) {
+      const text = message(apiError(403, {}, JSON.stringify({ ...body, prompt: PRIVATE_INPUT })));
+      expect(text).toContain("free plan (HTTP 403 tier_not_allowed)");
+      expect(text).not.toContain(PRIVATE_INPUT);
+    }
+  });
+
+  it("points a workflow 404 to deployment discovery", () => {
+    const text = message(apiError(404, {}, JSON.stringify({
+      message: `No active deployment found for ${PRIVATE_INPUT}`,
+    })));
+    expect(text).toContain("No active deployment for this workflow (HTTP 404)");
+    expect(text).toContain("workflow_deployments_list");
+    expect(text).not.toContain(PRIVATE_INPUT);
+  });
+
+  it.each([400, 422])("lists invalid field paths without echoing input or messages (HTTP %s)", (status) => {
+    const text = message(apiError(status, {}, JSON.stringify({
+      object: "error",
+      message: { detail: [
+        { type: "extra_forbidden", loc: ["body", "response_format", "json_schema", "strict"], msg: `bad ${PRIVATE_INPUT}`, input: PRIVATE_INPUT },
+        { type: "missing", loc: ["body", "messages", 0, "content"], msg: "Field required", input: { api_key: SECRET } },
+        { type: "value_error", loc: ["body", PRIVATE_INPUT], msg: "x", input: "x" },
+      ] },
+      type: "invalid_request_error",
+    })));
+    expect(text).toBe(
+      `[mistral-mcp:mistral_chat] Invalid request (HTTP ${status}): response_format.json_schema.strict (extra_forbidden); ` +
+      "messages.0.content (missing). Correct these fields and retry."
+    );
+  });
+
+  it("notes the free-plan capacity policy on throttling", () => {
+    expect(message(apiError(429))).toContain("capacity is not guaranteed");
+  });
+});
+
 describe("OCR file readiness errors", () => {
   it.each([
     { type: "invalid_file", code: "1901", message: "Could not get file." },
