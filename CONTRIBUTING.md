@@ -19,6 +19,9 @@ test uses a local HTTP stub; it still needs npm registry access for dependencies
 
 `npm run test:live` and `npm run eval:docs` make real provider calls and need an
 API key and available quota. A skipped or blocked test is not evidence of success.
+The scheduled workflow isolates OCR: `scripts/classify-ocr.mjs` turns a Mistral
+free-plan capacity refusal into a "Live OCR not validated" warning, and fails
+on anything else.
 Never enable billing as part of a test setup without the account owner's approval.
 
 ## Changes

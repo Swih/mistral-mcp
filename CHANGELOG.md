@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Throttling messages state Mistral's free-plan policy: capacity is not
   guaranteed and paid access is prioritized.
 
+### Changed
+
+- The scheduled live workflow runs OCR tests in a separate step. A Mistral
+  free-plan capacity refusal (HTTP 429 `rate_limited`, zero quota or 403
+  `tier_not_allowed`) is reported as "Live OCR not validated" in the run
+  summary instead of failing the job; any other OCR failure, or a run where
+  every OCR test was skipped, still fails it. Live OCR remains unvalidated
+  while Mistral does not serve it to the CI account.
+
 ## [1.0.0] - 2026-09-28
 
 ### Changed
